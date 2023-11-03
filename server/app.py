@@ -20,7 +20,7 @@ def test_endpoint():
 
 @app.route('/api/crypto')
 def crypto_endpoint():
-    return "Crypto endpoint methods: /book, /exchanges"
+    return "Available crypto endpoint methods: /book, /exchanges"
 
 
 @app.route('/api/crypto/book', methods=['GET'])
