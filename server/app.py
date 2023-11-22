@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from datetime import datetime
 import requests
 
 app = Flask(__name__)
@@ -46,7 +47,35 @@ def get_exchanges():
     else:
         print(f"Failed to fetch exchange names. Status code: {response.status_code}")
         return None
+    
+@app.route('/api/stock', methods=['GET'])
+def get_stock_data():
+    # Get parameters from the request
+    stock_ticker = request.args.get('stock_ticker')
+    start_datetime_str = request.args.get('start')
+    end_datetime_str = request.args.get('end')
 
+    # Validate parameters
+    if not all([stock_ticker, start_datetime_str, end_datetime_str]):
+        return jsonify({'error': 'Missing required parameters'}), 400
+
+    try:
+        # Parse datetime strings
+        start_datetime = datetime.strptime(start_datetime_str, '%m/%d/%Y %H:%M:%S')
+        end_datetime = datetime.strptime(end_datetime_str, '%m/%d/%Y %H:%M:%S')
+    except ValueError:
+        return jsonify({'error': 'Invalid datetime format'}), 400
+
+    # Call Polygon API to get stock data
+    polygon_url = f'https://api.polygon.io/v2/aggs/ticker/{stock_ticker}/range/1/minute/{start_datetime.timestamp()*1000}/{end_datetime.timestamp()*1000}?apiKey={API_KEY}'
+    
+    try:
+        response = requests.get(polygon_url)
+        response.raise_for_status()
+        stock_data = response.json()
+        return jsonify(stock_data)
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': f'Polygon API request failed: {str(e)}'}), 400
 
 if __name__ == '__main__':
     app.run()
