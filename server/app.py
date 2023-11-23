@@ -1,5 +1,8 @@
 from flask import Flask, request, jsonify
 import requests
+from arb.arb import find_arbitrage_opportunity
+from arb.arb import get_data
+
 
 app = Flask(__name__)
 
@@ -25,7 +28,8 @@ def crypto_endpoint():
 
 @app.route('/api/crypto/book', methods=['GET'])
 def get_book_data():
-    url_data = f'https://api.polygon.io/v2/snapshot/locale/global/markets/crypto/tickers/X:BTCUSD/book?apiKey={API_KEY}'
+    symbol = request.args.get('symbol')
+    url_data = f'https://api.polygon.io/v2/snapshot/locale/global/markets/crypto/tickers/X:{symbol}USD/book?apiKey={API_KEY}'
     response = requests.get(url_data)
     if response.status_code == 200:
         data = response.json()
@@ -46,6 +50,13 @@ def get_exchanges():
     else:
         print(f"Failed to fetch exchange names. Status code: {response.status_code}")
         return None
+
+
+@app.route('/api/crypto/arb', methods=['GET'])
+def find_arbitrage():
+    symbol = request.args.get('symbol')
+    response = find_arbitrage_opportunity(get_data(symbol))
+    return response
 
 
 if __name__ == '__main__':
