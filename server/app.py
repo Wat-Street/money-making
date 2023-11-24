@@ -3,7 +3,7 @@ import requests
 from datetime import datetime
 from arb.arb import find_arbitrage_opportunity
 from arb.arb import get_data
-from arb.simulate import simulate_crypto, get_prices
+from utils.simulate import simulate_crypto, get_prices
 
 
 app = Flask(__name__)
