@@ -48,7 +48,7 @@ def simulate(initial_capital: int, transactions: [], prices: []) -> {}:
     
     if(quantity_bought > 0):
         # sell everything at the end
-        final_price = transactions[-1]['end_time']
+        final_price = transactions[-1]['c']
         max_profit += quantity_bought * (final_price - buy_price)
     return {
         'profits': max_profit,
