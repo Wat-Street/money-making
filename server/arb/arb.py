@@ -90,4 +90,4 @@ def find_arbitrage_opportunity(data):
 
 # Call the function with the symbol
 symbol = 'BTC'
-find_arbitrage_opportunity(get_data(symbol))
+# find_arbitrage_opportunity(get_data(symbol))
