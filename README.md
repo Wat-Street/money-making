@@ -1,27 +1,32 @@
 # Money Making Server
 
-Contains the database and handles REST API requests to use these models on a given subset of data and assess performance as needed.
+This server hosts REST API endpoints to use machine learning models on a specific dataset and evaluate performance.
 
-## How to hit endpoint publicly
-1. use the base url : `https://immense-alert-osprey.ngrok-free.app`
-2. add the compatible endpoints listed below to this base url and call with the correct requests
+## Accessing Endpoints Publicly
 
-## How to run locally
-1. navigate to server/app.py
-2. comment out ngrok stuff
-3. run `python app.py`
-4. now your server will be running on `http://localhost:5000`
+1. Use the base URL: `https://immense-alert-osprey.ngrok-free.app`
+2. Append the compatible endpoints listed below to this base URL and call with the correct requests.
 
+## Running Locally
+
+1. Navigate to `server/app.py`.
+2. Comment out ngrok-related lines.
+3. Run `python app.py`.
+4. The server will run locally at `http://localhost:5000`.
+
+---
+
+## Endpoints
 
 ### Mean Reversion Endpoint
-Basically runs our mean reversion model, and returns a series of buy/sell + confidence values. You can use the example below to structure your call and process the results.
 
-URL: /api/meanreversion
+Runs the mean reversion model and returns a series of buy/sell suggestions with confidence values.
 
-Method: POST
+- **URL:** `/api/meanreversion`
+- **Method:** POST
 
-Example request:
-`
+#### Example Request
+```json
 {
   "ticker": "AAPL",
   "trainstart": "2015-01-01",
@@ -30,10 +35,10 @@ Example request:
   "testend": "2024-05-06",
   "maxholding": "100"
 }
-`
+```
 
-Example response:
-`
+#### Example Response:
+```
 [
   {
     "confidence": 0.9731735587120056,
@@ -47,21 +52,22 @@ Example response:
   },
   ...
 ]
-`
+```
 
 
 ### List Stocks
 
-URL: /api/list_tickers
+Lists 10 frequent stock tickers. Currently hardcoded
 
-Method: GET
+- **URL:** `/api/list_tickers`
+- **Method:** GET
 
-Description: Lists 10 frequent stock tickers. Currently hardcoded
+#### Example Request
+```
+```
 
-Example Request:
-``
-Example Response:
-`
+#### Example Response:
+```
 [
     "AAPL",
     "AMZN",
@@ -71,27 +77,28 @@ Example Response:
     "NVDA",
     "TSLA"
 ]
-`
+```
+
+
 
 ### Stock Data
 
-URL: /api/stock_data
+Retrieves stock's daily information given a ticker, start date, and end date.
 
-Method: GET
+- **URL:** `/api/stock_data`
+- **Method:** GET
 
-Description: Retrieves stock's daily information given a ticker, start date, and end date.
-
-Example Request:
-`
+#### Example Request:
+```
 {
   "ticker": "AAPL",
   "start_date": "2015-01-01", # optional
   "end_date": "2022-01-01", # optional
 }
-`
+```
 
-Example Response:
-`
+#### Example Response:
+```
 [
     {
         "datetime": "2023-01-01 00:00:00",
@@ -110,4 +117,4 @@ Example Response:
         "volume": 110000
     }
 ]
-`
+```
