@@ -52,6 +52,8 @@ def find_arbitrage_opportunity(data):
 
     # Check for arbitrage opportunities between different exchanges
     for exchange_id, prices in exchange_prices.items():
+        print(exchange_id)
+        print(exchange_prices)
         for other_exchange_id, other_prices in exchange_prices.items():
             if exchange_id != other_exchange_id:
                 if prices['ask'] and other_prices['ask']:
