@@ -2,8 +2,15 @@
 
 Contains the database and handles REST API requests to use these models on a given subset of data and assess performance as needed.
 
-## More Documentation to come
+## How to hit endpoint publicly
+1. use the base url : `https://immense-alert-osprey.ngrok-free.app`
+2. add the compatible endpoints listed below to this base url and call with the correct requests
 
+## How to run locally
+1. navigate to server/app.py
+2. comment out ngrok stuff
+3. run `python app.py`
+4. now your server will be running on `http://localhost:5000`
 
 
 ### Mean Reversion Endpoint

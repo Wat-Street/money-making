@@ -113,6 +113,8 @@ def stock_data():
     
 
 if __name__ == '__main__':
+
+    # uncomment the following 2 lines to run without ngrok (this is prod level code!)
     public_url = ngrok.connect(name='flask').public_url
     print(" * ngrok URL: " + public_url + " *")
     app.run()
