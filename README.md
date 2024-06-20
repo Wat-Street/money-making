@@ -21,6 +21,7 @@ URL: /api/meanreversion
 Method: POST
 
 Example request:
+`
 {
   "ticker": "AAPL",
   "trainstart": "2015-01-01",
@@ -29,8 +30,10 @@ Example request:
   "testend": "2024-05-06",
   "maxholding": "100"
 }
+`
 
 Example response:
+`
 [
   {
     "confidence": 0.9731735587120056,
@@ -44,7 +47,7 @@ Example response:
   },
   ...
 ]
-
+`
 
 
 ### List Stocks
@@ -56,8 +59,9 @@ Method: GET
 Description: Lists 10 frequent stock tickers. Currently hardcoded
 
 Example Request:
-
+``
 Example Response:
+`
 [
     "AAPL",
     "AMZN",
@@ -67,6 +71,7 @@ Example Response:
     "NVDA",
     "TSLA"
 ]
+`
 
 ### Stock Data
 
@@ -77,14 +82,16 @@ Method: GET
 Description: Retrieves stock's daily information given a ticker, start date, and end date.
 
 Example Request:
-
+`
 {
   "ticker": "AAPL",
   "start_date": "2015-01-01", # optional
   "end_date": "2022-01-01", # optional
 }
+`
 
 Example Response:
+`
 [
     {
         "datetime": "2023-01-01 00:00:00",
@@ -103,3 +110,4 @@ Example Response:
         "volume": 110000
     }
 ]
+`
