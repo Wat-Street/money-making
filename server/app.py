@@ -9,6 +9,8 @@ import datetime
 from dotenv import load_dotenv
 import os
 
+from pyngrok import ngrok
+
 import yfinance as yf
 
 # Load environment variables from .env.local file
@@ -18,7 +20,6 @@ POLYGON_API_KEY = os.getenv('POLYGON_API_KEY')
 POLYGON_KEY_ID = os.getenv('POLYGON_KEY_ID')
 
 app = Flask(__name__)
-
 
 @app.route('/api/test', methods=['GET', 'POST'])
 def test_endpoint():
@@ -112,8 +113,6 @@ def stock_data():
     
 
 if __name__ == '__main__':
-    app.run(port=5002)
-    # listener = ngrok.forward(5000, authtoken_from_env=True)
-    # print(f"Ingress established at {listener.url()}")
-
-
+    public_url = ngrok.connect(name='flask').public_url
+    print(" * ngrok URL: " + public_url + " *")
+    app.run()
