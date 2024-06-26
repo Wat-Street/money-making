@@ -11,8 +11,9 @@ This server hosts REST API endpoints to use machine learning models on a specifi
 
 1. Navigate to `server/app.py`.
 2. Comment out ngrok-related lines.
-3. Run `python app.py`.
-4. The server will run locally at `http://localhost:5000`.
+3. Run `pip install -r requirements.txt`
+4. Run `python app.py`.
+5. The server will run locally at `http://localhost:5000`.
 
 ---
 
