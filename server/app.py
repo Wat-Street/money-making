@@ -6,7 +6,7 @@ from meanrev.Mean_Reversion_Test import test
 from meanrev.Mean_Reversion_Train import train
 import pandas as pd
 import requests
-import datetime
+from datetime import datetime
 from dotenv import load_dotenv
 import os
 
