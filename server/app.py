@@ -6,7 +6,7 @@ from meanrev.Mean_Reversion_Test import test
 from meanrev.Mean_Reversion_Train import train
 import pandas as pd
 import requests
-import datetime
+from datetime import datetime
 from dotenv import load_dotenv
 import os
 
@@ -58,7 +58,6 @@ def meanreversion_endpoint():
         # Train the model and get suggestions
         model = train(prices_train, max_holding)
         suggestions = test(model, prices_test)
-
         model_return = trade_index_with_confidence_as_duration(max_holding, 1000, ticker, prices_test, suggestions)
         normal_return = (prices_test[-1] - prices_test[0]) / prices_test[0]
         
@@ -66,13 +65,13 @@ def meanreversion_endpoint():
         results = {
             "holding": {
                 "difference": normal_return,
-                "positive": normal_return > 0,
+                "positive": str(normal_return > 0),
             },
             "model": {
                 "difference": model_return,
-                "positive": model_return > 0,
+                "positive": str(model_return > 0),
             }
-        };
+        }
         return jsonify({"results": results, "points": suggestions})
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -119,16 +118,16 @@ inverse_time_effect3 = lambda L, x: L * (x ** 2)
 def trade_index_with_confidence_as_duration(MAX_HOLDING, MAX_TRANSACTION, TICKER, testing_prices, predictions):
     account = Account()
     stock = Stock(TICKER, testing_prices.iloc[0])
-
-    sorted_preds = sorted(predictions, key=lambda x: datetime.strptime(x['datetime'], '%Y-%m-%d %H:%M'))
+    sorted_preds = sorted(predictions, key=lambda x: datetime.strptime(x['datetime'], '%Y-%m-%d %H:%M:%S'))
 
     for action in sorted_preds:
-        stock.update_price(testing_prices.iloc[action])
+        price_idx = testing_prices.index.get_loc(action['datetime'])
+        stock.update_price(testing_prices.iloc[price_idx])
         if action['suggestion'] == 'Buy':
-            account.buy(stock, round(abs((MAX_TRANSACTION / stock.price) * account['confidence']), 3))
+            account.buy(stock, round(abs((MAX_TRANSACTION / stock.price) * action['confidence']), 3))
         else:
-            account.sell(stock, round(abs((MAX_TRANSACTION / stock.price) * account['confidence']), 3))
-    return (account.net_worth - abs(account.min_balance)) / abs(account.min_balance)
+            account.sell(stock, round(abs((MAX_TRANSACTION / stock.price) * action['confidence']), 3))
+    return (account.net_worth() - abs(account.min_balance)) / abs(account.min_balance)
     
 
 @app.route('/api/list_tickers', methods=['GET'])
