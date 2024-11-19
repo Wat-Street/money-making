@@ -101,6 +101,7 @@ def meanreversion_endpoint():
                 "positive": bool(model_return > 0),
             }
         }
+        }
         return jsonify({"results": results, "points": suggestions})
 
     except Exception as e:
