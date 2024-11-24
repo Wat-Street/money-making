@@ -56,7 +56,6 @@ def train(training_prices, MAX_HOLDING=100):
         for pos2 in range(1, MAX_HOLDING):
             ans += (training_prices.iloc[pos1 + pos2] - training_prices.iloc[pos1]) * time_effect1(MAX_HOLDING, pos2)
         answer.append(ans)
-
     answer = normalize_forward(answer)
 
     sma10 = get_sma(training_prices, 10)
@@ -80,8 +79,9 @@ def train(training_prices, MAX_HOLDING=100):
         y.append(ans)
     x = np.array(x)
     y = np.array(y)
+    if len(x) == 0:
+        raise("Need atleast 100 days in training data")
     training_prices = training_prices[MAX_HOLDING - LONGEST_SMA:len(training_prices) - MAX_HOLDING]
-
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2)
 
     def create_model():
