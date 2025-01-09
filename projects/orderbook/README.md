@@ -10,7 +10,7 @@ Order Book instances allow the ML team to forward-test their algorithms. An API 
     Expected arguments:
     - `name`: **unique** name of algorithm
     - `tickerstotrack`: two tickers (e.g. (AAPL, GOOG))
-    - `algo`: link to algorithm
+    - `algo_path`: path to algorithm from the `projects` directory (ex. algo_path=harv-extension)
     - `updatetime`: time interval for updates (minutes)
     - `end`: lifespan of instance (days)
 
