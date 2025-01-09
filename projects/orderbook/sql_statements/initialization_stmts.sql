@@ -1,8 +1,12 @@
 -- table creation
 CREATE TABLE order_books (
     name TEXT PRIMARY KEY,
-    trades JSONB NOT NULL DEFAULT '[]',
-    worth NUMERIC[] NOT NULL DEFAULT '{}',
+    tickers_to_track TEXT[],
+    algo_link TEXT NOT NULL,
+    update_time INT NOT NULL,
+    end_duration INT NOT NULL,
+    trades JSONB DEFAULT '[]',
+    worth NUMERIC[] DEFAULT '{}',
     balance NUMERIC NOT NULL DEFAULT 100000,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
