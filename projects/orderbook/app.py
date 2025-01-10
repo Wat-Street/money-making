@@ -43,7 +43,7 @@ def create_orderbook():
             with open(path_to_image, 'wb') as image_tar:
                 for chunk in image.save():
                     image_tar.write(chunk)
-            print(f'Saved Docker image for {name} to {path_to_image}')
+            print(f"Saved Docker image for '{name}' to {path_to_image}")
 
         # save the order book in the database
         conn = get_db_connection()
@@ -51,8 +51,8 @@ def create_orderbook():
         cur.execute(
             f"""
                 INSERT INTO {ORDERBOOKS_TABLE_NAME} (name, tickers_to_track, algo_link, update_time, end_duration)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (name, tickers_to_track, algo_path, update_time, end_duration)
+                VALUES ('{name}', '{tickers_to_track}', '{algo_path}', '{update_time}', '{end_duration}')
+            """
         )
         conn.commit()
         cur.close()
@@ -64,26 +64,61 @@ def create_orderbook():
         return jsonify({"error": str(e)}), 500
 
 
+"""
+This endpoint allows you to view an order book.
+Expects: name of algorithm.
+Returns: a json containing the trades, worth, and balance of the order book.
+"""
+@app.route("/view_orderbook", methods=["GET"])
+def view_orderbook():
+    name = request.args.get('name')
 
-def get_orderbook(name):
-    conn = psycopg2.connect(f'dbname={DB_NAME} user={DB_USER} password={DB_PASSWORD}')
+    # retrieve order book from database
+    conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT trades, worth, balance FROM order_books WHERE name = %s", (name,))
+    cur.execute(f"SELECT trades, worth, balance FROM {ORDERBOOKS_TABLE_NAME} WHERE name = '{name}'")
     result = cur.fetchone()
     conn.close()
     
+    # return result if not empty, 404 otherwise
     if result:
-        return {
+        return jsonify({
             "trades": result[0],
             "worth": result[1],
             "balance": result[2],
-        }
-    return {"error": "Order book not found"}
+        })
+    return {"error": "Order book not found"}, 404
 
-@app.route("/view_orderbook/<name>", methods=["GET"])
-def view_orderbook(name):
-    orderbook = get_orderbook(name)
-    return jsonify(orderbook)
+
+"""
+This endpoint deletes an orderbook instance.
+Expects: name of algorithm.
+This function deletes the orderbook instance from the database. The image persists in the docker_images folder.
+"""
+@app.route("/delete_orderbook", methods=['GET'])
+def delete_orderbook():
+    name = request.args.get('name')
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # check if the order book exists in the database
+    cur.execute(f"SELECT name from {ORDERBOOKS_TABLE_NAME} WHERE name = '{name}'")
+    result = cur.fetchone()
+    print(result)
+    print(f"DELETE FROM {ORDERBOOKS_TABLE_NAME} WHERE name = '{name}';")
+    
+    if not result:
+        return {"Error": f"You are trying to delete an order book called '{name}'that does not exist."}, 404
+    
+    # delete the order book from the table
+    
+    cur.execute(f"DELETE FROM {ORDERBOOKS_TABLE_NAME} WHERE name = '{name}';")
+    conn.commit()
+    cur.close()
+    conn.close()
+    return {'Info': f"Deleted order book named '{name}'"}
+
 
 if __name__ == "__main__":
     app.run()

@@ -1,5 +1,5 @@
 -- table creation
-CREATE TABLE order_books (
+CREATE TABLE order_books_v2 (
     name TEXT PRIMARY KEY,
     tickers_to_track TEXT[],
     algo_link TEXT NOT NULL,
