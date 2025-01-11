@@ -3,7 +3,7 @@ from flask import Flask, jsonify, request
 from db_config import get_db_connection
 from docker_utils import build_docker_image, run_docker_container, stop_docker_container
 
-ORDERBOOKS_TABLE_NAME = 'order_books'
+ORDERBOOKS_TABLE_NAME = 'order_books_v2'
 
 
 app = Flask(__name__)
@@ -11,7 +11,7 @@ app = Flask(__name__)
 """
 This endpoint creates an orderbook instance. It expects the following arguments:
     - name: unique name of algorithm
-    - tickerstotrack: two tickers (e.g. (AAPL, GOOG))
+    - tickerstotrack: tickers (e.g. (AAPL, GOOG))
     - algo_path: path to algorithm from the projects directory (ex. harv-extension')
     - updatetime: time interval for updates (minutes)
     - end: lifespan of instance (days)
@@ -51,7 +51,7 @@ def create_orderbook():
         cur.execute(
             f"""
                 INSERT INTO {ORDERBOOKS_TABLE_NAME} (name, tickers_to_track, algo_link, update_time, end_duration)
-                VALUES ('{name}', '{tickers_to_track}', '{algo_path}', '{update_time}', '{end_duration}')
+                VALUES ('{name}', ARRAY {tickers_to_track}, '{algo_path}', '{update_time}', '{end_duration}')
             """
         )
         conn.commit()
@@ -61,6 +61,7 @@ def create_orderbook():
         return jsonify({'info': f"Order book '{name}' has been created."}), 201
     
     except Exception as e:
+        print(e)
         return jsonify({"error": str(e)}), 500
 
 
