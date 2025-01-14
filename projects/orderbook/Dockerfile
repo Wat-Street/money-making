@@ -3,7 +3,7 @@
 #    https://docs.docker.com/reference/dockerfile/
 # If you're confused on how to fill this template out, refer to the sample model directory located 
 # in `money-making/projects/orderbook_test_model`.
-FROM python:3.9-slim
+FROM python:3.10-slim
 
 WORKDIR ./
 
