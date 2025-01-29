@@ -29,6 +29,8 @@ Order Book instances allow the ML team to forward-test their algorithms. An API 
 
     Expected arguments:
     - `name`: name of algorithm
+  
+    Exampke command: `https://watstreet/delete_orderbook?name=krishalgo`
 
 ## Interaction with Models
 The two standard commands are:
