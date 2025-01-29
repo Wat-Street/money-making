@@ -14,7 +14,7 @@ Order Book instances allow the ML team to forward-test their algorithms. An API 
     - `updatetime`: time interval for updates (minutes)
     - `end`: lifespan of instance (days)
 
-    Example command: `http://127.0.0.1:5000/create_orderbook?name=krishalgo&tickerstotrack=AAPL,GOOG&algo_path=https://github.com/Wat-Street/money-making/tree/main/projects/orderbook_test_model&updatetime=1&end=100`
+    Example command: `https://watstreet/create_orderbook?name=krishalgo&tickerstotrack=AAPL,GOOG&algo_path=https://github.com/Wat-Street/money-making/tree/main/projects/orderbook_test_model&updatetime=1&end=100`
 
 2. **`view_orderbook`**
     To retrieve details of a specific order book.
@@ -22,7 +22,7 @@ Order Book instances allow the ML team to forward-test their algorithms. An API 
     Expected arguments:
     - `name`: name of algorithm
 
-    Example command: `https://watstreet.orderbook.view?name=krishalgo`
+    Example command: `https://watstreet/view_orderbook?name=krishalgo`
 
 3. **`delete_orderbook`**
     To delete an order book.
