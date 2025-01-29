@@ -9,17 +9,18 @@ ORDERBOOKS_TABLE_NAME = 'order_books_v2'
 
 app = Flask(__name__)
 
-"""
-This endpoint creates an orderbook instance. It expects the following arguments:
-    - name: unique orderbook name
-    - tickerstotrack: tickers (e.g. (AAPL, GOOG))
-    - algo_path: GitHub URL. Specific branch and filepath are supported, but optional. (e.g. 'https://github.com/Wat-Street/money-making/tree/main/projects/orderbook_test_model')
-    - updatetime: time interval for updates (minutes)
-    - end: lifespan of instance (days)
-It creates an entry in the database for the orderbook, as well as generates a Docker image, saved as a tar file in [TODO: directory]
-"""
+
 @app.route('/create_orderbook', methods=['GET'])
 def create_orderbook():
+    """
+    This endpoint creates an orderbook instance. It expects the following arguments:
+        - name: unique orderbook name
+        - tickerstotrack: tickers (e.g. (AAPL, GOOG))
+        - algo_path: GitHub URL. Specific branch and filepath are supported, but optional. (e.g. 'https://github.com/Wat-Street/money-making/tree/main/projects/orderbook_test_model')
+        - updatetime: time interval for updates (minutes)
+        - end: lifespan of instance (days)
+    It creates an entry in the database for the orderbook, as well as generates a Docker image, saved as a tar file in [TODO: directory]
+    """
     name = request.args.get('name')
     tickers_to_track = request.args.get('tickerstotrack', '').split(',')
     algo_path = request.args.get('algo_path')
@@ -32,37 +33,37 @@ def create_orderbook():
     
     try:
         # pull algorithm into local
-        destination_path = "temporary_model_storage"
-        recursive_repo_clone(algo_path, destination_path)
+        temp_model_store = "temporary_model_storage"
+        recursive_repo_clone(algo_path, temp_model_store)
         print(f'Successfully pulled algo {name} repo to temporary model storage')
 
         # paths to pull algorithm and store image
-        path_to_algo = f"{destination_path}"
-        path_to_image = f"docker_images/{name}.tar"
+        path_to_algo = f"{temp_model_store}"
+        path_to_image_store = f"docker_images/{name}.tar"
         
         # check if image with this name already exists. If so, delete it first.
         # Then, build it from the path_to_algo.
-        if os.path.exists(path_to_image):
-            os.remove(path_to_image)
+        if os.path.exists(path_to_image_store):
+            os.remove(path_to_image_store)
         
         # build docker image
         image = build_docker_image(name, path_to_algo)
 
-        # save image as .tar to path_to_image
-        with open(path_to_image, 'wb') as image_tar:
+        # save image as .tar to path_to_image_store
+        with open(path_to_image_store, 'wb') as image_tar:
             for chunk in image.save():
                 image_tar.write(chunk)
-        print(f"Saved Docker image for '{name}' to {path_to_image}")
+        print(f"Saved Docker image for '{name}' to {path_to_image_store}")
         
         # delete the temporary model storage folder after image build
-        for file in glob.glob('temporary_model_storage/*'):
+        for file in glob.glob('{temp_model_store}/*'):
             os.remove(file)
         print(f'Successfully removed contents of temporary model storage')
 
         # save the order book in the database
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute(
+        cur.execute( # TODO sqlalchemy
             f"""
                 INSERT INTO {ORDERBOOKS_TABLE_NAME} (name, tickers_to_track, algo_link, update_time, end_duration)
                 VALUES ('{name}', ARRAY {tickers_to_track}, '{algo_path}', '{update_time}', '{end_duration}')
@@ -79,13 +80,13 @@ def create_orderbook():
         return jsonify({"error": str(e)}), 500
 
 
-"""
-This endpoint allows you to view an order book.
-Expects: name of algorithm.
-Returns: a json containing the trades, worth, and balance of the order book.
-"""
 @app.route("/view_orderbook", methods=["GET"])
 def view_orderbook():
+    """
+    This endpoint allows you to view an order book.
+    Expects: name of algorithm.
+    Returns: a json containing the trades, worth, and balance of the order book.
+    """
     name = request.args.get('name')
 
     # retrieve order book from database
@@ -105,13 +106,13 @@ def view_orderbook():
     return {"error": "Order book not found"}, 404
 
 
-"""
-This endpoint deletes an orderbook instance.
-Expects: name of algorithm.
-This function deletes the orderbook instance from the database. The image persists in the docker_images folder.
-"""
 @app.route("/delete_orderbook", methods=['GET'])
 def delete_orderbook():
+    """
+    This endpoint deletes an orderbook instance.
+    Expects: name of algorithm.
+    This function deletes the orderbook instance from the database. The image persists in the docker_images folder.
+    """
     name = request.args.get('name')
 
     conn = get_db_connection()
