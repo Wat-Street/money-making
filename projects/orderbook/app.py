@@ -1,7 +1,8 @@
-import os
+import os, glob
 from flask import Flask, jsonify, request
 from db_config import get_db_connection
 from docker_utils import build_docker_image, run_docker_container, stop_docker_container
+from github_utils import recursive_repo_clone
 
 ORDERBOOKS_TABLE_NAME = 'order_books_v2'
 
@@ -10,9 +11,9 @@ app = Flask(__name__)
 
 """
 This endpoint creates an orderbook instance. It expects the following arguments:
-    - name: unique name of algorithm
+    - name: unique orderbook name
     - tickerstotrack: tickers (e.g. (AAPL, GOOG))
-    - algo_path: path to algorithm from the projects directory (ex. harv-extension')
+    - algo_path: GitHub URL. Specific branch and filepath are supported, but optional. (e.g. 'https://github.com/Wat-Street/money-making/tree/main/projects/orderbook_test_model')
     - updatetime: time interval for updates (minutes)
     - end: lifespan of instance (days)
 It creates an entry in the database for the orderbook, as well as generates a Docker image, saved as a tar file in [TODO: directory]
@@ -30,20 +31,33 @@ def create_orderbook():
         return jsonify({"error": "Missing required parameters"}), 400
     
     try:
+        # pull algorithm into local
+        destination_path = "temporary_model_storage"
+        recursive_repo_clone(algo_path, destination_path)
+        print(f'Successfully pulled algo {name} repo to temporary model storage')
+
         # paths to pull algorithm and store image
-        path_to_algo = f"../{algo_path}"
+        path_to_algo = f"{destination_path}"
         path_to_image = f"docker_images/{name}.tar"
         
-        # check if image with this name already exists. If not, build it from the path_to_algo.
-        if not os.path.exists(path_to_image):
-            # build docker image
-            image = build_docker_image(name, path_to_algo)
+        # check if image with this name already exists. If so, delete it first.
+        # Then, build it from the path_to_algo.
+        if os.path.exists(path_to_image):
+            os.remove(path_to_image)
+        
+        # build docker image
+        image = build_docker_image(name, path_to_algo)
 
-            # save image as .tar to path_to_image
-            with open(path_to_image, 'wb') as image_tar:
-                for chunk in image.save():
-                    image_tar.write(chunk)
-            print(f"Saved Docker image for '{name}' to {path_to_image}")
+        # save image as .tar to path_to_image
+        with open(path_to_image, 'wb') as image_tar:
+            for chunk in image.save():
+                image_tar.write(chunk)
+        print(f"Saved Docker image for '{name}' to {path_to_image}")
+        
+        # delete the temporary model storage folder after image build
+        for file in glob.glob('temporary_model_storage/*'):
+            os.remove(file)
+        print(f'Successfully removed contents of temporary model storage')
 
         # save the order book in the database
         conn = get_db_connection()
