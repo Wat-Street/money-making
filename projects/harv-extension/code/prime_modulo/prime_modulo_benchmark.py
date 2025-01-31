@@ -28,14 +28,11 @@ def add_improved_prime_modulo_terms(data, n):
     
     # Combine both sets but prioritize market-aligned primes
     all_primes = base_market_primes.copy()
-    
-    # Add additional primes only if they might capture other relevant cycles
     for p in additional_primes:
-        if len(all_primes) < 5 and p not in all_primes:  # Limit total number of primes
+        if len(all_primes) < 5 and p not in all_primes:
             all_primes.append(p)
     
     print(f'utilizing {len(all_primes)} primes: {all_primes}')
-    # Create modulo terms as in the original approach
     for prime in all_primes:
         col_name = f"RV_mod_{prime}"
         data[col_name] = ((data['Index'] % prime == 0).astype(int)) * data['RV_d']
@@ -110,11 +107,9 @@ def compare_prime_modulo_versions():
         
     vol_data = calculate_realized_volatility(raw_data, n)
     
-    # Run both versions
     original_data = add_prime_modulo_terms(vol_data.copy(), n)
     improved_data = add_improved_prime_modulo_terms(vol_data.copy(), n)
     
-    # Get predictions
     original_features = [col for col in original_data.columns if col.startswith('RV')]
     improved_features = [col for col in improved_data.columns if col.startswith('RV')]
     
@@ -137,11 +132,9 @@ def compare_prime_modulo_versions():
     original_metrics = calculate_metrics(original_predictions)
     improved_metrics = calculate_metrics(improved_predictions)
     
-    # Create figure with three subplots
-    plt.figure(figsize=(15, 12))  # Made taller to accommodate third subplot
+    plt.figure(figsize=(15, 12))
     
-    # First subplot - Original predictions
-    plt.subplot(3, 1, 1)  # Changed from 2,1,1 to 3,1,1
+    plt.subplot(3, 1, 1)
     plt.plot(original_predictions.index, original_predictions['Actual'], 
              label='Actual', color='black', linestyle='dashed')
     plt.plot(original_predictions.index, original_predictions['Predicted'],
@@ -149,8 +142,7 @@ def compare_prime_modulo_versions():
     plt.legend()
     plt.grid(True)
     
-    # Second subplot - Improved predictions
-    plt.subplot(3, 1, 2)  # Changed from 2,1,2 to 3,1,2
+    plt.subplot(3, 1, 2)
     plt.plot(improved_predictions.index, improved_predictions['Actual'],
              label='Actual', color='black', linestyle='dashed')
     plt.plot(improved_predictions.index, improved_predictions['Predicted'],
@@ -158,26 +150,21 @@ def compare_prime_modulo_versions():
     plt.legend()
     plt.grid(True)
     
-    # New third subplot - Comparative analysis
     plt.subplot(3, 1, 3)
     
-    # Calculate absolute errors for both models
     original_error = np.abs(original_predictions['Actual'] - original_predictions['Predicted'])
     improved_error = np.abs(improved_predictions['Actual'] - improved_predictions['Predicted'])
     
-    # Calculate relative improvement
     relative_improvement = improved_error - original_error
     
-    # Plot the difference line to show overall trend
     plt.plot(original_predictions.index, relative_improvement, 
              color='black', alpha=0.5, label='Performance Difference')
     
-    # Color the areas between the line and zero to show which model performs better
     for idx in range(len(relative_improvement)-1):
         current_date = original_predictions.index[idx]
         next_date = original_predictions.index[idx+1]
-        current_value = relative_improvement.iloc[idx]  # Using iloc instead of direct indexing
-        next_value = relative_improvement.iloc[idx+1]   # Using iloc instead of direct indexing
+        current_value = relative_improvement.iloc[idx]
+        next_value = relative_improvement.iloc[idx+1]
         
         # Red areas show where original model performs better
         if current_value >= 0:
@@ -192,11 +179,9 @@ def compare_prime_modulo_versions():
                            [0, 0], 
                            color='green', alpha=0.3)
     
-    # Add reference line and formatting
     plt.axhline(y=0, color='black', linestyle='--', alpha=0.5)
     plt.ylabel('Error Difference (Improved - Original)')
     
-    # Create custom legend with clear labels
     from matplotlib.patches import Patch
     legend_elements = [
         Patch(facecolor='red', alpha=0.3, label='Original Version Better'),
@@ -207,7 +192,6 @@ def compare_prime_modulo_versions():
     plt.tight_layout()
     plt.show()
     
-    # Print metrics comparison
     print("\nMetrics Comparison:")
     print("Original Prime Modulo:")
     for metric, value in original_metrics.items():
