@@ -11,17 +11,14 @@ from statsmodels.api import OLS, add_constant
 from data_and_prediction_utils import fit_and_predict_extended, fetch_data
 from prime_modulo_utils import calculate_realized_volatility, add_prime_modulo_terms
 
-# Strategy 3: # Improved prime modulo implementation incorporating our enhancements 
 def add_improved_prime_modulo_terms(data, n):
     data = data.reset_index()
     data['Index'] = range(len(data))
     
-    # Refinement 1: More Flexible Prime Selection
-    # Instead of fixed market primes, we'll use a hybrid approach that combines
-    # market-relevant primes with discovered ones
-    base_market_primes = [2, 5, 23]  # Reduced set of core market cycle primes
+    # Core market cycle primes
+    base_market_primes = [2, 5, 23]  # daily, weekly, monthly
     
-    # Find additional primes up to n that might capture other cycles
+    # Find additional primes up to n, but prioritize those close to known market cycles
     additional_primes = []
     candidate = 2
     while candidate <= n:
@@ -29,83 +26,58 @@ def add_improved_prime_modulo_terms(data, n):
             additional_primes.append(candidate)
         candidate += 1
     
-    # Combine both sets but limit total number to control complexity
-    max_primes = 5  # Limit total number of primes to reduce parameter space
-    selected_primes = base_market_primes + additional_primes[:max_primes - len(base_market_primes)]
+    # Combine both sets but prioritize market-aligned primes
+    all_primes = base_market_primes.copy()
     
-    # Refinement 2: Simplified Regime Detection
-    # Use only two regimes instead of three to reduce complexity
-    vol_std = data['RV_d'].rolling(window=22).std()
-    vol_mean = data['RV_d'].rolling(window=22).mean()
+    # Add additional primes only if they might capture other relevant cycles
+    for p in additional_primes:
+        if len(all_primes) < 5 and p not in all_primes:  # Limit total number of primes
+            all_primes.append(p)
     
-    # More conservative regime threshold
-    data['regime'] = 0  # normal volatility
-    data.loc[data['RV_d'] > (vol_mean + 1.5 * vol_std), 'regime'] = 1  # high volatility only
-    
-    # Refinement 3: Gentler Decay
-    alpha = 0.98  # Increased from 0.95 to preserve more historical information
-    
-    # Create weighted modulo terms with reduced complexity
-    for prime in selected_primes:
-        for remainder in range(prime):
-            base_mask = (data['Index'] % prime == remainder)
-            
-            # Calculate base weights first
-            weights = np.zeros(len(data))
-            relevant_indices = data[base_mask].index
-            
-            for current_idx in relevant_indices:
-                current_time = data.loc[current_idx, 'Index']
-                time_diff = abs(current_time - data.loc[current_idx, 'Index'])
-                weights[current_idx] = alpha ** time_diff
-            
-            # Create base term without regime dependence
-            base_col = f"RV_mod_{prime}_{remainder}"
-            data[base_col] = data['RV_d'] * weights
-            
-            # Add regime-specific terms only for high volatility
-            # This reduces parameters while still capturing extreme events
-            if prime in base_market_primes:  # Only apply regime split to market-relevant primes
-                high_vol_col = f"{base_col}_highvol"
-                data[high_vol_col] = data[base_col] * (data['regime'] == 1).astype(float)
+    print(f'utilizing {len(all_primes)} primes: {all_primes}')
+    # Create modulo terms as in the original approach
+    for prime in all_primes:
+        col_name = f"RV_mod_{prime}"
+        data[col_name] = ((data['Index'] % prime == 0).astype(int)) * data['RV_d']
     
     return data.set_index('Date')
 
-# Modified prediction function to handle regime-dependent parameters
 def fit_and_predict_improved(data, features, n, warmup=30):
+    """
+    Enhanced prediction function using Ridge regression and feature standardization.
+    Removes regime-dependent parameters for more stable predictions.
+    """
     predictions = []
     
     for i in range(n + warmup, len(data) - 1):
         try:
             train_data = data.iloc[:i+1].copy()
             
-            # Use all features for prediction but with regularization
+            # Prepare features and target
             X = train_data[features]
             y = train_data['RV_d'].shift(-1)
             X, y = X.iloc[:-1], y.iloc[:-1]
             
-            # Add L2 regularization through Ridge Regression
+            # Standardize features and apply Ridge regression
             from sklearn.linear_model import Ridge
-            model = Ridge(alpha=0.1)  # Light regularization
-            
-            # Standardize features for better regression
             from sklearn.preprocessing import StandardScaler
+            
             scaler = StandardScaler()
             X_scaled = scaler.fit_transform(X)
             
+            # Light regularization for stability
+            model = Ridge(alpha=0.1)
             model.fit(X_scaled, y)
             
-            # Prepare test data
+            # Make prediction
             test_row = data.iloc[[i]][features].copy()
             test_row_scaled = scaler.transform(test_row)
-            
             pred = model.predict(test_row_scaled).squeeze()
             
             predictions.append({
                 'Date': data.index[i + 1],
                 'Actual': data.iloc[i + 1]['RV_d'],
-                'Predicted': pred,
-                'Regime': data.iloc[i]['regime']
+                'Predicted': pred
             })
                 
         except Exception as e:
@@ -120,6 +92,9 @@ def fit_and_predict_improved(data, features, n, warmup=30):
         return pd.DataFrame()
 
 def compare_prime_modulo_versions():
+    """
+    Compares original and improved prime modulo approaches with simplified visualization.
+    """
     # Set up test parameters
     ticker = "AAPL"
     start_date = "2020-01-01"
@@ -129,6 +104,10 @@ def compare_prime_modulo_versions():
     
     # Fetch and prepare data
     raw_data = fetch_data(ticker, start_date, end_date)
+    if raw_data.empty:
+        print(f"No data found for {ticker} between {start_date} and {end_date}")
+        return
+        
     vol_data = calculate_realized_volatility(raw_data, n)
     
     # Run both versions
@@ -142,6 +121,10 @@ def compare_prime_modulo_versions():
     original_predictions = fit_and_predict_extended(original_data, original_features, n, warmup)
     improved_predictions = fit_and_predict_improved(improved_data, improved_features, n, warmup)
     
+    if original_predictions.empty or improved_predictions.empty:
+        print("Unable to generate predictions for one or both models")
+        return
+    
     # Calculate error metrics
     def calculate_metrics(predictions):
         metrics = {}
@@ -154,59 +137,73 @@ def compare_prime_modulo_versions():
     original_metrics = calculate_metrics(original_predictions)
     improved_metrics = calculate_metrics(improved_predictions)
     
-    # Plot results
-    plt.figure(figsize=(15, 10))
+    # Create figure with three subplots
+    plt.figure(figsize=(15, 12))  # Made taller to accommodate third subplot
     
-    # Plot original predictions
-    plt.subplot(2, 1, 1)
+    # First subplot - Original predictions
+    plt.subplot(3, 1, 1)  # Changed from 2,1,1 to 3,1,1
     plt.plot(original_predictions.index, original_predictions['Actual'], 
              label='Actual', color='black', linestyle='dashed')
     plt.plot(original_predictions.index, original_predictions['Predicted'],
              label='Original Prime Modulo', color='blue')
-    plt.title('Original Prime Modulo Predictions')
     plt.legend()
     plt.grid(True)
     
-    # Plot improved predictions with safer regime background handling
-    plt.subplot(2, 1, 2)
+    # Second subplot - Improved predictions
+    plt.subplot(3, 1, 2)  # Changed from 2,1,2 to 3,1,2
     plt.plot(improved_predictions.index, improved_predictions['Actual'],
              label='Actual', color='black', linestyle='dashed')
     plt.plot(improved_predictions.index, improved_predictions['Predicted'],
              label='Improved Prime Modulo', color='red')
-    
-    # Safer regime background plotting
-    if 'Regime' in improved_predictions.columns:
-        # We now only have 2 regimes (0 and 1)
-        for regime in [0, 1]:
-            mask = improved_predictions['Regime'] == regime
-            if any(mask):  # Only plot if we have data for this regime
-                regime_periods = improved_predictions[mask].index
-                if len(regime_periods) > 0:
-                    # Use different colors for different regimes
-                    color = 'lightblue' if regime == 0 else 'salmon'
-                    alpha = 0.2
-                    
-                    # Plot each continuous period of the regime
-                    regime_changes = np.where(np.diff(mask.astype(int)))[0]
-                    start_idx = 0
-                    
-                    for end_idx in regime_changes:
-                        if mask.iloc[start_idx]:
-                            plt.axvspan(regime_periods[start_idx],
-                                      regime_periods[end_idx],
-                                      alpha=alpha, color=color)
-                        start_idx = end_idx + 1
-                    
-                    # Don't forget the last period
-                    if mask.iloc[start_idx]:
-                        plt.axvspan(regime_periods[start_idx],
-                                  regime_periods[-1],
-                                  alpha=alpha, color=color)
-    
-    plt.title('Improved Prime Modulo Predictions')
     plt.legend()
     plt.grid(True)
     
+    # New third subplot - Comparative analysis
+    plt.subplot(3, 1, 3)
+    
+    # Calculate absolute errors for both models
+    original_error = np.abs(original_predictions['Actual'] - original_predictions['Predicted'])
+    improved_error = np.abs(improved_predictions['Actual'] - improved_predictions['Predicted'])
+    
+    # Calculate relative improvement
+    relative_improvement = improved_error - original_error
+    
+    # Plot the difference line to show overall trend
+    plt.plot(original_predictions.index, relative_improvement, 
+             color='black', alpha=0.5, label='Performance Difference')
+    
+    # Color the areas between the line and zero to show which model performs better
+    for idx in range(len(relative_improvement)-1):
+        current_date = original_predictions.index[idx]
+        next_date = original_predictions.index[idx+1]
+        current_value = relative_improvement.iloc[idx]  # Using iloc instead of direct indexing
+        next_value = relative_improvement.iloc[idx+1]   # Using iloc instead of direct indexing
+        
+        # Red areas show where original model performs better
+        if current_value >= 0:
+            plt.fill_between([current_date, next_date], 
+                           [current_value, next_value], 
+                           [0, 0], 
+                           color='red', alpha=0.3)
+        # Green areas show where improved model performs better
+        else:
+            plt.fill_between([current_date, next_date], 
+                           [current_value, next_value], 
+                           [0, 0], 
+                           color='green', alpha=0.3)
+    
+    # Add reference line and formatting
+    plt.axhline(y=0, color='black', linestyle='--', alpha=0.5)
+    plt.ylabel('Error Difference (Improved - Original)')
+    
+    # Create custom legend with clear labels
+    from matplotlib.patches import Patch
+    legend_elements = [
+        Patch(facecolor='red', alpha=0.3, label='Original Version Better'),
+        Patch(facecolor='green', alpha=0.3, label='Improved Version Better')
+    ]
+    plt.legend(handles=legend_elements)
+    plt.grid(True)
     plt.tight_layout()
     plt.show()
     
