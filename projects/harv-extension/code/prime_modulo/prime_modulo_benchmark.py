@@ -11,14 +11,18 @@ from statsmodels.api import OLS, add_constant
 from data_and_prediction_utils import fit_and_predict_extended, fetch_data
 from prime_modulo_utils import calculate_realized_volatility, add_prime_modulo_terms
 
-def add_improved_prime_modulo_terms(data, n):
+def add_volume_weighted_prime_modulo_terms(data, n):
     data = data.reset_index()
     data['Index'] = range(len(data))
+    
+    data['normalized_volume'] = (
+        data['Volume'] / data['Volume'].rolling(window=n, min_periods=1).mean()
+    )
     
     # Core market cycle primes
     base_market_primes = [2, 5, 23]  # daily, weekly, monthly
     
-    # Find additional primes up to n, but prioritize those close to known market cycles
+    # Find additional primes up to n, prioritizing those close to known market cycles
     additional_primes = []
     candidate = 2
     while candidate <= n:
@@ -31,11 +35,67 @@ def add_improved_prime_modulo_terms(data, n):
     for p in additional_primes:
         if len(all_primes) < 5 and p not in all_primes:
             all_primes.append(p)
-    
+
     print(f'utilizing {len(all_primes)} primes: {all_primes}')
     for prime in all_primes:
         col_name = f"RV_mod_{prime}"
-        data[col_name] = ((data['Index'] % prime == 0).astype(int)) * data['RV_d']
+        data[col_name] = (
+            (data['Index'] % prime == 0).astype(int) * 
+            data['RV_d'] * 
+            data['normalized_volume']
+        )
+    
+    return data.set_index('Date')
+
+def add_volume_weighted_adaptive_prime_modulo_terms(data, n):
+    data = data.reset_index()
+    data['Index'] = range(len(data))
+    
+    # Calculate normalized volume for direct weighting
+    data['normalized_volume'] = (
+        data['Volume'] / data['Volume'].rolling(window=n, min_periods=1).mean()
+    )
+    
+    # Calculate market stress indicators
+    data['vol_level'] = data['RV_d'] / data['RV_d'].rolling(window=n).mean()
+    data['vol_of_vol'] = data['RV_d'].rolling(window=n).std() / data['RV_d'].rolling(window=n).std()
+    data['volume_ratio'] = data['Volume'] / data['Volume'].rolling(window=n).mean()
+    
+    # Combine into market stress indicator
+    data['market_stress'] = (
+        (data['vol_level'] + data['vol_of_vol'] + data['volume_ratio']) / 3
+    ).clip(0, 1)
+    
+    calm_market_primes = [7, 23]
+    stress_market_primes = [2, 3, 5]
+    
+    all_possible_primes = set(calm_market_primes + stress_market_primes)
+    for prime in all_possible_primes:
+        data[f"RV_mod_{prime}"] = 0
+    
+    for idx in data.index:
+        stress_level = data.loc[idx, 'market_stress']
+        selected_primes = []
+        
+        for i in range(min(len(calm_market_primes), len(stress_market_primes))):
+            if stress_level > 0.7:           # High stress regime
+                selected_primes.append(stress_market_primes[i])
+            elif stress_level < 0.3:         # Low stress regime
+                selected_primes.append(calm_market_primes[i])
+            else:                            # Medium stress - mix of both
+                selected_primes.append(
+                    stress_market_primes[i] if i < 2 else calm_market_primes[i]
+                )
+        
+        current_volume_weight = data.loc[idx, 'normalized_volume']
+        
+        for prime in selected_primes:
+            col_name = f"RV_mod_{prime}"
+            data.loc[idx, col_name] = (
+                (data.loc[idx, 'Index'] % prime == 0).astype(int) *
+                data.loc[idx, 'RV_d'] *
+                current_volume_weight
+            )
     
     return data.set_index('Date')
 
@@ -108,7 +168,7 @@ def compare_prime_modulo_versions():
     vol_data = calculate_realized_volatility(raw_data, n)
     
     original_data = add_prime_modulo_terms(vol_data.copy(), n)
-    improved_data = add_improved_prime_modulo_terms(vol_data.copy(), n)
+    improved_data = add_volume_weighted_prime_modulo_terms(vol_data.copy(), n)
     
     original_features = [col for col in original_data.columns if col.startswith('RV')]
     improved_features = [col for col in improved_data.columns if col.startswith('RV')]
