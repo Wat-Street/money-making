@@ -3,23 +3,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from statsmodels.api import OLS, add_constant
-
-# Fetch data
-def fetch_data(ticker, start_date, end_date):
-    df = yf.download(ticker, start=start_date, end=end_date)
-    result = pd.DataFrame(index=df.index)
-    result['Close'] = df['Close']
-    result['Log_Return'] = np.log(result['Close'] / result['Close'].shift(1))
-    result['Squared_Return'] = result['Log_Return'] ** 2
-    return result.dropna()
-
-# Calculate realized volatility
-def calculate_realized_volatility(df, n):
-    result = pd.DataFrame(index=df.index)
-    result['RV_d'] = df['Squared_Return']
-    result['RV_w'] = df['Squared_Return'].rolling(window=5).mean()
-    result['RV_m'] = df['Squared_Return'].rolling(window=n).mean()
-    return result.dropna()
+from data_and_prediction_utils import fit_and_predict_extended
+from data_and_prediction_utils import fetch_data 
+from prime_modulo.prime_modulo_utils import calculate_realized_volatility, add_prime_modulo_terms
 
 # Strategy 1: Exhaustive Search
 def add_exhaustive_terms(data, n):
@@ -38,54 +24,9 @@ def add_hamming_terms(data, n):
         data[col_name] = ((data['Index'] & (1 << j)) != 0).astype(int) * data['RV_d']
     return data.set_index('Date')
 
-# Strategy 3: Prime Modulo Classes
-def add_prime_modulo_terms(data, n):
-    data = data.reset_index()
-    data['Index'] = range(len(data))
-    primes = []
-    candidate = 2
-    while np.prod(primes, dtype=np.int64) < n:
-        if all(candidate % p != 0 for p in primes):
-            primes.append(candidate)
-        candidate += 1
-    for prime in primes:
-        col_name = f"RV_mod_{prime}"
-        data[col_name] = ((data['Index'] % prime == 0).astype(int)) * data['RV_d']
-    return data.set_index('Date')
-
 # Standard HAR-RV Model
 def add_harv_terms(data, n):
     return data
-
-# Prediction Model
-def fit_and_predict_extended(data, features, n, warmup=30):
-    predictions = []
-    for i in range(n + warmup, len(data) - 1):
-        try:
-            train_data = data.iloc[:i+1].copy()
-            X = train_data[features]
-            y = train_data['RV_d'].shift(-1)
-            X, y = X.iloc[:-1], y.iloc[:-1]
-            X = add_constant(X)
-            model = OLS(y, X).fit()
-            test_row = data.iloc[[i]][features].copy()
-            test_row = add_constant(test_row, has_constant='add')
-            test_row = test_row.reindex(columns=X.columns, fill_value=0)
-            pred = model.predict(test_row).squeeze()
-            predictions.append({
-                'Date': data.index[i + 1],
-                'Actual': data.iloc[i + 1]['RV_d'],
-                'Predicted': pred
-            })
-        except Exception as e:
-            print(f"Warning at index {i}: {str(e)}")
-            continue
-    if predictions:
-        results = pd.DataFrame(predictions)
-        results.set_index('Date', inplace=True)
-        return results
-    else:
-        return pd.DataFrame()
 
 # Plot Predictions for All Strategies
 def plot_all_predictions(results):
