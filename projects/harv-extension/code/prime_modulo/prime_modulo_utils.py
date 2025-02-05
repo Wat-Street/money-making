@@ -10,6 +10,7 @@ def calculate_realized_volatility(df, n):
     result['RV_d'] = df['Squared_Return']
     result['RV_w'] = df['Squared_Return'].rolling(window=5).mean()
     result['RV_m'] = df['Squared_Return'].rolling(window=n).mean()
+    result['Volume'] = df['Volume']
     return result.dropna()
 
 # Strategy 3: Prime Modulo Classes

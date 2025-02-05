@@ -9,6 +9,7 @@ def fetch_data(ticker, start_date, end_date):
     df = yf.download(ticker, start=start_date, end=end_date)
     result = pd.DataFrame(index=df.index)
     result['Close'] = df['Close']
+    result['Volume'] = df['Volume']
     result['Log_Return'] = np.log(result['Close'] / result['Close'].shift(1))
     result['Squared_Return'] = result['Log_Return'] ** 2
     return result.dropna()
