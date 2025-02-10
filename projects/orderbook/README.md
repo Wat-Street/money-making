@@ -30,12 +30,29 @@ Order Book instances allow the ML team to forward-test their algorithms. An API 
     Expected arguments:
     - `name`: name of algorithm
   
-    Exampke command: `https://watstreet/delete_orderbook?name=krishalgo`
+    Example command: `https://watstreet/delete_orderbook?name=krishalgo`
 
 ## Interaction with Models
 The two standard commands are:
 - `trade()`: runs the algorithm and, based on current ownership of stocks and balance, will return a trade
 - `update_book_status(book_status)`: gives the trading algorithm the info it needs to make trades (portfolio and balance)
+
+Thus, models' interfaces should look like so:
+```
+class Model:
+    def update_book_status(self, book_status):
+        """Gives the trading algorithm the info it needs to make trades (portfolio and balance, retrieved from the view_book endpoint)"""
+        pass
+
+    def trade(self):
+        """Runs the algorithm and, based on current ownership of stocks and balance, will return a trade. The result of this trade is updated into the Ledger."""
+        pass
+```
+
+Some considerations:
+- It is the responsibility of the algorithm to not violate the ledger (ie. sell more than you own or buy more than the money you have)
+- In case the algorithm violates the ledger, return an exception. The algorithm must be able to deal with these standard exceptions. 
+
 
 ## Data Formats (TODO:)
 **KEEP THIS UPDATED AT ALL TIMES.** 
