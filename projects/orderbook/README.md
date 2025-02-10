@@ -20,7 +20,7 @@ Order Book instances allow the ML team to forward-test their algorithms. An API 
     To retrieve details of a specific order book.
 
     Expected arguments:
-    - `name`: name of algorithm
+    - `name`: name of order book.
 
     Example command: `https://watstreet/view_orderbook?name=krishalgo`
 
@@ -28,7 +28,7 @@ Order Book instances allow the ML team to forward-test their algorithms. An API 
     To delete an order book.
 
     Expected arguments:
-    - `name`: name of algorithm
+    - `name`: name of order book.
   
     Example command: `https://watstreet/delete_orderbook?name=krishalgo`
 
