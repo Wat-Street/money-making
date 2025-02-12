@@ -1,7 +1,7 @@
-# Order Book Instances
+# Ledger Instances
 
 ## Overview
-Order Book instances allow the ML team to forward-test their algorithms. An API and database are hosted on the PC that allows members to create instances of Order Books and tie specific algorithms to trade on them.
+Ledger instances allow the ML team to forward-test their algorithms. An API and database are hosted on the PC that allows members to create instances of Ledgers and tie specific algorithms to trade on them.
 
 ## API Features
 1. **`create_orderbook`**
