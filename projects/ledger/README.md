@@ -4,8 +4,8 @@
 Ledger instances allow the ML team to forward-test their algorithms. An API and database are hosted on the PC that allows members to create instances of Ledgers and tie specific algorithms to trade on them.
 
 ## API Features
-1. **`create_orderbook`**
-    To create an order book.
+1. **`create_ledger`**
+    To create a ledger.
 
     Expected arguments:
     - `name`: **unique** name of algorithm
@@ -14,23 +14,23 @@ Ledger instances allow the ML team to forward-test their algorithms. An API and 
     - `updatetime`: time interval for updates (minutes)
     - `end`: lifespan of instance (days)
 
-    Example command: `https://watstreet/create_orderbook?name=krishalgo&tickerstotrack=AAPL,GOOG&algo_path=https://github.com/Wat-Street/money-making/tree/main/projects/orderbook_test_model&updatetime=1&end=100`
+    Example command: `https://watstreet/create_ledger?name=krishalgo&tickerstotrack=AAPL,GOOG&algo_path=https://github.com/Wat-Street/money-making/tree/main/projects/ledger_test_model&updatetime=1&end=100`
 
-2. **`view_orderbook`**
-    To retrieve details of a specific order book.
-
-    Expected arguments:
-    - `name`: name of order book.
-
-    Example command: `https://watstreet/view_orderbook?name=krishalgo`
-
-3. **`delete_orderbook`**
-    To delete an order book.
+2. **`view_ledger`**
+    To retrieve details of a specific ledger.
 
     Expected arguments:
-    - `name`: name of order book.
+    - `name`: name of ledger.
+
+    Example command: `https://watstreet/view_ledger?name=krishalgo`
+
+3. **`delete_ledger`**
+    To delete a ledger.
+
+    Expected arguments:
+    - `name`: name of ledger.
   
-    Example command: `https://watstreet/delete_orderbook?name=krishalgo`
+    Example command: `https://watstreet/delete_ledger?name=krishalgo`
 
 ## Interaction with Models
 The two standard commands are:
@@ -104,7 +104,7 @@ Some considerations:
 2. Database (PostgreSQL, in Rebbi's local env)
 Database name: `postgres` for now
 Tables: (wip)
-- `order_books`
+- `order_books_v2`
 - `trades`
 3. Scheduler (Celery?) (wip)
 
