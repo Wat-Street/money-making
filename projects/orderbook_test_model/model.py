@@ -1,1 +1,5 @@
-print('yoooo')
+def trade():
+    print("TRADE!!")
+
+
+
