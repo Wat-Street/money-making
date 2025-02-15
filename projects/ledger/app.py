@@ -1,7 +1,7 @@
 import os
 from flask import Flask, jsonify, request
 from sqlalchemy import select, insert, delete
-from db_config import get_db_connection, order_books
+from db_config import get_db_connection, ledger
 from docker_utils import build_docker_image, run_docker_container, stop_docker_container
 
 ORDERBOOKS_TABLE_NAME = 'order_books_v2'
@@ -50,7 +50,7 @@ def create_ledger():
 
         # save the ledger in the database
         with get_db_connection() as conn:
-            stmt = insert(order_books).values(
+            stmt = insert(ledger).values(
                 name=name,
                 tickers_to_track=tickers_to_track,
                 algo_link=algo_path,
@@ -80,8 +80,8 @@ def view_ledger():
 
     # retrieve ledger from database
     with get_db_connection() as conn:
-        stmt = select(order_books.c.trades, order_books.c.worth,
-                      order_books.c.balance).where(order_books.c.name == name)
+        stmt = select(ledger.c.trades, ledger.c.worth,
+                      ledger.c.balance).where(ledger.c.name == name)
         result = conn.execute(stmt).fetchone()
 
     # return result if not empty, 404 otherwise
@@ -107,7 +107,7 @@ def delete_ledger():
 
     with get_db_connection() as conn:
         # check if the ledger exists in the database
-        stmt = select(order_books.c.name).where(order_books.c.name == name)
+        stmt = select(ledger.c.name).where(ledger.c.name == name)
         result = conn.execute(stmt).fetchone()
 
         print(result)
@@ -117,7 +117,7 @@ def delete_ledger():
             return {"Error": f"You are trying to delete a ledger called '{name}' that does not exist."}, 404
 
         # delete the ledger from the table
-        stmt = delete(order_books).where(order_books.c.name == name)
+        stmt = delete(ledger).where(ledger.c.name == name)
         conn.execute(stmt)
         conn.commit()
 

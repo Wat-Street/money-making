@@ -11,7 +11,7 @@ engine = create_engine(
 
 metadata = MetaData()
 
-order_books = Table(
+ledger = Table(
     'order_books_v2',
     metadata,
     Column('name', Text, primary_key=True),
