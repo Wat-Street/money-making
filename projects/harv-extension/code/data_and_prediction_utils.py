@@ -3,16 +3,34 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from statsmodels.api import OLS, add_constant
+import time
 
-# Fetch data
-def fetch_data(ticker, start_date, end_date):
-    df = yf.download(ticker, start=start_date, end=end_date)
+def handleDaily(df):
     result = pd.DataFrame(index=df.index)
     result['Close'] = df['Close']
     result['Volume'] = df['Volume']
     result['Log_Return'] = np.log(result['Close'] / result['Close'].shift(1))
     result['Squared_Return'] = result['Log_Return'] ** 2
     return result.dropna()
+
+def fetch_data(ticker, start_date, end_date):
+    df = yf.download(ticker, start=start_date, end=end_date)
+    return handleDaily(df)
+
+def handleIntraday(df):
+    result = pd.DataFrame(index=df.index)
+    result['Close'] = df['Close']
+    result['Volume'] = df['Volume']
+    result['Date'] = df.index.date
+    result['Log_Return'] = np.log(result['Close'] / result['Close'].shift(1))
+    result.loc[result.index.time == pd.Timestamp('09:30').time(), 'Log_Return'] = np.nan
+    result['Squared_Return'] = result['Log_Return'] ** 2
+    result = result.drop('Date', axis=1)
+    return result.dropna()
+
+def fetch_intraday_data():
+    df = yf.download('AAPL', period='60d', interval='5m')
+    return handleIntraday(df)
 
 # Prediction Model
 def fit_and_predict_extended(data, features, n, warmup=30):
