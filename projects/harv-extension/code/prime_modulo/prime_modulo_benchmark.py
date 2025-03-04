@@ -9,7 +9,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from statsmodels.api import OLS, add_constant
 from data_and_prediction_utils import fit_and_predict_extended, fetch_data, fetch_intraday_data
-from prime_modulo_utils import calculate_realized_volatility, add_prime_modulo_terms
+from prime_modulo_utils import calculate_realized_volatility, add_prime_modulo_terms, contig_prime_modulo
 
 def add_volume_weighted_prime_modulo_terms(data, n):
     data = data.reset_index()
@@ -196,7 +196,7 @@ def compare_prime_modulo_versions():
     
     vol_data = calculate_realized_volatility(raw_data, n)
     original_data = add_prime_modulo_terms(vol_data.copy(), n)
-    improved_data = sliding_window_prime_modulo(raw_intraday_data.copy(), n)
+    improved_data = contig_prime_modulo(vol_data.copy(), n)
     
     original_features = [col for col in original_data.columns if col.startswith('RV')]
     improved_features = [col for col in improved_data.columns if col.startswith('RV')]

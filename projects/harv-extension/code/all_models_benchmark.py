@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from statsmodels.api import OLS, add_constant
 from data_and_prediction_utils import fit_and_predict_extended
 from data_and_prediction_utils import fetch_data 
-from prime_modulo.prime_modulo_utils import calculate_realized_volatility, add_prime_modulo_terms
+from prime_modulo.prime_modulo_utils import calculate_realized_volatility, add_prime_modulo_terms, contig_prime_modulo
 
 # Strategy 1: Exhaustive Search
 def add_exhaustive_terms(data, n):
@@ -55,9 +55,10 @@ def main_comparison():
 
     strategies = {
         "Standard HAR-RV": add_harv_terms,
-        "Exhaustive Search": add_exhaustive_terms,
-        "Hamming Codes": add_hamming_terms,
-        "Prime Modulo Classes": add_prime_modulo_terms,
+        # "Exhaustive Search": add_exhaustive_terms,
+        # "Hamming Codes": add_hamming_terms,
+        # "Prime Modulo Classes": add_prime_modulo_terms,
+        "Contiguous Prime Modulo": contig_prime_modulo
     }
 
     results = {}
