@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from statsmodels.api import OLS, add_constant
-from data_and_prediction_utils import fit_and_predict_extended, fetch_data
-from prime_modulo_utils import calculate_realized_volatility, add_prime_modulo_terms
+from data_and_prediction_utils import fit_and_predict_extended, fetch_data, fetch_intraday_data
+from prime_modulo_utils import calculate_realized_volatility, add_prime_modulo_terms, contig_prime_modulo
 
 def add_volume_weighted_prime_modulo_terms(data, n):
     data = data.reset_index()
@@ -99,6 +99,30 @@ def add_volume_weighted_adaptive_prime_modulo_terms(data, n):
     
     return data.set_index('Date')
 
+def sliding_window_prime_modulo(data, n):
+    # Create windows of n days and flatten for volatility calculation
+    windows = []
+    for i in range(len(data) - n + 1):
+        window = data.iloc[i:i+n]
+        windows.append(window)
+    
+    base_market_primes = [2, 5, 23]  # daily, weekly, monthly
+    
+    for prime in base_market_primes:
+        vol_values = []
+        for i in range(len(data)):
+            if i % prime == 0 and i < len(windows):
+                window_data = windows[i]
+                vol = np.sqrt(np.sum(window_data['Squared_Return']))
+                vol_values.append(vol)
+            else:
+                vol_values.append(np.nan)
+                
+        data[f'RV_mod_{prime}'] = vol_values
+        data[f'RV_mod_{prime}'].fillna(method='ffill', inplace=True)
+        
+    return data
+
 def fit_and_predict_improved(data, features, n, warmup=30):
     """
     Enhanced prediction function using Ridge regression and feature standardization.
@@ -164,11 +188,15 @@ def compare_prime_modulo_versions():
     if raw_data.empty:
         print(f"No data found for {ticker} between {start_date} and {end_date}")
         return
-        
-    vol_data = calculate_realized_volatility(raw_data, n)
     
+    raw_intraday_data = fetch_intraday_data()
+    if raw_intraday_data.empty:
+        print(f"No intraday data found")
+        return
+    
+    vol_data = calculate_realized_volatility(raw_data, n)
     original_data = add_prime_modulo_terms(vol_data.copy(), n)
-    improved_data = add_volume_weighted_prime_modulo_terms(vol_data.copy(), n)
+    improved_data = contig_prime_modulo(vol_data.copy(), n)
     
     original_features = [col for col in original_data.columns if col.startswith('RV')]
     improved_features = [col for col in improved_data.columns if col.startswith('RV')]
