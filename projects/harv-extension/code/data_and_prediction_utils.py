@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from statsmodels.api import OLS, add_constant
+<<<<<<< HEAD
 import time
 
 def handleDaily(df):
@@ -32,6 +33,18 @@ def fetch_intraday_data():
     df = yf.download('AAPL', period='60d', interval='5m')
     return handleIntraday(df)
 
+=======
+
+# Fetch data
+def fetch_data(ticker, start_date, end_date):
+    df = yf.download(ticker, start=start_date, end=end_date)
+    result = pd.DataFrame(index=df.index)
+    result['Close'] = df['Close']
+    result['Log_Return'] = np.log(result['Close'] / result['Close'].shift(1))
+    result['Squared_Return'] = result['Log_Return'] ** 2
+    return result.dropna()
+
+>>>>>>> cc5eefc (harv-dev-prime-modulo: adding prime modulo improvements)
 # Prediction Model
 def fit_and_predict_extended(data, features, n, warmup=30):
     predictions = []
@@ -61,3 +74,24 @@ def fit_and_predict_extended(data, features, n, warmup=30):
         return results
     else:
         return pd.DataFrame()
+<<<<<<< HEAD
+
+# Calculate realized volatility
+def calculate_realized_volatility(df, n):
+    result = pd.DataFrame(index=df.index)
+    result['RV_d'] = df['Squared_Return']
+    result['RV_w'] = df['Squared_Return'].rolling(window=5).mean()
+    result['RV_m'] = df['Squared_Return'].rolling(window=n).mean()
+    result['Volume'] = df['Volume']
+    return result.dropna()
+
+# Calculate realized volatility
+def calculate_intraday_realized_volatility(df):
+    result = pd.DataFrame(index=df.index)
+    result['RV_d'] = df['Squared_Return']
+    result['RV_w'] = df['Squared_Return'].rolling(window=24 * 60 // 5).mean()
+    result['RV_m'] = df['Squared_Return'].rolling(window=24 * 60).mean()
+    result['Volume'] = df['Volume']
+    return result.dropna()
+=======
+>>>>>>> cc5eefc (harv-dev-prime-modulo: adding prime modulo improvements)

@@ -10,7 +10,10 @@ def calculate_realized_volatility(df, n):
     result['RV_d'] = df['Squared_Return']
     result['RV_w'] = df['Squared_Return'].rolling(window=5).mean()
     result['RV_m'] = df['Squared_Return'].rolling(window=n).mean()
+<<<<<<< HEAD
     result['Volume'] = df['Volume']
+=======
+>>>>>>> cc5eefc (harv-dev-prime-modulo: adding prime modulo improvements)
     return result.dropna()
 
 # Strategy 3: Prime Modulo Classes
@@ -27,10 +30,14 @@ def add_prime_modulo_terms(data, n):
         col_name = f"RV_mod_{prime}"
         data[col_name] = ((data['Index'] % prime == 0).astype(int)) * data['RV_d']
     return data.set_index('Date')
+<<<<<<< HEAD
 
 def contig_prime_modulo(data, n):
+    original_index = data.index
     data = data.reset_index()
+    index_col = 'Date' if 'Date' in data.columns else data.columns[0]
     data['Index'] = range(len(data))
+
     primes = []
     candidate = 2
     while np.prod(primes, dtype=np.int64) < n:
@@ -63,4 +70,7 @@ def contig_prime_modulo(data, n):
             
             data.loc[start_idx:end_idx, col_name] = interval_rv
     
-    return data.set_index('Date')
+    # Set the index back to the original time-based index
+    return data.set_index(index_col)
+=======
+>>>>>>> cc5eefc (harv-dev-prime-modulo: adding prime modulo improvements)

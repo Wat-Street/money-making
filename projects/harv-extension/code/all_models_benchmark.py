@@ -3,9 +3,17 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from statsmodels.api import OLS, add_constant
+<<<<<<< HEAD
+from data_and_prediction_utils import (
+    fit_and_predict_extended, fetch_data, fetch_intraday_data, calculate_realized_volatility, calculate_intraday_realized_volatility
+)
+from prime_modulo.prime_modulo_utils import add_prime_modulo_terms, contig_prime_modulo
+from harvey_utils import add_harv_terms, add_harv_j_terms, add_harv_cj_terms, add_harv_tcj_terms
+=======
 from data_and_prediction_utils import fit_and_predict_extended
 from data_and_prediction_utils import fetch_data 
-from prime_modulo.prime_modulo_utils import calculate_realized_volatility, add_prime_modulo_terms, contig_prime_modulo
+from prime_modulo.prime_modulo_utils import calculate_realized_volatility, add_prime_modulo_terms
+>>>>>>> cc5eefc (harv-dev-prime-modulo: adding prime modulo improvements)
 
 # Strategy 1: Exhaustive Search
 def add_exhaustive_terms(data, n):
@@ -50,8 +58,9 @@ def main_comparison():
     n = 22  # Monthly window size
     warmup = 600  # Warmup period to stabilize rolling calculations
 
-    raw_data = fetch_data(ticker, start_date, end_date)
-    vol_data = calculate_realized_volatility(raw_data, n)
+<<<<<<< HEAD
+    raw_data = fetch_intraday_data()
+    vol_data = calculate_intraday_realized_volatility(raw_data)
 
     strategies = {
         "Standard HAR-RV": add_harv_terms,
@@ -59,6 +68,16 @@ def main_comparison():
         # "Hamming Codes": add_hamming_terms,
         # "Prime Modulo Classes": add_prime_modulo_terms,
         "Contiguous Prime Modulo": contig_prime_modulo
+=======
+    raw_data = fetch_data(ticker, start_date, end_date)
+    vol_data = calculate_realized_volatility(raw_data, n)
+
+    strategies = {
+        "Standard HAR-RV": add_harv_terms,
+        "Exhaustive Search": add_exhaustive_terms,
+        "Hamming Codes": add_hamming_terms,
+        "Prime Modulo Classes": add_prime_modulo_terms,
+>>>>>>> cc5eefc (harv-dev-prime-modulo: adding prime modulo improvements)
     }
 
     results = {}
