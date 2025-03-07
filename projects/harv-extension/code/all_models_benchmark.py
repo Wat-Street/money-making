@@ -3,7 +3,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from statsmodels.api import OLS, add_constant
-from data_and_prediction_utils import fit_and_predict_extended, fetch_data, calculate_realized_volatility
+from data_and_prediction_utils import (
+    fit_and_predict_extended, fetch_data, fetch_intraday_data, calculate_realized_volatility, calculate_intraday_realized_volatility
+)
 from prime_modulo.prime_modulo_utils import add_prime_modulo_terms, contig_prime_modulo
 from harvey_utils import add_harv_terms, add_harv_j_terms, add_harv_cj_terms, add_harv_tcj_terms
 
@@ -48,6 +50,9 @@ def main_comparison():
 
     raw_data = fetch_data(ticker, start_date, end_date)
     vol_data = calculate_realized_volatility(raw_data, n)
+
+    # raw_data = fetch_intraday_data()
+    # vol_data = calculate_intraday_realized_volatility(raw_data)
 
     strategies = {
         "Standard HAR-RV": add_harv_terms,

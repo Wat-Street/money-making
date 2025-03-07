@@ -29,8 +29,11 @@ def add_prime_modulo_terms(data, n):
     return data.set_index('Date')
 
 def contig_prime_modulo(data, n):
+    original_index = data.index
     data = data.reset_index()
+    index_col = 'Date' if 'Date' in data.columns else data.columns[0]
     data['Index'] = range(len(data))
+
     primes = []
     candidate = 2
     while np.prod(primes, dtype=np.int64) < n:
@@ -63,4 +66,5 @@ def contig_prime_modulo(data, n):
             
             data.loc[start_idx:end_idx, col_name] = interval_rv
     
-    return data.set_index('Date')
+    # Set the index back to the original time-based index
+    return data.set_index(index_col)
