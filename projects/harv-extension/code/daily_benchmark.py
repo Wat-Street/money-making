@@ -1,30 +1,14 @@
-import yfinance as yf
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
-from statsmodels.api import OLS, add_constant
-from data_and_prediction_utils import (
-    fit_and_predict_extended, fetch_data, fetch_intraday_data, calculate_realized_volatility, calculate_intraday_realized_volatility
+from utils.data_utils import (
+    fit_and_predict_extended, fetch_data, calculate_realized_volatility
 )
-from prime_modulo.prime_modulo_utils import add_prime_modulo_terms, contig_prime_modulo
-from harvey_utils import add_harv_terms, add_harv_j_terms, add_harv_cj_terms, add_harv_tcj_terms
-
-# Strategy 1: Exhaustive Search
-def add_exhaustive_terms(data, n):
-    for j in range(1, n + 1):
-        col_name = f"RV_{j}"
-        data[col_name] = data['RV_d'].rolling(window=j).mean()
-    return data.replace([np.inf, -np.inf], np.nan).dropna()
-
-# Strategy 2: Hamming Codes
-def add_hamming_terms(data, n):
-    data = data.reset_index()
-    data['Index'] = range(len(data))
-    num_terms = int(np.ceil(np.log2(n)))
-    for j in range(num_terms):
-        col_name = f"RV_bin_{j}"
-        data[col_name] = ((data['Index'] & (1 << j)) != 0).astype(int) * data['RV_d']
-    return data.set_index('Date')
+from utils.models import add_prime_modulo_terms, contig_prime_modulo
+from utils.harvey_utils import add_harv_terms, add_harv_j_terms, add_harv_cj_terms, add_harv_tcj_terms
 
 # Plot Predictions for All Strategies
 def plot_all_predictions(results):
@@ -40,7 +24,6 @@ def plot_all_predictions(results):
     plt.grid(True)
     plt.show()
 
-# Main Comparison Function
 def main_comparison():
     ticker = "AAPL"
     start_date = "2020-01-01"
@@ -50,15 +33,12 @@ def main_comparison():
 
     raw_data = fetch_data(ticker, start_date, end_date)
     vol_data = calculate_realized_volatility(raw_data, n)
-
-    # raw_data = fetch_intraday_data()
-    # vol_data = calculate_intraday_realized_volatility(raw_data)
-
+    
     strategies = {
-        "Standard HAR-RV": add_harv_terms,
+        # "Standard HAR-RV": add_harv_terms,
         # "HAR-RV-J": add_harv_j_terms,
         # "HAR-RV-CJ": add_harv_cj_terms,
-        # "HAR-RV-TCJ": add_harv_tcj_terms,
+        "HAR-RV-TCJ": add_harv_tcj_terms,
         # "Exhaustive Search": add_exhaustive_terms,
         # "Hamming Codes": add_hamming_terms,
         # "Prime Modulo Classes": add_prime_modulo_terms,
