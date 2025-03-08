@@ -7,10 +7,9 @@ import matplotlib.pyplot as plt
 from utils.data_utils import (
     fit_and_predict_extended, fetch_data, calculate_realized_volatility
 )
-from utils.models import add_prime_modulo_terms, contig_prime_modulo
+from utils.models_utils import add_prime_modulo_terms, contig_prime_modulo
 from utils.harvey_utils import add_harv_terms, add_harv_j_terms, add_harv_cj_terms, add_harv_tcj_terms
 
-# Plot Predictions for All Strategies
 def plot_all_predictions(results):
     plt.figure(figsize=(14, 7))
     for strategy_name, prediction in results.items():

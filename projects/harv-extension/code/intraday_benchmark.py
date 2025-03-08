@@ -8,25 +8,8 @@ import matplotlib.dates as mdates
 from utils.data_utils import (
     fit_and_predict_extended, fetch_intraday_data, calculate_intraday_realized_volatility
 )
-from utils.models import add_prime_modulo_terms, contig_prime_modulo
+from utils.models_utils import add_prime_modulo_terms, contig_prime_modulo
 from utils.harvey_utils import add_harv_terms, add_harv_j_terms, add_harv_cj_terms, add_harv_tcj_terms
-
-# Strategy 1: Exhaustive Search
-def add_exhaustive_terms(data, n):
-    for j in range(1, n + 1):
-        col_name = f"RV_{j}"
-        data[col_name] = data['RV_d'].rolling(window=j).mean()
-    return data.replace([np.inf, -np.inf], np.nan).dropna()
-
-# Strategy 2: Hamming Codes
-def add_hamming_terms(data, n):
-    data = data.reset_index()
-    data['Index'] = range(len(data))
-    num_terms = int(np.ceil(np.log2(n)))
-    for j in range(num_terms):
-        col_name = f"RV_bin_{j}"
-        data[col_name] = ((data['Index'] & (1 << j)) != 0).astype(int) * data['RV_d']
-    return data.set_index('Date')
 
 def plot_intraday_predictions(results, days_to_show=1):
     first_result = list(results.values())[0]

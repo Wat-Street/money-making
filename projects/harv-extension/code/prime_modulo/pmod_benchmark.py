@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from utils.data_utils import fit_and_predict_extended, fetch_data, fetch_intraday_data
-from utils.models import (
+from utils.models_utils import (
     add_prime_modulo_terms, add_volume_weighted_prime_modulo_terms, add_volume_weighted_adaptive_prime_modulo_terms, contig_prime_modulo
 )
 from utils.data_utils import calculate_realized_volatility
