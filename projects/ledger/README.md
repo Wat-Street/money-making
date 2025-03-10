@@ -1,5 +1,7 @@
 # Ledger Instances
 
+This repository is outdated for the Ledger Instances Project. We now live at https://github.com/Wat-Street/ledger-instances
+
 ## Overview
 Ledger instances allow the ML team to forward-test their algorithms. An API and database are hosted on the PC that allows members to create instances of Ledgers and tie specific algorithms to trade on them.
 
