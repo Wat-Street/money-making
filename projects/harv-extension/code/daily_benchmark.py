@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from utils.data_utils import (
     fit_and_predict_extended, fetch_data, calculate_realized_volatility
 )
-from utils.models_utils import add_prime_modulo_terms, contig_prime_modulo
+from utils.models_utils import add_prime_modulo_terms, contig_prime_modulo, contig_prime_modulo_with_jumps
 from utils.harvey_utils import add_harv_terms, add_harv_j_terms, add_harv_cj_terms, add_harv_tcj_terms
 
 def plot_all_predictions(results):
@@ -41,7 +41,8 @@ def main_comparison():
         # "Exhaustive Search": add_exhaustive_terms,
         # "Hamming Codes": add_hamming_terms,
         # "Prime Modulo Classes": add_prime_modulo_terms,
-        "Contiguous Prime Modulo": contig_prime_modulo
+        "Contiguous Prime Modulo": contig_prime_modulo,
+        "Contiguous CJ Prime Modulo": contig_prime_modulo_with_jumps
     }
 
     results = {}

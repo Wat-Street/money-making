@@ -1,4 +1,6 @@
 import numpy as np
+from scipy import stats
+import pandas as pd
 
 # Strategy 1: Exhaustive Search
 def add_exhaustive_terms(data, n):
@@ -158,4 +160,77 @@ def contig_prime_modulo(data, n):
             data.loc[start_idx:end_idx, col_name] = interval_rv
     
     # Set the index back to the original time-based index
+    return data.set_index(index_col)
+
+def contig_prime_modulo_with_jumps(data, n, alpha=0.999):
+    data = data.reset_index()
+    index_col = 'Date' if 'Date' in data.columns else data.columns[0]
+    data['Index'] = range(len(data))
+    
+    # bipower variation (BV) for continuous component
+    const = np.sqrt(2/np.pi)
+    abs_returns = np.sqrt(data['RV_d']).shift(1).abs()
+    data['BV_d'] = (const * abs_returns * np.sqrt(data['RV_d'])).fillna(0)
+    
+    # tripower quarticity (for test statistic)
+    abs_returns_power = abs_returns**(4/3)
+    product = pd.Series(1, index=abs_returns.index)
+    
+    for shift in [0, 1, 2]:
+        if shift > 0:
+            product *= abs_returns_power.shift(shift)
+        else:
+            product *= abs_returns_power
+    
+    u_43 = 2**(2/3) * (np.pi**(1/3)) / (4**(2/3) * (np.pi-2)**(1/3))
+    data['TQ_d'] = u_43 * (product**(3/4))
+    
+    # Z-statistic
+    delta = 1/252  # Assuming daily data scaling
+    data['z_stat'] = (data['RV_d'] - data['BV_d']) / (
+        np.sqrt(delta * ((np.pi**2)/4 + np.pi - 5) * np.maximum(1, data['TQ_d']/(data['BV_d']**2)))
+    )
+    
+    # jump days
+    critical_value = stats.norm.ppf(alpha)
+    data['jump_day'] = data['z_stat'] > critical_value
+    
+    # separate continuous and jump components
+    data['J_d'] = np.where(data['jump_day'], 
+                          data['RV_d'] - data['BV_d'], 
+                          0)
+    data['C_d'] = np.where(data['jump_day'], 
+                          data['BV_d'], 
+                          data['RV_d'])
+    
+    # select primes
+    primes = []
+    candidate = 2
+    while np.prod(primes, dtype=np.int64) < n if primes else True:
+        if all(candidate % p != 0 for p in primes):
+            primes.append(candidate)
+        candidate += 1
+    print(f'utilizing {len(primes)} primes: {primes}')
+    
+    for prime in primes:
+        prime_indices = data.index[data['Index'] % prime == 0].tolist()
+
+        c_col_name = f"RV_C_interval_{prime}"
+        j_col_name = f"RV_J_interval_{prime}"
+        data[c_col_name] = 0.0
+        data[j_col_name] = 0.0
+        
+        # Calculate interval volatilities
+        for i in range(len(prime_indices) - 1):
+            start_idx = prime_indices[i]
+            end_idx = prime_indices[i+1]
+            
+            # Average continuous component over the interval
+            c_interval_rv = data.loc[start_idx:end_idx, 'C_d'].mean()
+            data.loc[start_idx:end_idx, c_col_name] = c_interval_rv
+            
+            # Average jump component over the interval
+            j_interval_rv = data.loc[start_idx:end_idx, 'J_d'].mean()
+            data.loc[start_idx:end_idx, j_col_name] = j_interval_rv
+    
     return data.set_index(index_col)
