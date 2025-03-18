@@ -11,7 +11,7 @@ from utils.data_utils import (
 )
 from utils.models_utils import add_prime_modulo_terms, contig_prime_modulo
 from utils.harvey_utils import add_harv_terms, add_harv_j_terms, add_harv_cj_terms, add_harv_tcj_terms
-from utils.plot_utils import plot_rolling_smape
+from utils.plot_utils import plot_rolling_smape, plot_regime_performance_time
 
 def plot_intraday_predictions(results, days_to_show=1):
     first_result = list(results.values())[0]
@@ -21,7 +21,7 @@ def plot_intraday_predictions(results, days_to_show=1):
     start_idx = max(0, len(first_result) - points_to_show)
     
     n_plots = len(results) + 1
-    fig, axes = plt.subplots(n_plots, 1, figsize=(15, 4*n_plots), sharex=True)
+    _, axes = plt.subplots(n_plots, 1, figsize=(15, 4*n_plots), sharex=True)
     
     if n_plots == 2:
         axes = [axes[0], axes[1]]
@@ -34,16 +34,13 @@ def plot_intraday_predictions(results, days_to_show=1):
         ax.plot(first_result.index[start_idx:], first_result['Actual'].iloc[start_idx:],
                 label="Actual", color='black', linestyle='dashed', linewidth=1.5)
         
-        # Format x-axis
         ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
         ax.xaxis.set_minor_locator(mdates.HourLocator())
         
-        # Add grid and labels
         ax.grid(True, alpha=0.3)
         ax.set_ylabel('Volatility')
         
-        # Calculate SMAPE and add to title
         data_subset = prediction.iloc[start_idx:]
         smape = (2 * np.abs(data_subset['Actual'] - data_subset['Predicted']) /
                 (np.abs(data_subset['Actual']) + np.abs(data_subset['Predicted']))).mean() * 100
@@ -52,15 +49,11 @@ def plot_intraday_predictions(results, days_to_show=1):
         # Add legend
         ax.legend(loc='upper right')
     
-    # Get base model for comparison (first model in the dictionary)
     base_model = list(results.keys())[0]
     base_error = np.abs(results[base_model]['Actual'].iloc[start_idx:] - 
                          results[base_model]['Predicted'].iloc[start_idx:])
-    
-    # Comparison plot (bottom subplot)
     comp_ax = axes[-1]
     
-    # For each model other than the base
     for i, (name, prediction) in enumerate(results.items()):
         if name == base_model:
             continue
@@ -81,13 +74,11 @@ def plot_intraday_predictions(results, days_to_show=1):
             current_value = error_diff.iloc[idx]
             next_value = error_diff.iloc[idx+1]
             
-            # Red areas show where base model performs better
             if current_value >= 0:
                 comp_ax.fill_between([current_date, next_date], 
                                    [current_value, next_value], 
                                    [0, 0], 
                                    color='red', alpha=0.3)
-            # Green areas show where compared model performs better
             else:
                 comp_ax.fill_between([current_date, next_date], 
                                    [current_value, next_value], 
@@ -146,6 +137,7 @@ def main_comparison():
     
     plot_intraday_predictions(results, days_to_show=1)
     plot_rolling_smape(results, window_size=288)
+    plot_regime_performance_time(results, window_size=288, is_intraday=True)
 
 if __name__ == "__main__":
     main_comparison()

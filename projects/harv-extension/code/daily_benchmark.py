@@ -10,7 +10,7 @@ from utils.data_utils import (
 )
 from utils.models_utils import add_prime_modulo_terms, contig_prime_modulo, contig_prime_modulo_with_jumps
 from utils.harvey_utils import add_harv_terms, add_harv_j_terms, add_harv_cj_terms, add_harv_tcj_terms
-from utils.plot_utils import plot_rolling_smape
+from utils.plot_utils import plot_rolling_smape, plot_regime_performance_time
 
 def plot_daily_predictions(results, strategies):
     plt.figure(figsize=(15, 12))
@@ -25,15 +25,12 @@ def plot_daily_predictions(results, strategies):
         plt.legend()
         plt.grid(True)
         
-        # Show SMAPE value in subplot
         smape = (2 * np.abs(prediction['Actual'] - prediction['Predicted']) /
                (np.abs(prediction['Actual']) + np.abs(prediction['Predicted']))).mean() * 100
         plt.title(f"{name} (SMAPE: {smape:.2f}%)", fontsize=10)
     
-    # Add comparison plot at the bottom
     plt.subplot(len(results) + 1, 1, len(results) + 1)
     
-    # Get base model for comparison (HAR-RV)
     base_model = list(strategies.keys())[0]
     base_error = np.abs(results[base_model]['Actual'] - results[base_model]['Predicted'])
     
@@ -56,13 +53,11 @@ def plot_daily_predictions(results, strategies):
             current_value = error_diff.iloc[idx]
             next_value = error_diff.iloc[idx+1]
             
-            # Red areas show where base model performs better
             if current_value >= 0:
                 plt.fill_between([current_date, next_date], 
                                [current_value, next_value], 
                                [0, 0], 
                                color='red', alpha=0.3)
-            # Green areas show where new model performs better
             else:
                 plt.fill_between([current_date, next_date], 
                                [current_value, next_value], 
@@ -117,6 +112,7 @@ def main_comparison():
 
     plot_daily_predictions(results, strategies)
     plot_rolling_smape(results, window_size=22)
+    plot_regime_performance_time(results, window_size=22, is_intraday=False)
 
 if __name__ == "__main__":
     main_comparison()
