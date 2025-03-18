@@ -5,12 +5,13 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from matplotlib.patches import Patch
 from utils.data_utils import (
     fit_and_predict_extended, fetch_intraday_data, calculate_intraday_realized_volatility
 )
 from utils.models_utils import add_prime_modulo_terms, contig_prime_modulo
 from utils.harvey_utils import add_harv_terms, add_harv_j_terms, add_harv_cj_terms, add_harv_tcj_terms
-from matplotlib.patches import Patch
+from utils.plot_utils import plot_rolling_smape
 
 def plot_intraday_predictions(results, days_to_show=1):
     first_result = list(results.values())[0]
@@ -144,6 +145,7 @@ def main_comparison():
             results[name] = predictions
     
     plot_intraday_predictions(results, days_to_show=1)
+    plot_rolling_smape(results, window_size=288)
 
 if __name__ == "__main__":
     main_comparison()

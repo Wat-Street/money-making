@@ -10,6 +10,7 @@ from utils.data_utils import (
 )
 from utils.models_utils import add_prime_modulo_terms, contig_prime_modulo, contig_prime_modulo_with_jumps
 from utils.harvey_utils import add_harv_terms, add_harv_j_terms, add_harv_cj_terms, add_harv_tcj_terms
+from utils.plot_utils import plot_rolling_smape
 
 def plot_daily_predictions(results, strategies):
     plt.figure(figsize=(15, 12))
@@ -115,6 +116,7 @@ def main_comparison():
             results[name] = predictions
 
     plot_daily_predictions(results, strategies)
+    plot_rolling_smape(results, window_size=22)
 
 if __name__ == "__main__":
     main_comparison()
