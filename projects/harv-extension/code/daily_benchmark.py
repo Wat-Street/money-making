@@ -8,7 +8,7 @@ from matplotlib.patches import Patch
 from utils.data_utils import (
     fit_and_predict_extended, fetch_data, calculate_realized_volatility
 )
-from utils.models_utils import add_prime_modulo_terms, contig_prime_modulo, contig_prime_modulo_with_jumps
+from utils.models_utils import random_sets, add_prime_modulo_terms, contig_prime_modulo, contig_prime_modulo_with_jumps
 from utils.harvey_utils import add_harv_terms, add_harv_j_terms, add_harv_cj_terms, add_harv_tcj_terms
 from utils.plot_utils import plot_rolling_smape, plot_regime_performance_time
 
@@ -96,6 +96,7 @@ def main_comparison():
         # "Prime Modulo Classes": add_prime_modulo_terms,
         "Contiguous Prime Modulo": contig_prime_modulo,
         # "Contiguous CJ Prime Modulo": contig_prime_modulo_with_jumps
+        "Randomized Sets": random_sets
     }
 
     results = {}

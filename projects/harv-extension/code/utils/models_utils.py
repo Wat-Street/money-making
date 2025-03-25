@@ -162,6 +162,31 @@ def contig_prime_modulo(data, n):
     # Set the index back to the original time-based index
     return data.set_index(index_col)
 
+def random_sets(data, n):
+    data = data.reset_index()
+    index_col = 'Date' if 'Date' in data.columns else data.columns[0]
+    data['Index'] = range(len(data))
+    
+    primes = []
+    candidate = 2
+    while np.prod(primes, dtype=np.int64) < n:
+        if all(candidate % p != 0 for p in primes):
+            primes.append(candidate)
+        candidate += 1
+    
+    set_sizes = [len(data) // p for p in primes]
+    print(f'Using randomized sets of sizes: {set_sizes}')
+    
+    for size in set_sizes:
+        col_name = f"RV_rand_{size}"
+        data[col_name] = 0.0
+        
+        for _ in range(len(data) // size):
+            random_indices = np.random.choice(data.index, size=size, replace=False)
+            data.loc[random_indices, col_name] = data.loc[random_indices, 'RV_d'].mean()
+    
+    return data.set_index(index_col)
+
 def contig_prime_modulo_with_jumps(data, n, alpha=0.999):
     data = data.reset_index()
     index_col = 'Date' if 'Date' in data.columns else data.columns[0]
