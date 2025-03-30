@@ -75,7 +75,11 @@ def calculate_realized_volatility(df, n):
 def calculate_intraday_realized_volatility(df):
     result = pd.DataFrame(index=df.index)
     result['RV_d'] = df['Squared_Return']
-    result['RV_w'] = df['Squared_Return'].rolling(window=24 * 60 // 5).mean()
-    result['RV_m'] = df['Squared_Return'].rolling(window=24 * 60).mean()
+
+    # Weekly = 78 periods (1 trading day = 78 5-min periods)
+    result['RV_w'] = df['Squared_Return'].rolling(window=78).mean()
+    # Monthly = 78 * 21 periods (21 trading days)
+    result['RV_m'] = df['Squared_Return'].rolling(window=78 * 21).mean()
+
     result['Volume'] = df['Volume']
     return result.dropna()
