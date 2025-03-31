@@ -22,6 +22,8 @@ def add_hamming_terms(data, n):
 # Strategy 3: Prime Modulo Classes
 def add_prime_modulo_terms(data, n):
     data = data.reset_index()
+    index_col = data.columns[0]
+    
     data['Index'] = range(len(data))
     primes = []
     candidate = 2
@@ -32,7 +34,7 @@ def add_prime_modulo_terms(data, n):
     for prime in primes:
         col_name = f"RV_mod_{prime}"
         data[col_name] = ((data['Index'] % prime == 0).astype(int)) * data['RV_d']
-    return data.set_index('Date')
+    return data.set_index(index_col)
 
 def add_volume_weighted_prime_modulo_terms(data, n):
     data = data.reset_index()
