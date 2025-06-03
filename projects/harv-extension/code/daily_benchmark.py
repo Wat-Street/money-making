@@ -87,14 +87,14 @@ def main_comparison():
     vol_data = calculate_realized_volatility(raw_data, n)
     
     strategies = {
-        "Standard HAR-RV": add_harv_terms,
+        # "Standard HAR-RV": add_harv_terms,
         # "HAR-RV-J": add_harv_j_terms,
         # "HAR-RV-CJ": add_harv_cj_terms,
         # "HAR-RV-TCJ": add_harv_tcj_terms,
         # "Exhaustive Search": add_exhaustive_terms,
         # "Hamming Codes": add_hamming_terms,
-        # "Prime Modulo Classes": add_prime_modulo_terms,
-        "Contiguous Prime Modulo": contig_prime_modulo,
+        "Prime Modulo Classes": add_prime_modulo_terms,
+        # "Contiguous Prime Modulo": contig_prime_modulo,
         # "Contiguous CJ Prime Modulo": contig_prime_modulo_with_jumps
         "Randomized Sets": random_sets
     }
