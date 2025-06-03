@@ -10,13 +10,14 @@ from utils.data_utils import (
     fit_and_predict_extended, fetch_intraday_data, calculate_intraday_realized_volatility
 )
 from utils.models_utils import random_sets, add_prime_modulo_terms, contig_prime_modulo
+from utils.models_utils import random_sets, add_prime_modulo_terms, contig_prime_modulo
 from utils.harvey_utils import add_harv_terms, add_harv_j_terms, add_harv_cj_terms, add_harv_tcj_terms
 from utils.plot_utils import plot_rolling_smape, plot_regime_performance_time
 
 def plot_intraday_predictions(results, days_to_show=1):
     first_result = list(results.values())[0]
     
-    points_per_day = 288  # Assuming 5-minute data (12 points/hour * 24 hours)
+    points_per_day = 78  # 6.5 trading hours = 78 five-minute intervals
     points_to_show = min(points_per_day * days_to_show, len(first_result))
     start_idx = max(0, len(first_result) - points_to_show)
     
@@ -97,15 +98,26 @@ def plot_intraday_predictions(results, days_to_show=1):
     comp_ax.legend(handles=legend_elements)
     comp_ax.grid(True, alpha=0.3)
     
-    for ax in axes:
-        ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
-        comp_ax.set_xticklabels([])
+    ## No x-axis labels for all but the bottom plot
+    # for ax in axes:
+    #     ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
+    #     comp_ax.set_xticklabels([])
     
+    ## Format x-axis labels for all but the bottom plot
+    for ax in axes[:-1]: 
+        plt.setp(ax.get_xticklabels(), visible=False)
+        
+    # Format bottom axis with visible time labels
+    comp_ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+    comp_ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
+    plt.setp(comp_ax.get_xticklabels(), visible=True, rotation=45)
+
     plt.tight_layout()
     plt.subplots_adjust(top=0.95)
     plt.show()
 
 def main_comparison():
+    points_per_day = 78  # 6.5 trading hours = 78 five-minute intervals
     n = 22  # Monthly window size
     warmup = 600  # Warmup period to stabilize rolling calculations
 
@@ -113,15 +125,14 @@ def main_comparison():
     vol_data = calculate_intraday_realized_volatility(raw_data)
 
     strategies = {
-        "Standard HAR-RV": add_harv_terms,
+        # "Standard HAR-RV": add_harv_terms,
         # "HAR-RV-J": add_harv_j_terms,
         # "HAR-RV-CJ": add_harv_cj_terms,
         # "HAR-RV-TCJ": add_harv_tcj_terms,
         # "Exhaustive Search": add_exhaustive_terms,
         # "Hamming Codes": add_hamming_terms,
         # "Prime Modulo Classes": add_prime_modulo_terms,
-        "Randomized Sets": random_sets,
-        # "Contiguous Prime Modulo": contig_prime_modulo
+        "Contiguous Prime Modulo": contig_prime_modulo
     }
 
     results = {}
@@ -137,8 +148,8 @@ def main_comparison():
             results[name] = predictions
     
     plot_intraday_predictions(results, days_to_show=1)
-    plot_rolling_smape(results, window_size=288)
-    plot_regime_performance_time(results, window_size=288, is_intraday=True)
+    plot_rolling_smape(results, window_size=points_per_day)
+    plot_regime_performance_time(results, window_size=points_per_day, is_intraday=True)
 
 if __name__ == "__main__":
     main_comparison()

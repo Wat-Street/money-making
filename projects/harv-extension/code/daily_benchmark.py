@@ -68,8 +68,8 @@ def plot_daily_predictions(results, strategies):
     plt.ylabel('Error Difference\n(Model - HAR-RV)')
     
     legend_elements = [
-        Patch(facecolor='red', alpha=0.3, label='HAR-RV Better'),
-        Patch(facecolor='green', alpha=0.3, label='Prime Modulo Better')
+        Patch(facecolor='red', alpha=0.3, label=f'{base_model} Better'),
+        Patch(facecolor='green', alpha=0.3, label='Other Model Better')
     ]
     plt.legend(handles=legend_elements)
     plt.grid(True)
@@ -112,8 +112,8 @@ def main_comparison():
             results[name] = predictions
 
     plot_daily_predictions(results, strategies)
-    plot_rolling_smape(results, window_size=22)
-    plot_regime_performance_time(results, window_size=22, is_intraday=False)
+    plot_rolling_smape(results, window_size=n)
+    plot_regime_performance_time(results, window_size=n, is_intraday=False)
 
 if __name__ == "__main__":
     main_comparison()
