@@ -21,6 +21,9 @@ Client → API Gateway → Microservice A
 2. **Environment Configuration**
    Copy the environment variables from your existing `.env.local` file or create a new `.env` file:
    ```bash
+   # Flask Environment (development, production, or default)
+   FLASK_ENV=development
+   
    # API Gateway Configuration
    DEBUG=True
    GATEWAY_PORT=5000
@@ -32,6 +35,8 @@ Client → API Gateway → Microservice A
    POLYGON_API_KEY=your_polygon_api_key_here
    POLYGON_KEY_ID=your_polygon_key_id_here
    ```
+
+   The gateway uses centralized configuration management via `config.py`. You can set `FLASK_ENV=production` for production deployments.
 
 3. **Start the Gateway**
    ```bash

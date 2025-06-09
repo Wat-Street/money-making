@@ -134,11 +134,14 @@ To add a new microservice:
 
 ### Gateway `.env`
 ```bash
+FLASK_ENV=development
 DEBUG=True
 GATEWAY_PORT=5000
 OPTIONS_BUILDER_SERVICE_URL=http://localhost:5001
 POLYGON_API_KEY=your_key_here
 ```
+
+The gateway uses centralized configuration management through `config.py` with environment-specific settings.
 
 ## Development Workflow
 

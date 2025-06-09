@@ -54,11 +54,14 @@ chmod +x scripts/*.sh
 2. **Verify environment variables**
    Make sure your `gateway/.env` file contains:
    ```
+   FLASK_ENV=development
    DEBUG=True
    GATEWAY_PORT=5000
    OPTIONS_BUILDER_SERVICE_URL=http://localhost:5001
    POLYGON_API_KEY=your_actual_key_here
    ```
+   
+   The application uses centralized configuration via `config.py`. Set `FLASK_ENV=production` for production deployments.
 
 ## Verification
 

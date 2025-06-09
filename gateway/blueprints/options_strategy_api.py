@@ -1,21 +1,18 @@
 from flask import Blueprint, request, jsonify, current_app
 import requests
-import os
 
 # Create a Blueprint
 options_strategy_bp = Blueprint('options_strategy_bp',
                                 __name__,
                                 url_prefix='/options-builder')
 
-# Get service URL from environment variable with fallback
-OPTIONS_BUILDER_API_URL = os.getenv('OPTIONS_BUILDER_SERVICE_URL', 'http://localhost:5001')
-
 @options_strategy_bp.route('/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def proxy_options_builder(subpath):
     """
     Proxy all requests to the Options Strategy Builder microservice
     """
-    url = f"{OPTIONS_BUILDER_API_URL}/{subpath}"
+    service_url = current_app.config['OPTIONS_BUILDER_SERVICE_URL']
+    url = f"{service_url}/{subpath}"
 
     try:
         # Forward the request
@@ -63,14 +60,14 @@ def proxy_options_builder(subpath):
         current_app.logger.error(f"Failed to connect to Options Strategy Builder at {url}")
         return jsonify({
             "error": "Options Strategy Builder service is unavailable",
-            "service_url": OPTIONS_BUILDER_API_URL,
+            "service_url": service_url,
             "requested_path": subpath
         }), 502
     except requests.exceptions.Timeout:
         current_app.logger.error(f"Timeout connecting to Options Strategy Builder at {url}")
         return jsonify({
             "error": "Options Strategy Builder service timeout",
-            "service_url": OPTIONS_BUILDER_API_URL
+            "service_url": service_url
         }), 504
     except Exception as e:
         current_app.logger.error(f"Error proxying to options builder: {e}", exc_info=True)
@@ -84,8 +81,9 @@ def options_strategy_health():
     """
     Health check for the Options Strategy Builder service
     """
+    service_url = current_app.config['OPTIONS_BUILDER_SERVICE_URL']
     try:
-        resp = requests.get(f"{OPTIONS_BUILDER_API_URL}/api/v1/ping", timeout=5)
+        resp = requests.get(f"{service_url}/api/v1/ping", timeout=5)
         if resp.status_code == 200:
             return jsonify({
                 "service": "options-strategy-builder",
