@@ -1,121 +1,160 @@
-# Money Making Server
+# WatStreet Money Making - API Gateway
 
-This server hosts REST API endpoints to use machine learning models on a specific dataset and evaluate performance.
+A financial analysis platform built with an API Gateway that proxies requests to microservices.
 
-## Accessing Endpoints Publicly
+## Architecture Overview
 
-1. Use the base URL: `https://immense-alert-osprey.ngrok-free.app`
-2. Append the compatible endpoints listed below to this base URL and call with the correct requests.
-
-## Running Locally
-
-1. Navigate to `server/app.py`.
-2. Comment out ngrok-related lines.
-3. Run `pip install -r requirements.txt`
-4. Run `python app.py`.
-5. The server will run locally at `http://localhost:5000`.
-
----
-
-## Endpoints
-
-### Mean Reversion Endpoint
-
-Runs the mean reversion model and returns a series of buy/sell suggestions with confidence values.
-
-- **URL:** `/api/meanreversion`
-- **Method:** POST
-
-#### Example Request
-```json
-{
-  "ticker": "AAPL",
-  "trainstart": "2015-01-01",
-  "trainend": "2022-01-01",
-  "teststart": "2022-01-01",
-  "testend": "2024-05-06",
-  "maxholding": "100"
-}
+```
+Client Applications
+        ↓
+   API Gateway (Port 5000) __________
+        ↓                           ↓
+Options Builder Service       Other Services...
+    (Port 5001)                  (Port XXXX)
 ```
 
-#### Example Response:
+## Repository Structure
+
 ```
-[
-  {
-    "confidence": 0.9731735587120056,
-    "datetime": "2022-12-06 00:00:00",
-    "suggestion": "Buy"
-  },
-  {
-    "confidence": 0.9925611019134521,
-    "datetime": "2022-12-07 00:00:00",
-    "suggestion": "Buy"
-  },
-  ...
-]
-```
-
-
-### List Stocks
-
-Lists 10 frequent stock tickers. Currently hardcoded
-
-- **URL:** `/api/list_tickers`
-- **Method:** GET
-
-#### Example Request
-```
+money-making/
+├── gateway/                     # API Gateway
+│   ├── app.py                  # Main gateway application
+│   ├── blueprints/             # Service proxy blueprints
+│   │   ├── options_strategy_api.py
+│   │   └── mean_reversion_api.py
+│   ├── config.py               # Configuration management
+│   ├── requirements.txt        # Gateway dependencies
+│   └── README.md              # Gateway documentation
+│
+├── microservices/              # Future microservices directory
+│
+├── projects/                   # Legacy projects (to be migrated)
+│   ├── options-volatility-model/
+│   ├── crypto-arb-cross-exchange/
+│   └── ...
+│
+└── server/                     # Legacy server code (deprecated)
 ```
 
-#### Example Response:
-```
-[
-    "AAPL",
-    "AMZN",
-    "GOOG",
-    "META",
-    "MSFT",
-    "NVDA",
-    "TSLA"
-]
+## Quick Start
+
+### 1. Start the API Gateway
+
+```bash
+cd gateway
+pip install -r requirements.txt
+# Copy your existing .env.local values to a new .env file
+python app.py
 ```
 
+The gateway will start on http://localhost:5000
 
+### 2. Start Options Strategy Service (External)
 
-### Stock Data
+This service should be running separately on port 5001. If you don't have it set up yet, you can create a simple one:
 
-Retrieves stock's daily information given a ticker, start date, and end date.
+```python
+# In a separate repository or directory
+from flask import Flask, jsonify
 
-- **URL:** `/api/stock_data`
-- **Method:** GET
+app = Flask(__name__)
 
-#### Example Request:
+@app.route('/api/v1/ping', methods=['GET'])
+def ping():
+    return jsonify({'message': 'Options Strategy Builder API is alive!'}), 200
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5001, debug=True)
 ```
-{
-  "ticker": "AAPL",
-  "start_date": "2015-01-01", # optional
-  "end_date": "2022-01-01", # optional
-}
+
+## API Usage
+
+### Via API Gateway (Recommended)
+
+```bash
+# Health checks
+curl http://localhost:5000/health
+curl http://localhost:5000/options-builder/health
+
+# Options strategy builder (example)
+curl http://localhost:5000/options-builder/api/v1/ping
 ```
 
-#### Example Response:
+### Direct Service Access (Development)
+
+```bash
+# Direct to options builder service
+curl http://localhost:5001/api/v1/ping
 ```
-[
-    {
-        "datetime": "2023-01-01 00:00:00",
-        "open": 130.00,
-        "high": 135.00,
-        "low": 128.00,
-        "close": 132.00,
-        "volume": 100000
-    },
-    {
-        "datetime": "2023-01-02 00:00:00",
-        "open": 132.00,
-        "high": 136.00,
-        "low": 130.00,
-        "close": 134.00,
-        "volume": 110000
-    }
-]
+
+## Migration from Legacy Code
+
+The existing `server/` directory contains the original monolithic application. Key components have been extracted:
+
+- **Options Strategy Proxy**: Moved to `gateway/blueprints/options_strategy_api.py`
+- **API Gateway**: New implementation in `gateway/app.py`
+
+### What Was Migrated
+
+1. **Options Strategy Proxy**: 
+   - Gateway now proxies all `/options-builder/*` requests to the external Options Strategy Builder service
+
+## Adding New Services
+
+To add a new microservice:
+
+1. **Create the microservice**:
+   ```bash
+   mkdir microservices/your-service
+   cd microservices/your-service
+   # Create app.py with Flask application
+   # Add /api/v1/ping health check endpoint
+   ```
+
+2. **Create the gateway blueprint**:
+   ```bash
+   # Create gateway/blueprints/your_service_api.py
+   # Follow the pattern from existing blueprints
+   ```
+
+3. **Register the blueprint**:
+   ```python
+   # In gateway/app.py
+   from blueprints.your_service_api import your_service_bp
+   app.register_blueprint(your_service_bp)
+   ```
+
+4. **Update configuration**:
+   ```bash
+   # Add service URL to gateway/.env
+   YOUR_SERVICE_URL=http://localhost:5003
+   ```
+
+## Environment Variables
+
+### Gateway `.env`
+```bash
+DEBUG=True
+GATEWAY_PORT=5000
+OPTIONS_BUILDER_SERVICE_URL=http://localhost:5001
+POLYGON_API_KEY=your_key_here
 ```
+
+## Development Workflow
+
+1. **Local Development**: Run all services locally on different ports
+2. **Integration Testing**: Use the gateway to test service interactions
+3. **Service Independence**: Each service can be developed and deployed independently
+4. **Scalability**: Services can be scaled individually based on demand
+
+## Legacy Support
+
+The original `server/app.py` is preserved for reference but should not be used in production. All new development should follow the microservices pattern.
+
+## Next Steps
+
+1. Migrate remaining projects from `projects/` to microservices
+2. Add authentication/authorization to the gateway
+3. Implement proper logging and monitoring
+4. Add service discovery and load balancing
+5. Containerize services with Docker
