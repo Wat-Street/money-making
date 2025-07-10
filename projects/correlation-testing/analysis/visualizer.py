@@ -1,3 +1,4 @@
+import os
 import matplotlib.pyplot as plt
 
 def plot_lagged_correlation(ticker_a, ticker_b, df, max_lag=10, save=False):
@@ -13,7 +14,6 @@ def plot_lagged_correlation(ticker_a, ticker_b, df, max_lag=10, save=False):
     """
     series_a = df[f"Close_{ticker_a}"]
     series_b = df[f"Close_{ticker_b}"]
-    # assuming that the correlation is calculated properly
     corr_df = compute_lagged_correlation(series_a, series_b, max_lag)
 
     plt.figure(figsize=(8, 5))
@@ -24,3 +24,12 @@ def plot_lagged_correlation(ticker_a, ticker_b, df, max_lag=10, save=False):
     plt.axvline(0, color="gray", linestyle="--", linewidth=1)
     plt.grid(True)
     plt.tight_layout()
+
+    if save:
+        os.makedirs("outputs/plots", exist_ok=True)
+        filename = f"outputs/plots/{ticker_a}_{ticker_b}_lagged_corr.png"
+        plt.savefig(filename)
+        print(f"Saved plot to {filename}")
+        plt.close()
+    else:
+        plt.show()
