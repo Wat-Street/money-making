@@ -1,4 +1,5 @@
 from datetime import datetime
+import time
 from analysis.data_loader import load_pair_data
 from analysis.visualizer import plot_lagged_correlation
 from analysis.pairs import research_pairs
@@ -29,6 +30,11 @@ def main():
         except Exception as e:
             print(f"❌ Error processing {ticker_a} and {ticker_b}")
             continue
+        
+        # Stagger API calls for stability
+        if i < len(research_pairs):
+            print("Waiting 2 seconds before next pair...")
+            time.sleep(2)
 
     print(f"\n{'='*50}")
     print(f"Successfully processed: {success}/{len(research_pairs)} pairs")
