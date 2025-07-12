@@ -26,3 +26,10 @@
 
 #     print(f"\n{stock_a}-{stock_b} Lagged Correlation:")
 #     print(corr_df)
+
+# # Plotting the correlation
+# research_pairs = [("AAPL", "MSFT"), ("GOOG", "META")]
+# data = load_multiple_pairs(research_pairs, "2022-01-01", "2023-01-01")
+
+# for (a, b), df in data.items():
+#     plot_lagged_correlation(a, b, df, max_lag=10)

@@ -61,7 +61,10 @@ def load_pair_data(ticker_a, ticker_b, start_date, end_date, cache=True):
     Returns:
         pd.DataFrame: Merged DataFrame with aligned 'Date', 'Close_<ticker>' columns.
     """
+    print(f"Loading data for {ticker_a}")
     df_a = get_stock_data(ticker_a, start_date, end_date, cache)
+
+    print(f"Loading data for {ticker_b}")
     df_b = get_stock_data(ticker_b, start_date, end_date, cache)
 
     merged = pd.merge(df_a, df_b, on="Date", suffixes=(f"_{ticker_a}", f"_{ticker_b}"))
