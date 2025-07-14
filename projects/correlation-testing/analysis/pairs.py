@@ -6,5 +6,4 @@ research_pairs = [
     ("CVS", "JNJ"),
     ("CL", "KMB"),
     ("GE", "BA"),
-    ("PPG", "SHW")
 ]
