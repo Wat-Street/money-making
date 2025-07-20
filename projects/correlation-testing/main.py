@@ -1,35 +1,44 @@
-# This file contains skeleton code for now to show how compute_lagged_correlation should be utilized
+from datetime import datetime
+import time
+from analysis.data_loader import load_pair_data
+from analysis.visualizer import plot_lagged_correlation
+from analysis.pairs import research_pairs
 
-# from analysis.data_loader import load_pair_data
-# from analysis.pairs import research_pairs
-# from analysis.correlation import compute_lagged_correlation
+def main():
+    start_date = "2020-01-01" # approx 5 years but we can change this later
+    end_date = datetime.today.strftime("%Y-%m-%d")
 
-# """
-# Sample Output
-# CVS-JNJ Lagged Correlation:
-#     lag  correlation
-# 0   -10     0.4512
-# 1    -9     0.4620
-# ...
-# 10    0     0.4925
-# ...
-# 20   10     0.4458
-# """
-# for stock_a, stock_b in research_pairs:
-#     data = load_pair_data(stock_a, stock_b, "2022-01-01", "2024-12-31")
+    print(f"Starting correlation analysis from {start_date} to {end_date}")
+    print(f"Processing {len(research_pairs)} pairs...")
+    success = 0
 
-#     corr_df = compute_lagged_correlation(
-#         data[f"Close_{stock_a}"],
-#         data[f"Close_{stock_b}"],
-#         max_lag=10
-#     )
+    for i, (ticker_a, ticker_b) in enumerate(research_pairs, 1):
+        print(f"\n{'='*50}")
+        print(f"Processing pair {i}/{len(research_pairs)}: {ticker_a} & {ticker_b}")
+        print(f"{'='*50}")
 
-#     print(f"\n{stock_a}-{stock_b} Lagged Correlation:")
-#     print(corr_df)
+        try:
+            df = load_pair_data(ticker_a, ticker_b, start_date, end_date, cache=True)
+            if df.empty:
+                print(f"❌ No data for {ticker_a} and {ticker_b}")
+                continue
 
-# # Plotting the correlation
-# research_pairs = [("AAPL", "MSFT"), ("GOOG", "META")]
-# data = load_multiple_pairs(research_pairs, "2022-01-01", "2023-01-01")
+            print(f"✅ Successfully loaded data for {ticker_a}-{ticker_b} ")
+            plot_lagged_correlation(ticker_a, ticker_b, df, max_lag=10, save=True)
+            success += 1
+        
+        except Exception as e:
+            print(f"❌ Error processing {ticker_a} and {ticker_b}")
+            continue
+        
+        # Stagger API calls for stability
+        if i < len(research_pairs):
+            print("Waiting 2 seconds before next pair...")
+            time.sleep(2)
 
-# for (a, b), df in data.items():
-#     plot_lagged_correlation(a, b, df, max_lag=10)
+    print(f"\n{'='*50}")
+    print(f"Successfully processed: {success}/{len(research_pairs)} pairs")
+    print(f"{'='*50}")
+
+if __name__ == "__main__":
+    main()
