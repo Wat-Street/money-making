@@ -6,7 +6,7 @@ from analysis.pairs import research_pairs
 
 def main():
     start_date = "2020-01-01" # approx 5 years but we can change this later
-    end_date = datetime.today.strftime("%Y-%m-%d")
+    end_date = datetime.today().strftime("%Y-%m-%d")
 
     print(f"Starting correlation analysis from {start_date} to {end_date}")
     print(f"Processing {len(research_pairs)} pairs...")
@@ -28,7 +28,7 @@ def main():
             success += 1
         
         except Exception as e:
-            print(f"❌ Error processing {ticker_a} and {ticker_b}")
+            print(f"❌ Error processing {ticker_a} and {ticker_b}: {e}")
             continue
         
         # Stagger API calls for stability

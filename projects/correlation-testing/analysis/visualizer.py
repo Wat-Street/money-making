@@ -1,5 +1,6 @@
 import os
 import matplotlib.pyplot as plt
+from analysis.correlation import compute_lagged_correlation
 
 def plot_lagged_correlation(ticker_a, ticker_b, df, max_lag=10, save=False):
     """
@@ -14,7 +15,6 @@ def plot_lagged_correlation(ticker_a, ticker_b, df, max_lag=10, save=False):
     """
     series_a = df[f"Close_{ticker_a}"]
     series_b = df[f"Close_{ticker_b}"]
-    # Note: pandas.Series.corr() uses the standard Pearson formula for calculating the coefficient
     corr_df = compute_lagged_correlation(series_a, series_b, max_lag)
 
     plt.figure(figsize=(10, 6))
