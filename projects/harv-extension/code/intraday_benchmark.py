@@ -1,155 +1,295 @@
-import sys
-import os
+﻿import sys, os, argparse, time, gc, traceback
+from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from matplotlib.patches import Patch
-from utils.data_utils import (
-    fit_and_predict_extended, fetch_intraday_data, calculate_intraday_realized_volatility
-)
-from utils.models_utils import random_sets, add_prime_modulo_terms, contig_prime_modulo
-from utils.models_utils import random_sets, add_prime_modulo_terms, contig_prime_modulo
+import pandas as pd
+from utils.data_utils import fetch_intraday_data, calculate_intraday_realized_volatility, fit_and_predict_extended
+from utils.reporting_utils import aggregate_overall_from_predictions, save_table_overall
 from utils.harvey_utils import add_harv_terms, add_harv_j_terms, add_harv_cj_terms, add_harv_tcj_terms
-from utils.plot_utils import plot_rolling_smape, plot_regime_performance_time
+from utils.models_utils import (
+    add_exhaustive_terms, add_hamming_terms,
+    add_prime_modulo_terms, add_volume_weighted_prime_modulo_terms,
+    add_volume_weighted_adaptive_prime_modulo_terms,
+    contig_prime_modulo, contig_prime_modulo_with_jumps,
+    random_sets
+)
 
-def plot_intraday_predictions(results, days_to_show=1):
-    first_result = list(results.values())[0]
-    
-    points_per_day = 78  # 6.5 trading hours = 78 five-minute intervals
-    points_to_show = min(points_per_day * days_to_show, len(first_result))
-    start_idx = max(0, len(first_result) - points_to_show)
-    
-    n_plots = len(results) + 1
-    _, axes = plt.subplots(n_plots, 1, figsize=(15, 4*n_plots), sharex=True)
-    
-    if n_plots == 2:
-        axes = [axes[0], axes[1]]
-    
-    # Plot each model on its own subplot
-    for i, (strategy_name, prediction) in enumerate(results.items()):
-        ax = axes[i]
-        ax.plot(prediction.index[start_idx:], prediction['Predicted'].iloc[start_idx:],
-                label=f"Predicted", color=f'C{i}', linewidth=1.5)
-        ax.plot(first_result.index[start_idx:], first_result['Actual'].iloc[start_idx:],
-                label="Actual", color='black', linestyle='dashed', linewidth=1.5)
-        
-        ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-        ax.xaxis.set_minor_locator(mdates.HourLocator())
-        
-        ax.grid(True, alpha=0.3)
-        ax.set_ylabel('Volatility')
-        
-        data_subset = prediction.iloc[start_idx:]
-        smape = (2 * np.abs(data_subset['Actual'] - data_subset['Predicted']) /
-                (np.abs(data_subset['Actual']) + np.abs(data_subset['Predicted']))).mean() * 100
-        ax.set_title(f"{strategy_name} (SMAPE: {smape:.2f}%)", fontsize=10)
-        
-        # Add legend
-        ax.legend(loc='upper right')
-    
-    base_model = list(results.keys())[0]
-    base_error = np.abs(results[base_model]['Actual'].iloc[start_idx:] - 
-                         results[base_model]['Predicted'].iloc[start_idx:])
-    comp_ax = axes[-1]
-    
-    for i, (name, prediction) in enumerate(results.items()):
-        if name == base_model:
-            continue
-            
-        # Calculate error difference
-        model_error = np.abs(prediction['Actual'].iloc[start_idx:] - 
-                              prediction['Predicted'].iloc[start_idx:])
-        error_diff = model_error - base_error
-        
-        # Plot the error difference line
-        comp_ax.plot(prediction.index[start_idx:], error_diff, 
-                    color='black', alpha=0.5, label=f'{name} vs {base_model}')
-        
-        # Fill areas based on which model performs better
-        for idx in range(len(error_diff)-1):
-            current_date = prediction.index[start_idx+idx]
-            next_date = prediction.index[start_idx+idx+1]
-            current_value = error_diff.iloc[idx]
-            next_value = error_diff.iloc[idx+1]
-            
-            if current_value >= 0:
-                comp_ax.fill_between([current_date, next_date], 
-                                   [current_value, next_value], 
-                                   [0, 0], 
-                                   color='red', alpha=0.3)
+MODEL_FUNCS = {
+    'HAR': add_harv_terms,
+    'HAR_J': add_harv_j_terms,
+    'HAR_CJ': add_harv_cj_terms,
+    'HAR_TCJ': add_harv_tcj_terms,
+    'PM': add_prime_modulo_terms,
+    'PM_VW': add_volume_weighted_prime_modulo_terms,
+    'PM_AD': add_volume_weighted_adaptive_prime_modulo_terms,
+    'CP': contig_prime_modulo,
+    'CP_CJ': contig_prime_modulo_with_jumps,
+    'EXH': add_exhaustive_terms,
+    'HAM': add_hamming_terms,
+    'RAND': random_sets,
+}
+
+class GracefulStop(Exception):
+    """Signal a graceful, intentional stop (e.g., OOM) so main can exit cleanly."""
+    pass
+
+def _is_oom_like(err: Exception) -> bool:
+    """Detects common OOM/BLAS allocation failures we saw (MemoryError, 'Unable to allocate', 'gesdd failed')."""
+    s = (str(err) or "").lower()
+    return (
+        isinstance(err, MemoryError)
+        or "unable to allocate" in s
+        or "init_gesdd failed" in s
+        or "svd did not converge" in s and "gesdd" in s
+        or "out of memory" in s
+    )
+
+def _signal_stop(outdir: str, ticker: str, model: str, err: Exception):
+    """Write a stop marker so you know exactly why/where it halted."""
+    os.makedirs(outdir, exist_ok=True)
+    marker = os.path.join(outdir, "FATAL_STOP.txt")
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    with open(marker, "a", encoding="utf-8") as f:
+        f.write(f"[{now}] HALT ticker={ticker} model={model} error={type(err).__name__}: {err}\n")
+        tb = "".join(traceback.format_exception(type(err), err, err.__traceback__))
+        f.write(tb + "\n")
+    print(f"[FATAL] OOM-like error at {ticker}/{model}. Wrote marker: {marker}", flush=True)
+
+def _default_models(include_variants: bool = True):
+    cores = ['HAR','HAR_J','HAR_CJ','HAR_TCJ','PM','CP','EXH','HAM','RAND']
+    variants = ['PM_VW','PM_AD','CP_CJ']
+    return cores + (variants if include_variants else [])
+
+def discover_local_tickers(base_dir: str) -> list:
+    if not os.path.isdir(base_dir):
+        return []
+    return sorted([f.replace('_5m.csv','') for f in os.listdir(base_dir) if f.endswith('_5m.csv')])
+
+def _fmt_s(sec: float) -> str:
+    if sec >= 3600:
+        h = int(sec // 3600); m = int((sec % 3600) // 60)
+        return f"{h}h{m}m"
+    if sec >= 60:
+        m = int(sec // 60); s = int(sec % 60)
+        return f"{m}m{s:02d}s"
+    return f"{sec:.1f}s"
+
+def _append_line(path: str, line: str):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(line.rstrip("\n") + "\n")
+
+def _append_model_checkpoint(out_csv: str, f: pd.DataFrame, model_name: str):
+    """
+    Append/merge this model's columns into the ticker predictions CSV progressively.
+    - Keeps 'Actual' only once (prefers existing file's Actual if present)
+    - Drops any prior columns for this model so new ones overwrite cleanly
+    - Uses INNER join to preserve the pipeline's alignment invariant
+    """
+    new = f.copy()
+    os.makedirs(os.path.dirname(out_csv), exist_ok=True)
+
+    if os.path.exists(out_csv):
+        acc = pd.read_csv(out_csv, parse_dates=['Date'])
+        if 'Date' not in acc.columns:
+            acc = acc.rename(columns={'index': 'Date'})
+        acc = acc.set_index('Date')
+
+        if 'Actual' in acc.columns and 'Actual' in new.columns:
+            new = new.drop(columns=['Actual'])
+
+        model_cols_new = list(new.columns)
+        model_cols_existing = [c for c in model_cols_new if c in acc.columns]
+        if model_cols_existing:
+            acc = acc.drop(columns=model_cols_existing)
+
+        joined = acc.join(new, how='inner')
+    else:
+        joined = new
+
+    out_df = joined.reset_index().rename(columns={'index': 'Date'})
+    out_df.to_csv(out_csv, index=False)
+    print(f"[CHECKPOINT] appended {model_name} -> {out_csv} (rows={len(out_df)}, cols={len(out_df.columns)})", flush=True)
+
+def run_for_ticker(ticker: str, models: list, n: int, warmup: int, local_dir: str, outdir: str,
+                   timing_log_path: str) -> float:
+    t0 = time.perf_counter()
+    pred_dir = os.path.join(outdir, 'predictions')
+    os.makedirs(pred_dir, exist_ok=True)
+    out_csv = os.path.join(pred_dir, f'{ticker}.csv')
+
+    print(f"[STEP] [{ticker}] fetch_intraday_data...", flush=True)
+    s = time.perf_counter()
+    raw = fetch_intraday_data(ticker, use_local=True, local_dir=local_dir)
+    print(f"[STEP] [{ticker}] fetch_intraday_data done in {_fmt_s(time.perf_counter()-s)}", flush=True)
+
+    print(f"[STEP] [{ticker}] calculate_intraday_realized_volatility...", flush=True)
+    s = time.perf_counter()
+    vol = calculate_intraday_realized_volatility(raw)
+    print(f"[STEP] [{ticker}] RV computed in {_fmt_s(time.perf_counter()-s)}", flush=True)
+
+    frames = []
+    per_model_times = []
+
+    for m in models:
+        print(f"[MODEL] [{ticker}] {m} start", flush=True)
+        ms = time.perf_counter()
+        try:
+            func = MODEL_FUNCS[m]
+            extended = func(vol.copy(), n)
+            features = [c for c in extended.columns if c.startswith('RV')]
+            preds = fit_and_predict_extended(extended, features, n, warmup, model_name=m)
+            if preds is None or preds.empty:
+                print(f"[MODEL] [{ticker}] {m} produced no predictions (skipping)", flush=True)
+                per_model_times.append((m, 0.0))
+                # free intermediates
+                try:
+                    del extended, preds, features
+                except NameError:
+                    pass
+                gc.collect()
+                continue
+
+            if 'Predicted' in preds.columns and f'Predicted_{m}' not in preds.columns:
+                preds[f'Predicted_{m}'] = preds['Predicted']
+            cols = ['Actual', f'Predicted_{m}', f'Err_{m}', f'AbsErr_{m}', f'SMAPE_{m}_pct']
+            f = preds[[c for c in cols if c in preds.columns]]
+            frames.append(f)
+
+            # checkpoint after each model
+            _append_model_checkpoint(out_csv, f, m)
+
+            m_dur = time.perf_counter() - ms
+            per_model_times.append((m, m_dur))
+            print(f"[MODEL] [{ticker}] {m} done in {_fmt_s(m_dur)}", flush=True)
+
+        except Exception as e:
+            if _is_oom_like(e):
+                _signal_stop(outdir, ticker, m, e)
+                # keep what we have; do NOT write any merged overwrite
+                now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+                _append_line(timing_log_path, f"[{now}] TICKER {ticker} HALT at model {m}: {type(e).__name__}: {e}")
+                raise GracefulStop()  # bubble to main
             else:
-                comp_ax.fill_between([current_date, next_date], 
-                                   [current_value, next_value], 
-                                   [0, 0], 
-                                   color='green', alpha=0.3)
-    
-    # Format comparison subplot
-    comp_ax.axhline(y=0, color='black', linestyle='--', alpha=0.5)
-    comp_ax.set_ylabel('Error Difference\n(Model - Base)')
-    
-    # Add legend for comparison plot
-    legend_elements = [
-        Patch(facecolor='red', alpha=0.3, label=f'{base_model} Better'),
-        Patch(facecolor='green', alpha=0.3, label='Other Model Better')
-    ]
-    comp_ax.legend(handles=legend_elements)
-    comp_ax.grid(True, alpha=0.3)
-    
-    ## No x-axis labels for all but the bottom plot
-    # for ax in axes:
-    #     ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
-    #     comp_ax.set_xticklabels([])
-    
-    ## Format x-axis labels for all but the bottom plot
-    for ax in axes[:-1]: 
-        plt.setp(ax.get_xticklabels(), visible=False)
-        
-    # Format bottom axis with visible time labels
-    comp_ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-    comp_ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
-    plt.setp(comp_ax.get_xticklabels(), visible=True, rotation=45)
+                # Unknown fatal error: propagate (so it fails loudly)
+                raise
+        finally:
+            # free intermediates aggressively each model to reduce RAM
+            try:
+                del extended, preds, features
+            except NameError:
+                pass
+            gc.collect()
 
-    plt.tight_layout()
-    plt.subplots_adjust(top=0.95)
-    plt.show()
+    if not frames:
+        print(f"[WARN] [{ticker}] No model produced frames; skipping save.", flush=True)
+        return time.perf_counter() - t0
 
-def main_comparison():
-    points_per_day = 78  # 6.5 trading hours = 78 five-minute intervals
-    n = 22  # Monthly window size
-    warmup = 600  # Warmup period to stabilize rolling calculations
+    # --- safe merge: keep 'Actual' only once ---
+    merged = frames[0].copy()
+    for f in frames[1:]:
+        f2 = f.drop(columns=[c for c in ['Actual'] if c in f.columns])
+        merged = merged.join(f2, how='inner')
 
-    raw_data = fetch_intraday_data()
-    vol_data = calculate_intraday_realized_volatility(raw_data)
+    merged = merged.reset_index().rename(columns={'index':'Date'})
 
-    strategies = {
-        # "Standard HAR-RV": add_harv_terms,
-        # "HAR-RV-J": add_harv_j_terms,
-        # "HAR-RV-CJ": add_harv_cj_terms,
-        # "HAR-RV-TCJ": add_harv_tcj_terms,
-        # "Exhaustive Search": add_exhaustive_terms,
-        # "Hamming Codes": add_hamming_terms,
-        # "Prime Modulo Classes": add_prime_modulo_terms,
-        "Contiguous Prime Modulo": contig_prime_modulo
-    }
+    print(f"[SAVE ] [{ticker}] writing predictions CSV...", flush=True)
+    s = time.perf_counter()
+    merged.to_csv(out_csv, index=False)
+    print(f"[SAVE ] [{ticker}] wrote {out_csv} in {_fmt_s(time.perf_counter()-s)} (rows={len(merged)})", flush=True)
 
-    results = {}
-    for name, strategy in strategies.items():
-        print(f"\nRunning strategy: {name}")
-        extended_data = strategy(vol_data.copy(), n)
-        features = [col for col in extended_data.columns if col.startswith('RV')]
-        predictions = fit_and_predict_extended(extended_data, features, n, warmup)
-        if not predictions.empty:
-            smape = (2 * np.abs(predictions['Actual'] - predictions['Predicted']) /
-                   (np.abs(predictions['Actual']) + np.abs(predictions['Predicted']))).mean() * 100
-            print(f"{name} SMAPE: {smape:.2f}%")
-            results[name] = predictions
-    
-    plot_intraday_predictions(results, days_to_show=1)
-    plot_rolling_smape(results, window_size=points_per_day)
-    plot_regime_performance_time(results, window_size=points_per_day, is_intraday=True)
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    _append_line(timing_log_path, f"[{now}] TICKER {ticker} model timings:")
+    for m, secs in per_model_times:
+        _append_line(timing_log_path, f"  - {m}: {secs:.3f}s")
+
+    elapsed = time.perf_counter() - t0
+    print(f"[TICKER] [{ticker}] total {_fmt_s(elapsed)}", flush=True)
+    _append_line(timing_log_path, f"[{now}] TICKER {ticker} total: {elapsed:.3f}s")
+    return elapsed
+
+def main():
+    p = argparse.ArgumentParser(description="Intraday benchmark (local 5m CSVs)")
+    p.add_argument('--tickers', type=str, default='', help='Comma-separated. If empty, auto-discover in local_dir.')
+    p.add_argument('--local-dir', type=str, default='Datasets/clean')
+    p.add_argument('--outdir', type=str, default='code/outputs/intraday')
+    p.add_argument('--models', type=str, default='', help='Comma-separated model codes; if empty we choose defaults')
+    p.add_argument('--n', type=int, default=22)
+    p.add_argument('--warmup', type=int, default=600)
+    p.add_argument('--require-explicit', action='store_true', help='Error if --tickers not provided (no auto-discovery).')
+    p.add_argument('--include-variants', dest='include_variants', action='store_true', default=True,
+                  help='Include PM_VW, PM_AD, CP_CJ when models not explicitly specified (default: on)')
+    p.add_argument('--no-variants', dest='include_variants', action='store_false')
+    args = p.parse_args()
+
+    if args.models.strip():
+        models = [m.strip() for m in args.models.split(',') if m.strip()]
+    else:
+        models = _default_models(include_variants=args.include_variants)
+
+    tickers = [t.strip() for t in args.tickers.split(',') if t.strip()]
+    if not tickers:
+        if args.require_explicit:
+            raise SystemExit("No --tickers provided and --require-explicit set. Pass a comma-separated list via --tickers.")
+        tickers = discover_local_tickers(args.local_dir)
+
+    os.makedirs(os.path.join(args.outdir, 'predictions'), exist_ok=True)
+    os.makedirs(os.path.join(args.outdir, 'tables'), exist_ok=True)
+
+    timing_log_path = os.path.join(args.outdir, 'timing_progress.log')
+    per_ticker_csv = os.path.join(args.outdir, 'tables', 'timing_by_ticker.csv')
+    if not os.path.exists(per_ticker_csv):
+        pd.DataFrame(columns=["timestamp_utc","ticker","seconds","hhmm"]).to_csv(per_ticker_csv, index=False)
+
+    overall_start = time.perf_counter()
+    elapsed_list = []
+
+    try:
+        for idx, t in enumerate(tickers, start=1):
+            print(f"[INTRA] {t}", flush=True)
+            elapsed = run_for_ticker(t, models, args.n, args.warmup, args.local_dir, args.outdir, timing_log_path)
+            elapsed_list.append(elapsed)
+            now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+            hhmm = _fmt_s(elapsed)
+            pd.DataFrame([{"timestamp_utc": now, "ticker": t, "seconds": round(elapsed,3), "hhmm": hhmm}]).to_csv(
+                per_ticker_csv, mode="a", header=False, index=False
+            )
+            avg_per_ticker = sum(elapsed_list) / len(elapsed_list)
+            est_total_45 = avg_per_ticker * 45
+            so_far = time.perf_counter() - overall_start
+            est_remaining_45 = max(est_total_45 - so_far, 0)
+            print(f"[ETA  ] avg/ticker ~ {_fmt_s(avg_per_ticker)} → 45 tickers ≈ {_fmt_s(est_total_45)} "
+                  f"(remaining if aiming for 45: {_fmt_s(est_remaining_45)})",
+                  flush=True)
+
+    except GracefulStop:
+        # Stop immediately; keep whatever is already on disk from checkpoints.
+        print("[HALT] Graceful stop requested due to OOM-like error. Preserving all checkpoints.", flush=True)
+        return
+
+    # Post-run aggregation (only if we completed without a graceful stop)
+    overall, _ = aggregate_overall_from_predictions(os.path.join(args.outdir, 'predictions'), models)
+    out_csv = os.path.join(args.outdir, 'tables', 'Section_1_table_1a_overall.csv')
+    save_table_overall(overall, out_csv)
+    print(f"[INTRA] wrote {out_csv}", flush=True)
+
+    try:
+        import subprocess  # keep os/sys imports at top-level
+        pred_dir = os.path.join(args.outdir, 'predictions')
+        tables_dir = os.path.join(args.outdir, 'tables')
+        models_csv = ",".join(models)
+        cmd = [
+            sys.executable, 'code/Helpers_for_paper_export_scripts/Section_5/build_section5_tables.py',
+            '--pred-dir', pred_dir,
+            '--tables-dir', tables_dir,
+            '--models', models_csv,
+            '--rand-baseline', 'PM'
+        ]
+        print("[post] building Section 5 tables…")
+        subprocess.run(cmd, check=True)
+    except Exception as e:
+        print(f"[post] skipped Section 5 build: {e}")
 
 if __name__ == "__main__":
-    main_comparison()
+    main()

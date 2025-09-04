@@ -1,0 +1,25 @@
+\begin{table}[t]
+\centering
+\caption{Table 3: Parameter efficiency. Error vs feature count across models. Bold indicates Pareto-efficient points (lowest SMAPE for a given capacity).}
+\label{tab:param_efficiency}
+\begin{tabular}{l r r r r r}
+\toprule
+Model & Feat. & SMAPE~(\%) & MAE & RMSE & Dir.~Acc.~(\%) \\
+\midrule
+\textbf{HAR-RV} & 3 & 146.1 & 2.4e-06 & 3.74e-05 & 42.3 \\
+HAR-RV-J & 9 & 144.6 & 2.46e-06 & 3.86e-05 & 44.5 \\
+HAR-RV-CJ & 9 & 145.1 & 2.49e-06 & 3.88e-05 & 40.7 \\
+HAR-RV-TCJ & 9 & 144.8 & 2.37e-06 & 3.74e-05 & 43.2 \\
+Prime Modulo (PM) & 6 & 145.8 & 2.36e-06 & 3.73e-05 & 42.9 \\
+PM-VW & 6 & 145.9 & 2.4e-06 & 3.74e-05 & 44.2 \\
+PM-AD & 6 & 145.9 & 2.4e-06 & 3.74e-05 & 44.4 \\
+\textbf{Contiguous Prime (CP)} & 6 & 123.7 & 2.03e-06 & 3.45e-05 & 69.3 \\
+CP-CJ & 6 & 123.7 & 2.03e-06 & 3.45e-05 & 69.3 \\
+Exhaustive Prefixes (EXH) & 15 & 146.0 & 2.43e-06 & 3.74e-05 & 48.7 \\
+Hamming Codes (HAM) & 12 & 145.8 & 2.38e-06 & 3.73e-05 & 44.0 \\
+Random (control) & 6 & 145.9 & 2.41e-06 & 3.74e-05 & 49.3 \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\footnotesize{Mean across assets; $\pm$ indicates s.e. across tickers. Pareto frontier is computed in the (feature count, SMAPE) plane.}
+\end{table}

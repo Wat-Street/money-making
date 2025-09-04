@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-def plot_rolling_smape(results, window_size=24):
+def plot_rolling_smape(results, window_size=24, save_path: str = None):
     plt.figure(figsize=(15, 6))
     
     for strategy_name, prediction in results.items():
@@ -31,6 +31,8 @@ def plot_rolling_smape(results, window_size=24):
                    color=plt.gca().lines[-1].get_color())
     
     plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight')
     plt.show()
 
 def plot_regime_performance_time(results, window_size=22, is_intraday=True):
@@ -82,4 +84,6 @@ def plot_regime_performance_time(results, window_size=22, is_intraday=True):
     
     plt.xlabel("Date")
     plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight')
     plt.show()

@@ -1,119 +1,145 @@
-import sys
-import os
+﻿import sys, os, argparse
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.patches import Patch
-from utils.data_utils import (
-    fit_and_predict_extended, fetch_data, calculate_realized_volatility
+import pandas as pd
+
+from utils.data_utils import fetch_intraday_data, fit_and_predict_extended
+from utils.harvey_utils import (
+    add_harv_terms, add_harv_j_terms, add_harv_cj_terms, add_harv_tcj_terms
 )
-from utils.models_utils import random_sets, add_prime_modulo_terms, contig_prime_modulo, contig_prime_modulo_with_jumps
-from utils.harvey_utils import add_harv_terms, add_harv_j_terms, add_harv_cj_terms, add_harv_tcj_terms
-from utils.plot_utils import plot_rolling_smape, plot_regime_performance_time
+from utils.models_utils import (
+    add_exhaustive_terms, add_hamming_terms,
+    add_prime_modulo_terms,
+    add_volume_weighted_prime_modulo_terms,
+    add_volume_weighted_adaptive_prime_modulo_terms,
+    contig_prime_modulo, contig_prime_modulo_with_jumps,
+    random_sets
+)
+from utils.reporting_utils import aggregate_overall_from_predictions, save_table_overall
 
-def plot_daily_predictions(results, strategies):
-    plt.figure(figsize=(15, 12))
-    
-    # Plot each model's predictions
-    for i, (name, prediction) in enumerate(results.items()):
-        plt.subplot(len(results) + 1, 1, i + 1)
-        plt.plot(prediction.index, prediction['Actual'], 
-                 label='Actual', color='black', linestyle='dashed')
-        plt.plot(prediction.index, prediction['Predicted'],
-                 label=name, color=f'C{i}')
-        plt.legend()
-        plt.grid(True)
-        
-        smape = (2 * np.abs(prediction['Actual'] - prediction['Predicted']) /
-               (np.abs(prediction['Actual']) + np.abs(prediction['Predicted']))).mean() * 100
-        plt.title(f"{name} (SMAPE: {smape:.2f}%)", fontsize=10)
-    
-    plt.subplot(len(results) + 1, 1, len(results) + 1)
-    
-    base_model = list(strategies.keys())[0]
-    base_error = np.abs(results[base_model]['Actual'] - results[base_model]['Predicted'])
-    
-    # Plot difference between each model and the base model
-    for name, prediction in results.items():
-        if name == base_model:
+MODEL_FUNCS = {
+    'HAR': add_harv_terms,
+    'HAR_J': add_harv_j_terms,
+    'HAR_CJ': add_harv_cj_terms,
+    'HAR_TCJ': add_harv_tcj_terms,
+    'PM': add_prime_modulo_terms,
+    'PM_VW': add_volume_weighted_prime_modulo_terms,
+    'PM_AD': add_volume_weighted_adaptive_prime_modulo_terms,
+    'CP': contig_prime_modulo,
+    'CP_CJ': contig_prime_modulo_with_jumps,
+    'EXH': add_exhaustive_terms,
+    'HAM': add_hamming_terms,
+    'RAND': random_sets,
+}
+
+def _default_models(include_variants: bool = True):
+    cores = ['HAR','HAR_J','HAR_CJ','HAR_TCJ','PM','CP','EXH','HAM','RAND']
+    variants = ['PM_VW','PM_AD','CP_CJ']
+    return cores + (variants if include_variants else [])
+
+def discover_local_tickers(base_dir: str) -> list:
+    if not os.path.isdir(base_dir):
+        return []
+    return sorted([f.replace('_5m.csv','') for f in os.listdir(base_dir) if f.endswith('_5m.csv')])
+
+def intraday_to_daily(df5m: pd.DataFrame) -> pd.DataFrame:
+    if 'Squared_Return' in df5m.columns:
+        sr = df5m['Squared_Return'].astype(float)
+    else:
+        close = df5m['Close'].astype(float)
+        ret = close.pct_change().fillna(0.0)
+        sr = ret**2
+    vol = df5m['Volume'] if 'Volume' in df5m.columns else pd.Series(0.0, index=df5m.index)
+
+    g = df5m.groupby(df5m.index.date)
+    rv_d = g.apply(lambda x: (sr.loc[x.index]).sum())
+    vol_sum = g.apply(lambda x: (vol.loc[x.index]).sum())
+
+    daily = pd.DataFrame({'RV_d': rv_d.values, 'Volume': vol_sum.values}, index=pd.to_datetime(rv_d.index))
+    daily = daily.sort_index()
+    daily['RV_w'] = daily['RV_d'].rolling(window=5, min_periods=5).mean()
+    daily['RV_m'] = daily['RV_d'].rolling(window=22, min_periods=22).mean()
+    return daily.dropna()
+
+def run_for_ticker_daily(ticker: str, models: list, n: int, warmup: int, local_dir: str, outdir: str):
+    os.makedirs(os.path.join(outdir, 'predictions'), exist_ok=True)
+
+    df5m = fetch_intraday_data(ticker, use_local=True, local_dir=local_dir)
+    if df5m is None or df5m.empty:
+        print(f"[DAILY][skip] No data for {ticker}")
+        return
+    daily = intraday_to_daily(df5m)
+    if daily is None or daily.empty:
+        print(f"[DAILY][skip] No daily data after aggregation for {ticker}")
+        return
+
+    frames = []
+    for m in models:
+        if m not in MODEL_FUNCS:
+            print(f"[DAILY][warn] Unknown model code: {m}")
             continue
-            
-        model_error = np.abs(prediction['Actual'] - prediction['Predicted'])
-        error_diff = model_error - base_error
-        
-        # Plot line showing error difference
-        plt.plot(prediction.index, error_diff, 
-                 color='black', alpha=0.3, label=f'{name} vs {base_model}')
-        
-        # Fill areas based on which model is better
-        for idx in range(len(error_diff)-1):
-            current_date = prediction.index[idx]
-            next_date = prediction.index[idx+1]
-            current_value = error_diff.iloc[idx]
-            next_value = error_diff.iloc[idx+1]
-            
-            if current_value >= 0:
-                plt.fill_between([current_date, next_date], 
-                               [current_value, next_value], 
-                               [0, 0], 
-                               color='red', alpha=0.3)
-            else:
-                plt.fill_between([current_date, next_date], 
-                               [current_value, next_value], 
-                               [0, 0], 
-                               color='green', alpha=0.3)
-    
-    plt.axhline(y=0, color='black', linestyle='--', alpha=0.5)
-    plt.ylabel('Error Difference\n(Model - HAR-RV)')
-    
-    legend_elements = [
-        Patch(facecolor='red', alpha=0.3, label=f'{base_model} Better'),
-        Patch(facecolor='green', alpha=0.3, label='Other Model Better')
-    ]
-    plt.legend(handles=legend_elements)
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+        func = MODEL_FUNCS[m]
+        extended = func(daily.copy(), n)
+        features = [c for c in extended.columns if c.startswith('RV')]
+        preds = fit_and_predict_extended(extended, features, n, warmup, model_name=m)
+        if preds is None or preds.empty:
+            print(f"[DAILY][warn] No predictions for {ticker} with {m}")
+            continue
+        if 'Predicted' in preds.columns and f'Predicted_{m}' not in preds.columns:
+            preds[f'Predicted_{m}'] = preds['Predicted']
+        cols = ['Actual', f'Predicted_{m}', f'Err_{m}', f'AbsErr_{m}', f'SMAPE_{m}_pct']
+        frames.append(preds[[c for c in cols if c in preds.columns]])
 
-def main_comparison():
-    ticker = "AAPL"
-    start_date = "2020-01-01"
-    end_date = "2024-01-01"
-    n = 22  # Monthly window size
-    warmup = 600  # Warmup period to stabilize rolling calculations
+    if not frames:
+        print(f"[DAILY][skip] No valid model outputs for {ticker}")
+        return
 
-    raw_data = fetch_data(ticker, start_date, end_date)
-    vol_data = calculate_realized_volatility(raw_data, n)
-    
-    strategies = {
-        # "Standard HAR-RV": add_harv_terms,
-        # "HAR-RV-J": add_harv_j_terms,
-        # "HAR-RV-CJ": add_harv_cj_terms,
-        # "HAR-RV-TCJ": add_harv_tcj_terms,
-        # "Exhaustive Search": add_exhaustive_terms,
-        # "Hamming Codes": add_hamming_terms,
-        "Prime Modulo Classes": add_prime_modulo_terms,
-        # "Contiguous Prime Modulo": contig_prime_modulo,
-        # "Contiguous CJ Prime Modulo": contig_prime_modulo_with_jumps
-        "Randomized Sets": random_sets
-    }
+    merged = frames[0].copy()
+    for f in frames[1:]:
+        f2 = f.drop(columns=[c for c in ['Actual'] if c in f.columns])
+        merged = merged.join(f2, how='inner')
+    merged = merged.reset_index().rename(columns={'index': 'Date'})
 
-    results = {}
-    for name, strategy in strategies.items():
-        print(f"\nRunning strategy: {name}")
-        extended_data = strategy(vol_data.copy(), n)
-        features = [col for col in extended_data.columns if col.startswith('RV')]
-        predictions = fit_and_predict_extended(extended_data, features, n, warmup)
-        if not predictions.empty:
-            smape = (2 * np.abs(predictions['Actual'] - predictions['Predicted']) /
-                   (np.abs(predictions['Actual']) + np.abs(predictions['Predicted']))).mean() * 100
-            print(f"{name} SMAPE: {smape:.2f}%")
-            results[name] = predictions
+    out_csv = os.path.join(outdir, 'predictions', f'{ticker}.csv')
+    merged.to_csv(out_csv, index=False)
+    print(f"[DAILY] wrote {out_csv}")
 
-    plot_daily_predictions(results, strategies)
-    plot_rolling_smape(results, window_size=n)
-    plot_regime_performance_time(results, window_size=n, is_intraday=False)
+def main():
+    p = argparse.ArgumentParser(description="Daily benchmark from local 5m CSVs (derive daily RV; run 12 models).")
+    p.add_argument('--tickers', type=str, default='', help='Comma-separated tickers. If empty, auto-discover in --local-dir.')
+    p.add_argument('--local-dir', type=str, default='Datasets/clean', help='Folder with *_5m.csv (relative to code/).')
+    p.add_argument('--outdir', type=str, default='code/outputs/daily')
+    p.add_argument('--models', type=str, default='', help='Comma-separated model codes. If empty, use defaults.')
+    p.add_argument('--include-variants', dest='include_variants', action='store_true', default=True,
+                   help='Include PM_VW, PM_AD, CP_CJ when --models not specified (default: on).')
+    p.add_argument('--no-variants', dest='include_variants', action='store_false')
+    p.add_argument('--n', type=int, default=22, help='Lookback horizon for RV_m and model-specific windows.')
+    p.add_argument('--warmup', type=int, default=60, help='Minimum observations before starting OLS rolling forecasts.')
+    p.add_argument('--require-explicit', action='store_true', help='Error if --tickers not provided (no auto-discovery).')
+    args = p.parse_args()
+
+    models = [m.strip() for m in args.models.split(',') if m.strip()] if args.models.strip() else _default_models(include_variants=args.include_variants)
+
+    tickers = [t.strip() for t in args.tickers.split(',') if t.strip()]
+    if not tickers:
+        if args.require_explicit:
+            raise SystemExit("No --tickers provided and --require-explicit set. Pass a comma-separated list via --tickers.")
+        tickers = discover_local_tickers(args.local_dir)
+
+    os.makedirs(os.path.join(args.outdir, 'predictions'), exist_ok=True)
+    os.makedirs(os.path.join(args.outdir, 'tables'), exist_ok=True)
+
+    for t in tickers:
+        print(f'[DAILY] {t} :: models={",".join(models)}')
+        run_for_ticker_daily(t, models, args.n, args.warmup, args.local_dir, args.outdir)
+
+    overall, _ = aggregate_overall_from_predictions(os.path.join(args.outdir, 'predictions'), models)
+    out_csv = os.path.join(args.outdir, 'tables', 'Section_1_table_1b_overall.csv')
+    save_table_overall(overall, out_csv)
+    print(f'[DAILY] wrote {out_csv}')
 
 if __name__ == "__main__":
-    main_comparison()
+    main()
+
+

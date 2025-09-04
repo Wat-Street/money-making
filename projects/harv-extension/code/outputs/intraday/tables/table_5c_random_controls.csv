@@ -1,0 +1,2 @@
+model,n_assets,delta_smape_pct_mean,delta_smape_pct_se,delta_mae_mean,delta_mae_se,delta_rmse_mean,delta_rmse_se,winner_frac_smape,fisher_p_dm,sig_mark
+RAND,2,0.10631265361332964,0.04831837596491084,-4.997022320555756e-09,1.0634871196735602e-09,-9.470054178197602e-10,6.987971199784351e-10,1.0,2.1735538924261277e-09,★

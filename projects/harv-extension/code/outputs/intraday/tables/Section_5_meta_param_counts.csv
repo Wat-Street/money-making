@@ -1,0 +1,7 @@
+model,feature_count,scope
+HAR,3,intraday
+HAR_CJ,9,intraday
+HAR_TCJ,9,intraday
+PM,6,intraday
+CP,6,intraday
+RAND,6,intraday

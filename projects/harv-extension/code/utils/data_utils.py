@@ -35,6 +35,44 @@ def fetch_data_in_chunks(ticker, start_date, end_date, chunk_size_days=30, delay
     full_df = pd.concat(dfs).drop_duplicates().sort_index()
     return full_df
 
+
+def load_local_5m_csv(ticker: str, base_dir: str = "Datasets/clean", target_tz: str = "America/New_York"):
+    """
+    Load 5-minute OHLCV CSV with Datetime index.
+    Expected columns: Date/Datetime, Open, High, Low, Close, Volume.
+    """
+    import os
+    import pandas as pd
+    # Accept both TICKER_5m.csv and TICKER.csv names
+    candidates = [
+        os.path.join(base_dir, f"{ticker}_5m.csv"),
+        os.path.join(base_dir, f"{ticker}.csv"),
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            df = pd.read_csv(path)
+            # try common date column names
+            for c in ["Datetime", "Date", "timestamp", "date"]:
+                if c in df.columns:
+                    # Parse datetimes robustly: allow tz-aware and normalize to target_tz naive
+                    dt = pd.to_datetime(df[c], utc=True, errors="coerce")
+                    # Convert UTC -> target timezone (e.g., US/Eastern) and drop tz info
+                    if hasattr(dt, 'dt'):
+                        dt = dt.dt.tz_convert(target_tz).dt.tz_localize(None)
+                    else:
+                        dt = dt.tz_convert(target_tz).tz_localize(None)
+                    df[c] = dt
+                    df = df.set_index(c)
+                    break
+            df = df.sort_index()
+            # Ensure columns exist
+            rename_map = {c: c.title() for c in ["open","high","low","close","volume"] if c in df.columns}
+            df = df.rename(columns=rename_map)
+            needed = ["Close","Volume"]
+            if not all(col in df.columns for col in needed):
+                raise ValueError(f"Missing columns in {path}. Need at least Close and Volume.")
+            return df
+    raise FileNotFoundError(f"No local CSV found for {ticker} in {base_dir}")
 def fetch_intraday_data_in_chunks(ticker, start_date, end_date, chunk_hours=1, delay_time=0.88, interval='5m'):
     start = pd.to_datetime(start_date)
     end = pd.to_datetime(end_date)
@@ -73,26 +111,36 @@ def fetch_data(ticker, start_date, end_date):
     return handleDaily(df)
 
 def handleIntraday(df):
-    result = pd.DataFrame(index=df.index)
-    result['Close'] = df['Close']
-    result['Volume'] = df['Volume']
-    result['Date'] = df.index.date
+    # Normalize index to US/Eastern and make it timezone-naive for stable time comparisons
+    idx = pd.DatetimeIndex(df.index)
+    if idx.tz is not None:
+        idx = idx.tz_convert('America/New_York').tz_localize(None)
+    result = pd.DataFrame(index=idx)
+    result['Close'] = df['Close'].values
+    result['Volume'] = df['Volume'].values
     result['Log_Return'] = np.log(result['Close'] / result['Close'].shift(1))
+    # Drop opening bar return to avoid overnight jump contamination
     result.loc[result.index.time == pd.Timestamp('09:30').time(), 'Log_Return'] = np.nan
     result['Squared_Return'] = result['Log_Return'] ** 2
-    result = result.drop('Date', axis=1)
     return result.dropna()
 
-def fetch_intraday_data():
-    end_date = datetime.today()
-    start_date = end_date - timedelta(days=60)
-    ticker = "AAPL"
+def fetch_intraday_data(ticker: str = "AAPL", start_date: str = None, end_date: str = None, use_local: bool = False, local_dir: str = "Datasets/clean"):
+    if use_local:
+        df = load_local_5m_csv(ticker, base_dir=local_dir)
+        return handleIntraday(df)
+    if end_date is None:
+        end_date = datetime.today()
+    else:
+        end_date = pd.to_datetime(end_date)
+    if start_date is None:
+        start_date = end_date - timedelta(days=60)
+    else:
+        start_date = pd.to_datetime(start_date)
     df = fetch_intraday_data_in_chunks(ticker, start_date, end_date, chunk_hours=1, delay_time=0.88, interval='5m')
-    print(df)
     return handleIntraday(df)
 
 # Prediction Model
-def fit_and_predict_extended(data, features, n, warmup=30):
+def fit_and_predict_extended(data, features, n, warmup=30, model_name: str = "Model"):
     predictions = []
     for i in range(n + warmup, len(data) - 1):
         try:
@@ -105,11 +153,19 @@ def fit_and_predict_extended(data, features, n, warmup=30):
             test_row = data.iloc[[i]][features].copy()
             test_row = add_constant(test_row, has_constant='add')
             test_row = test_row.reindex(columns=X.columns, fill_value=0)
-            pred = model.predict(test_row).squeeze()
+            pred = float(model.predict(test_row).squeeze())
+            y_true_next = float(data.iloc[i + 1]['RV_d'])
+            err = y_true_next - pred
+            abs_err = abs(err)
+            denom = max(1e-12, abs(y_true_next) + abs(pred))
+            smape_pct = 200.0 * abs_err / denom
             predictions.append({
                 'Date': data.index[i + 1],
-                'Actual': data.iloc[i + 1]['RV_d'],
-                'Predicted': pred
+                'Actual': y_true_next,
+                f'Predicted_{model_name}': pred,
+                f'Err_{model_name}': err,
+                f'AbsErr_{model_name}': abs_err,
+                f'SMAPE_{model_name}_pct': smape_pct
             })
         except Exception as e:
             print(f"Warning at index {i}: {str(e)}")
@@ -117,6 +173,10 @@ def fit_and_predict_extended(data, features, n, warmup=30):
     if predictions:
         results = pd.DataFrame(predictions)
         results.set_index('Date', inplace=True)
+        # also include generic Predicted for backwards compatibility (first model only)
+        pred_cols = [c for c in results.columns if c.startswith('Predicted_')]
+        if pred_cols:
+            results['Predicted'] = results[pred_cols[0]]
         return results
     else:
         return pd.DataFrame()
