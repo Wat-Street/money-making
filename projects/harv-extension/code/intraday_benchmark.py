@@ -12,7 +12,7 @@ from utils.models_utils import (
     add_prime_modulo_terms, add_volume_weighted_prime_modulo_terms,
     add_volume_weighted_adaptive_prime_modulo_terms,
     contig_prime_modulo, contig_prime_modulo_with_jumps,
-    random_sets
+    random_sets, contiguous_random_sets
 )
 
 MODEL_FUNCS = {
@@ -28,6 +28,7 @@ MODEL_FUNCS = {
     'EXH': add_exhaustive_terms,
     'HAM': add_hamming_terms,
     'RAND': random_sets,
+    'CRS': contiguous_random_sets,
 }
 
 class GracefulStop(Exception):
@@ -57,7 +58,7 @@ def _signal_stop(outdir: str, ticker: str, model: str, err: Exception):
     print(f"[FATAL] OOM-like error at {ticker}/{model}. Wrote marker: {marker}", flush=True)
 
 def _default_models(include_variants: bool = True):
-    cores = ['HAR','HAR_J','HAR_CJ','HAR_TCJ','PM','CP','EXH','HAM','RAND']
+    cores = ['HAR','HAR_J','HAR_CJ','HAR_TCJ','PM','CP','EXH','HAM','RAND', 'CRS']
     variants = ['PM_VW','PM_AD','CP_CJ']
     return cores + (variants if include_variants else [])
 

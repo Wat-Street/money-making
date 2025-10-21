@@ -265,3 +265,33 @@ def contig_prime_modulo_with_jumps(data, n, alpha=0.999):
 
     # restore original time index safely
     return data.set_index(index_col)
+
+def contiguous_random_sets(data, n, seed=None):
+    if seed is not None:
+        np.random.seed(seed)
+
+    data = data.reset_index()
+    index_col = 'Date' if 'Date' in data.columns else data.columns[0]
+    data['Index'] = range(len(data))
+
+    primes = []
+    candidate = 2
+    while np.prod(primes, dtype=np.int64) < n:
+        if all(candidate % p != 0 for p in primes):
+            primes.append(candidate)
+        candidate += 1
+
+    for prime in primes:
+        start_offset = np.random.randint(0, prime)
+        col_name = f"RV_contig_rand_{prime}"
+        data[col_name] = 0.0
+
+        block_starts = data.index[data['Index'] % prime == start_offset].tolist()
+
+        for i in range(len(block_starts)):
+            start_idx = block_starts[i]
+            end_idx = block_starts[i + 1] if i + 1 < len(block_starts) else data.index[-1]
+            interval_rv = data.loc[start_idx:end_idx, 'RV_d'].mean()
+            data.loc[start_idx:end_idx, col_name] = interval_rv
+
+    return data.set_index(index_col)
