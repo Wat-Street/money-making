@@ -1,297 +1,362 @@
-import numpy as np
+﻿import numpy as np
 from scipy import stats
 import pandas as pd
+
+
+def build_minimal_primes(n):
+    """
+    Return the smallest list of distinct primes whose product is at least ``n``.
+    """
+    if n is None or n <= 1:
+        return []
+
+    primes = []
+    product = 1
+    candidate = 2
+    while product < n:
+        is_prime = True
+        for p in primes:
+            if candidate % p == 0:
+                is_prime = False
+                break
+        if is_prime:
+            primes.append(candidate)
+            product *= candidate
+        candidate += 1
+    return primes
+
+
+def restore_index(df, orig_index_name):
+    target = orig_index_name if orig_index_name is not None else "index"
+    if target not in df.columns:
+        raise KeyError(f"Cannot restore index '{target}' — column missing.")
+    return df.set_index(target)
+
+
+def _reset_with_work_index(data):
+    orig_index = data.index.name or "index"
+    frame = data.reset_index()
+    frame["Index"] = np.arange(len(frame))
+    return frame, orig_index
+
+
+def _merge_unique_primes(*prime_lists):
+    merged = []
+    for prime_list in prime_lists:
+        for prime in prime_list:
+            if prime not in merged:
+                merged.append(prime)
+    return merged
+
+
+def _compute_contiguous_phase_features(frame, value_col, primes, n, per_day_normalize, prefix):
+    features = {}
+    if not primes:
+        return features
+
+    horizon = int(n) if n is not None else 0
+    if horizon < 0:
+        horizon = 0
+
+    index_series = frame["Index"]
+
+    for k in primes:
+        if k <= 0:
+            continue
+        rolling = frame[value_col].rolling(window=k, min_periods=k)
+        block_metric = rolling.mean() if per_day_normalize else rolling.sum()
+        complete_blocks = max(1, horizon // k)
+
+        base_mask = index_series >= (k - 1)
+        for phase in range(k):
+            phase_mask = base_mask & (((index_series - phase + 1) % k) == 0)
+            block_series = block_metric[phase_mask].dropna()
+            if block_series.empty:
+                continue
+            aggregated = block_series.rolling(window=complete_blocks, min_periods=1).mean()
+            col_name = f"{prefix}_k{k}_a{phase}"
+            features[col_name] = aggregated
+
+    return features
+
+
+def _assign_phase_features(frame, feature_map):
+    for col_name, series in feature_map.items():
+        frame[col_name] = np.nan
+        frame.loc[series.index, col_name] = series
+        frame[col_name] = frame[col_name].ffill()
+
+
+def _compute_prime_modulo_features(value_series, n, primes, prefix, weight_series=None):
+    features = {}
+    if n is None or n <= 0 or not primes:
+        return features
+
+    horizon = int(n)
+    lags = list(range(1, horizon + 1))
+    lagged_values = pd.concat([value_series.shift(lag) for lag in lags], axis=1)
+    lagged_values.columns = lags
+
+    lagged_weights = None
+    if weight_series is not None:
+        lagged_weights = pd.concat([weight_series.shift(lag) for lag in lags], axis=1)
+        lagged_weights.columns = lags
+
+    for prime in primes:
+        if prime <= 0:
+            continue
+        for remainder in range(prime):
+            relevant_lags = [lag for lag in lags if lag % prime == remainder]
+            if not relevant_lags:
+                continue
+            subset = lagged_values[relevant_lags]
+            if lagged_weights is not None:
+                weight_subset = lagged_weights[relevant_lags]
+                weight_sum = weight_subset.sum(axis=1)
+                numerator = (subset * weight_subset).sum(axis=1)
+                feature = numerator / weight_sum
+                feature = feature.where(weight_sum > 0)
+            else:
+                feature = subset.mean(axis=1)
+            features[f"{prefix}_k{prime}_r{remainder}"] = feature
+
+    return features
+
 
 # Strategy 1: Exhaustive Search
 def add_exhaustive_terms(data, n):
     for j in range(1, n + 1):
         col_name = f"RV_{j}"
-        data[col_name] = data['RV_d'].rolling(window=j).mean()
-    return data.replace([np.inf, -np.inf], np.nan).dropna()
+        data[col_name] = data["RV_d"].rolling(window=j).mean()
+    return data.replace([np.inf, -np.inf], np.nan)
+
 
 # Strategy 2: Hamming Codes
 def add_hamming_terms(data, n):
-    # reset to expose the time index as a column; remember which column it is
-    data = data.reset_index()
-    index_col = 'Date' if 'Date' in data.columns else data.columns[0]
-
-    data['Index'] = range(len(data))
-    num_terms = int(np.ceil(np.log2(n)))
+    frame, orig_index = _reset_with_work_index(data)
+    num_terms = int(np.ceil(np.log2(n))) if n and n > 0 else 0
     for j in range(num_terms):
         col_name = f"RV_bin_{j}"
-        data[col_name] = ((data['Index'] & (1 << j)) != 0).astype(int) * data['RV_d']
+        frame[col_name] = ((frame["Index"] & (1 << j)) != 0).astype(int) * frame["RV_d"]
+    frame = frame.drop(columns=["Index"])
+    return restore_index(frame, orig_index)
 
-    # restore original time index safely
-    return data.set_index(index_col)
 
 # Strategy 3: Prime Modulo Classes (core)
 def add_prime_modulo_terms(data, n):
-    data = data.reset_index()
-    index_col = data.columns[0]
+    frame, orig_index = _reset_with_work_index(data)
+    primes = build_minimal_primes(n)
+    feature_map = _compute_prime_modulo_features(
+        frame["RV_d"],
+        n=n,
+        primes=primes,
+        prefix="PM",
+    )
+    for col_name, series in feature_map.items():
+        frame[col_name] = series
+    frame = frame.drop(columns=["Index"])
+    return restore_index(frame, orig_index)
 
-    data['Index'] = range(len(data))
-    primes = []
-    candidate = 2
-    while np.prod(primes, dtype=np.int64) < n:
-        if all(candidate % p != 0 for p in primes):
-            primes.append(candidate)
-        candidate += 1
-    for prime in primes:
-        col_name = f"RV_mod_{prime}"
-        data[col_name] = ((data['Index'] % prime == 0).astype(int)) * data['RV_d']
-    return data.set_index(index_col)
 
 # Strategy 3a: Volume-weighted primes (variant)
 def add_volume_weighted_prime_modulo_terms(data, n):
-    data = data.reset_index()
-    index_col = 'Date' if 'Date' in data.columns else data.columns[0]
+    frame, orig_index = _reset_with_work_index(data)
+    horizon = max(int(n), 1)
+    volume_mean = frame["Volume"].rolling(window=horizon, min_periods=max(1, horizon // 2)).mean()
+    normalized_volume = (frame["Volume"] / volume_mean).replace([np.inf, -np.inf], np.nan).fillna(1.0)
+    frame["normalized_volume"] = normalized_volume
 
-    data['Index'] = range(len(data))
+    base_market_primes = [2, 5, 23]
+    primes = _merge_unique_primes(base_market_primes, build_minimal_primes(n))
 
-    data['normalized_volume'] = (
-        data['Volume'] / data['Volume'].rolling(window=n, min_periods=1).mean()
+    feature_map = _compute_prime_modulo_features(
+        frame["RV_d"],
+        n=n,
+        primes=primes,
+        prefix="PMVW",
+        weight_series=frame["normalized_volume"],
     )
+    for col_name, series in feature_map.items():
+        frame[col_name] = series
+    frame = frame.drop(columns=["Index"])
+    return restore_index(frame, orig_index)
 
-    # Core market cycle primes
-    base_market_primes = [2, 5, 23]  # daily, weekly, monthly
-
-    # Find additional primes up to n, prioritizing those close to known market cycles
-    additional_primes = []
-    candidate = 2
-    while candidate <= n:
-        if all(candidate % p != 0 for p in base_market_primes + additional_primes):
-            additional_primes.append(candidate)
-        candidate += 1
-
-    # Combine both sets but prioritize market-aligned primes
-    all_primes = base_market_primes.copy()
-    for p in additional_primes:
-        if len(all_primes) < 5 and p not in all_primes:
-            all_primes.append(p)
-
-    print(f'utilizing {len(all_primes)} primes: {all_primes}')
-    for prime in all_primes:
-        col_name = f"RV_mod_{prime}"
-        data[col_name] = (
-            (data['Index'] % prime == 0).astype(int) *
-            data['RV_d'] *
-            data['normalized_volume']
-        )
-
-    # restore original time index safely
-    return data.set_index(index_col)
 
 # Strategy 3b: Volume-weighted adaptive primes (variant)
 def add_volume_weighted_adaptive_prime_modulo_terms(data, n):
-    data = data.reset_index()
-    index_col = 'Date' if 'Date' in data.columns else data.columns[0]
+    frame, orig_index = _reset_with_work_index(data)
+    horizon = max(int(n), 1)
 
-    data['Index'] = range(len(data))
+    volume_mean_short = frame["Volume"].rolling(window=horizon, min_periods=max(1, horizon // 2)).mean()
+    frame["normalized_volume"] = (frame["Volume"] / volume_mean_short).replace([np.inf, -np.inf], np.nan).fillna(1.0)
 
-    # Calculate normalized volume for direct weighting
-    data['normalized_volume'] = (
-        data['Volume'] / data['Volume'].rolling(window=n, min_periods=1).mean()
+    vol_mean = frame["RV_d"].rolling(window=horizon, min_periods=max(1, horizon // 2)).mean()
+    frame["vol_level"] = (frame["RV_d"] / vol_mean).replace([np.inf, -np.inf], np.nan)
+
+    short_std = frame["RV_d"].rolling(window=horizon, min_periods=max(1, horizon // 3)).std()
+    long_window = max(horizon * 5, horizon + 1)
+    long_std = frame["RV_d"].rolling(window=long_window, min_periods=max(1, long_window // 2)).std()
+    frame["vol_of_vol"] = (short_std / long_std).replace([np.inf, -np.inf], np.nan)
+    frame["vol_of_vol"] = frame["vol_of_vol"].fillna(1.0).clip(lower=0)
+
+    frame["volume_ratio"] = (frame["Volume"] / volume_mean_short).replace([np.inf, -np.inf], np.nan)
+
+    stress_components = pd.concat(
+        [frame["vol_level"], frame["vol_of_vol"], frame["volume_ratio"]],
+        axis=1,
     )
-
-    # Calculate market stress indicators
-    data['vol_level'] = data['RV_d'] / data['RV_d'].rolling(window=n).mean()
-    data['vol_of_vol'] = data['RV_d'].rolling(window=n).std() / data['RV_d'].rolling(window=n).std()
-    data['volume_ratio'] = data['Volume'] / data['Volume'].rolling(window=n).mean()
-
-    # Combine into market stress indicator
-    data['market_stress'] = (
-        (data['vol_level'] + data['vol_of_vol'] + data['volume_ratio']) / 3
-    ).clip(0, 1)
+    frame["market_stress"] = stress_components.mean(axis=1).clip(lower=0, upper=1).fillna(0.5)
 
     calm_market_primes = [7, 23]
     stress_market_primes = [2, 3, 5]
+    primes = _merge_unique_primes(calm_market_primes, stress_market_primes)
 
-    all_possible_primes = set(calm_market_primes + stress_market_primes)
-    for prime in all_possible_primes:
-        data[f"RV_mod_{prime}"] = 0.0
-
-    for idx in data.index:
-        stress_level = data.loc[idx, 'market_stress']
-        selected_primes = []
-
-        for i in range(min(len(calm_market_primes), len(stress_market_primes))):
-            if stress_level > 0.7:           # High stress regime
-                selected_primes.append(stress_market_primes[i])
-            elif stress_level < 0.3:         # Low stress regime
-                selected_primes.append(calm_market_primes[i])
-            else:                            # Medium stress - mix of both
-                selected_primes.append(
-                    stress_market_primes[i] if i < 2 else calm_market_primes[i]
-                )
-
-        current_volume_weight = data.loc[idx, 'normalized_volume']
-
-        for prime in selected_primes:
-            col_name = f"RV_mod_{prime}"
-            data.loc[idx, col_name] = (
-                (data.loc[idx, 'Index'] % prime == 0).astype(int) *
-                data.loc[idx, 'RV_d'] *
-                current_volume_weight
-            )
-
-    # restore original time index safely
-    return data.set_index(index_col)
-
-def contig_prime_modulo(data, n):
-    data = data.reset_index()
-    index_col = 'Date' if 'Date' in data.columns else data.columns[0]
-    data['Index'] = range(len(data))
-
-    primes = []
-    candidate = 2
-    while np.prod(primes, dtype=np.int64) < n:
-        if all(candidate % p != 0 for p in primes):
-            primes.append(candidate)
-        candidate += 1
-
-    print(f'utilizing {len(primes)} primes: {primes}')
-
-    for prime in primes:
-        prime_indices = data.index[data['Index'] % prime == 0].tolist()
-        col_name = f"RV_interval_{prime}"
-        data[col_name] = 0.0
-
-        # Calculate volatility for each interval (average)
-        for i in range(len(prime_indices) - 1):
-            start_idx = prime_indices[i]
-            end_idx = prime_indices[i+1]
-            interval_rv = data.loc[start_idx:end_idx, 'RV_d'].mean()
-            data.loc[start_idx:end_idx, col_name] = interval_rv
-
-    # restore original time index safely
-    return data.set_index(index_col)
-
-def random_sets(data, n):
-    data = data.reset_index()
-    index_col = 'Date' if 'Date' in data.columns else data.columns[0]
-    data['Index'] = range(len(data))
-
-    primes = []
-    candidate = 2
-    while np.prod(primes, dtype=np.int64) < n:
-        if all(candidate % p != 0 for p in primes):
-            primes.append(candidate)
-        candidate += 1
-
-    set_sizes = [len(data) // p for p in primes]
-    print(f'Using randomized sets of sizes: {set_sizes}')
-
-    for size in set_sizes:
-        col_name = f"RV_rand_{size}"
-        data[col_name] = 0.0
-
-        for _ in range(len(data) // size):
-            random_indices = np.random.choice(data.index, size=size, replace=False)
-            data.loc[random_indices, col_name] = data.loc[random_indices, 'RV_d'].mean()
-
-    # restore original time index safely
-    return data.set_index(index_col)
-
-def contig_prime_modulo_with_jumps(data, n, alpha=0.999):
-    data = data.reset_index()
-    index_col = 'Date' if 'Date' in data.columns else data.columns[0]
-    data['Index'] = range(len(data))
-
-    # bipower variation (BV) for continuous component
-    const = np.sqrt(2/np.pi)
-    abs_returns = np.sqrt(data['RV_d']).shift(1).abs()
-    data['BV_d'] = (const * abs_returns * np.sqrt(data['RV_d'])).fillna(0)
-
-    # tripower quarticity (for test statistic)
-    abs_returns_power = abs_returns**(4/3)
-    product = pd.Series(1, index=abs_returns.index)
-
-    for shift in [0, 1, 2]:
-        if shift > 0:
-            product *= abs_returns_power.shift(shift)
-        else:
-            product *= abs_returns_power
-
-    u_43 = 2**(2/3) * (np.pi**(1/3)) / (4**(2/3) * (np.pi-2)**(1/3))
-    data['TQ_d'] = u_43 * (product**(3/4))
-
-    # Z-statistic
-    delta = 1/252  # Assuming daily data scaling
-    data['z_stat'] = (data['RV_d'] - data['BV_d']) / (
-        np.sqrt(delta * ((np.pi**2)/4 + np.pi - 5) * np.maximum(1, data['TQ_d']/(data['BV_d']**2)))
+    feature_map = _compute_prime_modulo_features(
+        frame["RV_d"],
+        n=n,
+        primes=primes,
+        prefix="PMAdapt",
+        weight_series=frame["normalized_volume"],
     )
 
-    # jump days
-    critical_value = stats.norm.ppf(alpha)
-    data['jump_day'] = data['z_stat'] > critical_value
+    high_stress = frame["market_stress"] > 0.7
+    low_stress = frame["market_stress"] < 0.3
+    medium_stress = ~(high_stress | low_stress)
 
-    # separate continuous and jump components
-    data['J_d'] = np.where(data['jump_day'],
-                           data['RV_d'] - data['BV_d'],
-                           0)
-    data['C_d'] = np.where(data['jump_day'],
-                           data['BV_d'],
-                           data['RV_d'])
-
-    # select primes
-    primes = []
-    candidate = 2
-    while np.prod(primes, dtype=np.int64) < n if primes else True:
-        if all(candidate % p != 0 for p in primes):
-            primes.append(candidate)
-        candidate += 1
-    print(f'utilizing {len(primes)} primes: {primes}')
-
+    prime_activation = {}
     for prime in primes:
-        prime_indices = data.index[data['Index'] % prime == 0].tolist()
+        if prime in stress_market_primes:
+            if prime == 5:
+                prime_activation[prime] = high_stress
+            else:
+                prime_activation[prime] = high_stress | medium_stress
+        else:
+            prime_activation[prime] = low_stress
 
-        c_col_name = f"RV_C_interval_{prime}"
-        j_col_name = f"RV_J_interval_{prime}"
-        data[c_col_name] = 0.0
-        data[j_col_name] = 0.0
+    for col_name, series in feature_map.items():
+        segment = col_name.split("_k")[1]
+        prime = int(segment.split("_")[0])
+        activation = prime_activation.get(prime)
+        if activation is not None:
+            series = series.where(activation, np.nan)
+        frame[col_name] = series
 
-        # Calculate interval volatilities
-        for i in range(len(prime_indices) - 1):
-            start_idx = prime_indices[i]
-            end_idx = prime_indices[i+1]
+    frame = frame.drop(columns=["Index"])
+    return restore_index(frame, orig_index)
 
-            # Average continuous component over the interval
-            c_interval_rv = data.loc[start_idx:end_idx, 'C_d'].mean()
-            data.loc[start_idx:end_idx, c_col_name] = c_interval_rv
 
-            # Average jump component over the interval
-            j_interval_rv = data.loc[start_idx:end_idx, 'J_d'].mean()
-            data.loc[start_idx:end_idx, j_col_name] = j_interval_rv
+def contig_prime_modulo(data, n, per_day_normalize=False, verbose=False):
+    frame, orig_index = _reset_with_work_index(data)
+    primes = build_minimal_primes(n)
+    if verbose and primes:
+        print(f"utilizing {len(primes)} primes: {primes}")
+    feature_map = _compute_contiguous_phase_features(
+        frame=frame,
+        value_col="RV_d",
+        primes=primes,
+        n=n,
+        per_day_normalize=per_day_normalize,
+        prefix="CP",
+    )
+    _assign_phase_features(frame, feature_map)
+    frame = frame.drop(columns=["Index"])
+    return restore_index(frame, orig_index)
 
-    # restore original time index safely
-    return data.set_index(index_col)
+
+def random_sets(data, n):
+    frame, orig_index = _reset_with_work_index(data)
+    horizon = int(n) if n else 0
+    rng = np.random.default_rng()
+    primes = build_minimal_primes(n)
+    for prime in primes:
+        block_len = max(1, len(frame) // prime)
+        offset = int(rng.integers(0, block_len)) if block_len > 1 else 0
+        rolling = frame["RV_d"].rolling(window=block_len, min_periods=block_len)
+        block_metric = rolling.sum()
+        mask = (frame["Index"] >= offset + block_len - 1) & (((frame["Index"] - offset + 1) % block_len) == 0)
+        block_series = block_metric[mask].dropna()
+        if block_series.empty:
+            continue
+        agg_window = max(1, horizon // block_len) if block_len else 1
+        aggregated = block_series.rolling(window=agg_window, min_periods=1).mean()
+        col_name = f"RV_rand_{block_len}_a{offset}"
+        frame[col_name] = np.nan
+        frame.loc[aggregated.index, col_name] = aggregated
+        frame[col_name] = frame[col_name].ffill()
+    frame = frame.drop(columns=["Index"])
+    return restore_index(frame, orig_index)
+
+
+def contig_prime_modulo_with_jumps(data, n, alpha=0.999, per_day_normalize=False, verbose=False):
+    frame, orig_index = _reset_with_work_index(data)
+
+    const = np.sqrt(2 / np.pi)
+    abs_returns = np.sqrt(frame["RV_d"]).shift(1).abs()
+    frame["BV_d"] = (const * abs_returns * np.sqrt(frame["RV_d"])).fillna(0.0)
+
+    abs_returns_power = abs_returns ** (4 / 3)
+    tq_product = abs_returns_power * abs_returns_power.shift(1) * abs_returns_power.shift(2)
+    u_43 = 2 ** (2 / 3) * (np.pi ** (1 / 3)) / (4 ** (2 / 3) * (np.pi - 2) ** (1 / 3))
+    frame["TQ_d"] = u_43 * (tq_product ** (3 / 4))
+
+    delta = 1 / 252
+    bv_sq = np.maximum(frame["BV_d"] ** 2, 1e-12)
+    tq_ratio = frame["TQ_d"] / bv_sq
+    variance_term = pd.Series(np.maximum(1.0, tq_ratio), index=frame.index).fillna(1.0)
+    denom = np.sqrt(delta * ((np.pi ** 2) / 4 + np.pi - 5) * variance_term)
+    frame["z_stat"] = ((frame["RV_d"] - frame["BV_d"]) / denom).replace([np.inf, -np.inf], np.nan)
+
+    critical_value = stats.norm.ppf(alpha)
+    frame["jump_day"] = frame["z_stat"] > critical_value
+
+    frame["J_d"] = np.where(frame["jump_day"], frame["RV_d"] - frame["BV_d"], 0.0)
+    frame["C_d"] = np.where(frame["jump_day"], frame["BV_d"], frame["RV_d"])
+
+    primes = build_minimal_primes(n)
+    if verbose and primes:
+        print(f"utilizing {len(primes)} primes: {primes}")
+
+    c_features = _compute_contiguous_phase_features(
+        frame=frame,
+        value_col="C_d",
+        primes=primes,
+        n=n,
+        per_day_normalize=per_day_normalize,
+        prefix="CP_C",
+    )
+    j_features = _compute_contiguous_phase_features(
+        frame=frame,
+        value_col="J_d",
+        primes=primes,
+        n=n,
+        per_day_normalize=per_day_normalize,
+        prefix="CP_J",
+    )
+    _assign_phase_features(frame, c_features)
+    _assign_phase_features(frame, j_features)
+
+    frame = frame.drop(columns=["Index"])
+    return restore_index(frame, orig_index)
+
 
 def contiguous_random_sets(data, n, seed=None):
-    if seed is not None:
-        np.random.seed(seed)
-
-    data = data.reset_index()
-    index_col = 'Date' if 'Date' in data.columns else data.columns[0]
-    data['Index'] = range(len(data))
-
-    primes = []
-    candidate = 2
-    while np.prod(primes, dtype=np.int64) < n:
-        if all(candidate % p != 0 for p in primes):
-            primes.append(candidate)
-        candidate += 1
-
+    frame, orig_index = _reset_with_work_index(data)
+    rng = np.random.default_rng(seed)
+    horizon = int(n) if n else 0
+    primes = build_minimal_primes(n)
     for prime in primes:
-        start_offset = np.random.randint(0, prime)
-        col_name = f"RV_contig_rand_{prime}"
-        data[col_name] = 0.0
-
-        block_starts = data.index[data['Index'] % prime == start_offset].tolist()
-
-        for i in range(len(block_starts)):
-            start_idx = block_starts[i]
-            end_idx = block_starts[i + 1] if i + 1 < len(block_starts) else data.index[-1]
-            interval_rv = data.loc[start_idx:end_idx, 'RV_d'].mean()
-            data.loc[start_idx:end_idx, col_name] = interval_rv
-
-    return data.set_index(index_col)
+        offset = int(rng.integers(0, prime)) if prime > 1 else 0
+        rolling = frame["RV_d"].rolling(window=prime, min_periods=prime)
+        block_metric = rolling.sum()
+        mask = (frame["Index"] >= offset + prime - 1) & (((frame["Index"] - offset + 1) % prime) == 0)
+        block_series = block_metric[mask].dropna()
+        if block_series.empty:
+            continue
+        agg_window = max(1, horizon // prime)
+        aggregated = block_series.rolling(window=agg_window, min_periods=1).mean()
+        col_name = f"RV_contig_rand_{prime}_a{offset}"
+        frame[col_name] = np.nan
+        frame.loc[aggregated.index, col_name] = aggregated
+        frame[col_name] = frame[col_name].ffill()
+    frame = frame.drop(columns=["Index"])
+    return restore_index(frame, orig_index)
