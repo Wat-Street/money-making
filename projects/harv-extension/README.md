@@ -63,6 +63,57 @@ The script fetches stock data for Apple (`AAPL`) from January 2020 to January 20
 - `requirements.txt`: Contains Python package dependencies.
 - `README.md`: This file.
 
+## **Multi-Ticker Analysis Tool**
+
+### Overview
+The `multi_ticker_analysis.py` script enables comparative analysis across multiple tickers, generating publication-quality visualizations to compare model performance across different assets.
+
+### Usage
+
+**1. List available tickers:**
+```bash
+python code/multi_ticker_analysis.py --list-tickers
+```
+
+**2. Run models on multiple tickers (with parallel processing):**
+```bash
+python code/multi_ticker_analysis.py \
+  --tickers AAPL,AMZN,GOOGL,GLD,SPY \
+  --models HAR,PM,CP \
+  --run-models \
+  --parallel \
+  --outdir code/outputs/multi_ticker \
+  --fig-outdir code/paper/figures
+```
+
+**3. Regenerate graphs from existing predictions:**
+```bash
+python code/multi_ticker_analysis.py \
+  --tickers AAPL,AMZN,GOOGL,GLD,SPY \
+  --models HAR,PM,CP \
+  --pred-dir code/outputs/multi_ticker/predictions \
+  --fig-outdir code/paper/figures
+```
+
+### Options
+- `--tickers` - Comma-separated ticker symbols (e.g., `AAPL,GOOGL,SPY`)
+- `--models` - Models to compare: `HAR,PM,CP,CRS,HAR_J,CP_CJ,EXH,HAM,RAND`
+- `--run-models` - Train models (omit to just regenerate graphs)
+- `--parallel` - Run tickers in parallel for faster execution (~17 min/ticker)
+- `--window` - Rolling window for SMAPE (default: 78)
+- `--smooth` - Smoothing method: `none`, `ma`, or `ema` (default: `ema`)
+- `--smooth-span` - Smoothing span (default: 39)
+- `--resample` - Resampling rule, e.g., `W` for weekly (default: `W`)
+- `--style` - Plot style: `monochrome` or `color` (default: `color`)
+
+### Output
+Generates 3 publication-quality visualizations in PDF and SVG formats:
+1. **Multi_Ticker_Temporal_Stability** - Rolling SMAPE over time for each ticker (stacked subplots)
+2. **Model_Comparison_Across_Tickers_SMAPE** - Bar chart comparing model performance across assets
+3. **Model_Performance_Heatmap_SMAPE** - Heatmap matrix showing performance across tickers and models
+
+All figures are saved to the specified `--fig-outdir` directory.
+
 ## **Performance Metrics**
 - **SMAPE**: Used to evaluate prediction accuracy. Lower SMAPE indicates better performance.
 - **Visual Comparison**: Plots help assess temporal alignment of predicted and actual volatility.

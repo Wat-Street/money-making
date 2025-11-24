@@ -26,7 +26,7 @@ DISPLAY_NAME = {
     'PM': 'Prime Modulo (PM)', 'PM_VW': 'PM-VW', 'PM_AD': 'PM-AD',
     'CP': 'Contiguous Prime (CP)', 'CP_CJ': 'CP-CJ',
     'EXH': 'Exhaustive Prefixes (EXH)', 'HAM': 'Hamming Codes (HAM)',
-    'RAND': 'Random (control)',
+    'RAND': 'Random (control)', 'CRS': 'Contiguous Random Sets (CRS)',
 }
 
 def list_available_tickers(data_dir):
