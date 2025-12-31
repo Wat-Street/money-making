@@ -38,8 +38,15 @@ def get_stock_data(ticker, start_date, end_date, cache=True):
 
     df = yf.download(ticker, start=start_date, end=end_date)
     df.reset_index(inplace=True)
-    df = df[["Date", "Close"]]
+    
+    # Handle multi-index columns from yfinance
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    
+    # Extract just Date and Close, ensure Close is a flat series
+    df = df[["Date", "Close"]].copy()
     df["Ticker"] = ticker
+    
     if cache:
         os.makedirs("data/raw", exist_ok=True)
         df.to_csv(path, index=False)
@@ -67,7 +74,12 @@ def load_pair_data(ticker_a, ticker_b, start_date, end_date, cache=True):
     print(f"Loading data for {ticker_b}")
     df_b = get_stock_data(ticker_b, start_date, end_date, cache)
 
-    merged = pd.merge(df_a, df_b, on="Date", suffixes=(f"_{ticker_a}", f"_{ticker_b}"))
+    # Rename columns before merging to ensure consistent naming
+    df_a = df_a.rename(columns={'Close': f'Close_{ticker_a}', 'Ticker': f'Ticker_{ticker_a}'})
+    df_b = df_b.rename(columns={'Close': f'Close_{ticker_b}', 'Ticker': f'Ticker_{ticker_b}'})
+    
+    # Merge on Date
+    merged = pd.merge(df_a, df_b, on="Date")
     return merged
 
 
