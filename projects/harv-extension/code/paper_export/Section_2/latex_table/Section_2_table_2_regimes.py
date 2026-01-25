@@ -17,7 +17,7 @@ DISPLAY_ORDER = [
     'HAR','HAR_J','HAR_CJ','HAR_TCJ',
     'PM','PM_VW','PM_AD',
     'CP','CP_CJ',
-    'EXH','HAM','RAND'
+    'EXH','HAM','RAND','CRS'
 ]
 
 DISPLAY_NAME = {
@@ -33,6 +33,7 @@ DISPLAY_NAME = {
     'EXH': 'Exhaustive Prefixes (EXH)',
     'HAM': 'Hamming Codes (HAM)',
     'RAND': 'Randomized (control)',
+    'CRS': 'Contiguous Random (control)',
 }
 
 def fmt_pm(x, se, digits=2):
@@ -66,7 +67,7 @@ def bold_underline(col_strs, higher_is_better=False):
 
 def build_table(df: pd.DataFrame, include_variants: bool, caption: str, label: str) -> str:
     keep = DISPLAY_ORDER if include_variants else [
-        'HAR','HAR_J','HAR_CJ','HAR_TCJ','PM','CP','EXH','HAM','RAND'
+        'HAR','HAR_J','HAR_CJ','HAR_TCJ','PM','CP','EXH','HAM','RAND','CRS'
     ]
     df = df[df['model'].isin(keep)].copy()
     df['model'] = pd.Categorical(df['model'], categories=DISPLAY_ORDER, ordered=True)

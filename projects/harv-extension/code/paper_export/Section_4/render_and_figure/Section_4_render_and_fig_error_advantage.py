@@ -39,6 +39,7 @@ DISPLAY_NAME = {
     'CP': 'Contiguous Prime (CP)', 'CP_CJ': 'CP-CJ',
     'EXH': 'Exhaustive Prefixes (EXH)', 'HAM': 'Hamming Codes (HAM)',
     'RAND': 'Random (control)',
+    'CRS': 'Contiguous Random (control)',
 }
 
 def _per_timestamp_smape_percent(y_true, y_pred):

@@ -1,0 +1,46 @@
+ticker,group
+AAPL,US Mega Tech
+AMZN,US Mega Tech
+ARKK,Thematic/Alt/VIX/Other
+ARKW,Thematic/Alt/VIX/Other
+BABA,International Equity
+BITO,Currency/Crypto
+BTI,US Single-name
+DBB,Commodities/Metals
+EEM,International Equity
+EFA,International Equity
+EWW,International Equity
+EWZ,International Equity
+FXI,International Equity
+FXY,Currency/Crypto
+GLD,Commodities/Metals
+GOOGL,US Mega Tech
+HYG,Fixed Income
+INDA,International Equity
+IWM,Broad US Equity
+JNJ,US Single-name
+JPM,US Single-name
+KWEB,International Equity
+META,US Mega Tech
+MJ,Thematic/Alt/VIX/Other
+MSFT,US Mega Tech
+NVDA,Semiconductors
+PLTR,US Single-name
+QQQ,Broad US Equity
+RSP,Broad US Equity
+SLV,Commodities/Metals
+SMH,Semiconductors
+SOXL,Semiconductors
+SPXL,Leveraged Index
+SPY,Broad US Equity
+TLT,Fixed Income
+TQQQ,Leveraged Index
+TSLA,US Single-name
+USO,Energy/Oil
+UUP,Currency/Crypto
+VXX,Thematic/Alt/VIX/Other
+XBI,US Sector ETFs
+XLE,US Sector ETFs
+XLF,US Sector ETFs
+XLK,US Sector ETFs
+XLU,US Sector ETFs

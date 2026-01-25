@@ -18,7 +18,7 @@ DISPLAY_ORDER = [
     'HAR','HAR_J','HAR_CJ','HAR_TCJ',
     'PM','PM_VW','PM_AD',
     'CP','CP_CJ',
-    'EXH','HAM','RAND'
+    'EXH','HAM','RAND','CRS'
 ]
 DISPLAY_NAME = {
     'HAR': 'HAR-RV',
@@ -27,12 +27,12 @@ DISPLAY_NAME = {
     'HAR_TCJ': 'HAR-RV-TCJ',
     'PM': 'PM', 'PM_VW': 'PM-VW', 'PM_AD': 'PM-AD',
     'CP': 'CP', 'CP_CJ': 'CP-CJ',
-    'EXH': 'EXH', 'HAM': 'HAM', 'RAND': 'Random'
+    'EXH': 'EXH', 'HAM': 'HAM', 'RAND': 'Random', 'CRS': 'Contig Random'
 }
 
 def _prep_df(df, include_variants: bool):
     keep = DISPLAY_ORDER if include_variants else [
-        'HAR','HAR_J','HAR_CJ','HAR_TCJ','PM','CP','EXH','HAM','RAND'
+        'HAR','HAR_J','HAR_CJ','HAR_TCJ','PM','CP','EXH','HAM','RAND','CRS'
     ]
     df = df[df['model'].isin(keep)].copy()
     df['model'] = pd.Categorical(df['model'], categories=DISPLAY_ORDER, ordered=True)

@@ -23,7 +23,7 @@ DISPLAY_ORDER = [
     'HAR','HAR_J','HAR_CJ','HAR_TCJ',
     'PM','PM_VW','PM_AD',
     'CP','CP_CJ',
-    'EXH','HAM','RAND'
+    'EXH','HAM','RAND','CRS'
 ]
 
 DISPLAY_NAME = {
@@ -39,6 +39,7 @@ DISPLAY_NAME = {
     'EXH': 'Exhaustive Prefixes (EXH)',
     'HAM': 'Hamming Codes (HAM)',
     'RAND': 'Randomized (control)',
+    'CRS': 'Contiguous Random (control)',
 }
 
 def _pm(s, se, digits=2):
@@ -103,7 +104,7 @@ def _dagger_core_names(df, include_variants):
 def build_table(df, context, include_variants=True):
     # filter models
     keep = DISPLAY_ORDER if include_variants else [
-        'HAR','HAR_J','HAR_CJ','HAR_TCJ','PM','CP','EXH','HAM','RAND'
+        'HAR','HAR_J','HAR_CJ','HAR_TCJ','PM','CP','EXH','HAM','RAND','CRS'
     ]
     df = df[df['model'].isin(keep)].copy()
     df['model'] = pd.Categorical(df['model'], categories=DISPLAY_ORDER, ordered=True)

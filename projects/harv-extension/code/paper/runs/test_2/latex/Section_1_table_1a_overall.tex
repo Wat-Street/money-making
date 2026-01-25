@@ -1,0 +1,15 @@
+\begin{table}[t]
+\centering
+\caption{Table 1A (Intraday, 5-min): Overall forecasting performance. Lower is better except Directional Accuracy.}
+\label{tab:overall_intraday}
+\begin{tabular}{lcccccc}
+\toprule
+Model & SMAPE (\%) & RMSE & MAE & Dir. Acc. (\%) & MedAE & N \\
+\midrule
+HAR-RV & 85.66 $\pm$ 0.00 & \\underline{1.08e-03 $\pm$ 0.0e+00} & 4.11e-04 $\pm$ 0.0e+00 & 65.79 $\pm$ 0.00 & 2.77e-04 $\pm$ 0.0e+00 & 36739 \\
+Prime Modulo (PM) & \\underline{84.04 $\pm$ 0.00★} & 1.08e-03 $\pm$ 0.0e+00 & \\underline{4.04e-04 $\pm$ 0.0e+00} & \\underline{66.93 $\pm$ 0.00} & \\underline{2.59e-04 $\pm$ 0.0e+00} & 36739 \\
+Contiguous Prime (CP) & \\textbf{82.59 $\pm$ 0.00} & \\textbf{1.07e-03 $\pm$ 0.0e+00} & \\textbf{3.93e-04 $\pm$ 0.0e+00} & \\textbf{67.79 $\pm$ 0.00} & \\textbf{2.43e-04 $\pm$ 0.0e+00} & 36739 \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}\par\footnotesize Notes: Mean across assets; $\,\pm\,$ is standard error across assets. Bold = best, underline = second-best per column. Superscripts on SMAPE denote Diebold--Mariano significance vs HAR-RV ($\dagger$: $p<0.05$, $\ddagger$: $p<0.01$, $\star$: $p<0.001$). If present, $^\dagger$ after PM/CP indicates a variant row in this table beats the core; see also ablations.
+\end{table}

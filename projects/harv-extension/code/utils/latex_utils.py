@@ -53,5 +53,6 @@ def pretty_model(code: str) -> str:
         'EXH': 'Exhaustive Prefixes',
         'HAM': 'Hamming Codes',
         'RAND': 'Randomized Sets',
+        'CRS': 'Contiguous Random Sets',
     }
     return m.get(str(code), str(code))

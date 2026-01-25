@@ -11,7 +11,7 @@ Assumptions:
     utils.data_utils.handleIntraday
     utils.data_utils.calculate_intraday_realized_volatility
     utils.data_utils.fit_and_predict_extended
-    utils.models_utils.add_prime_modulo_terms (creates RV_mod_<p> columns)
+    utils.models_utils.add_prime_modulo_terms (creates PM_k<p>_r<r> columns)
 - We DO NOT modify models_utils; we generate the full PM feature set once
   per asset, then subset the first K prime-columns (sorted by p) for each K.
 
@@ -129,12 +129,14 @@ def _smape_series(y_true, y_pred) -> np.ndarray:
 
 
 def _prime_cols(df: pd.DataFrame) -> List[str]:
-    """Detect RV_mod_<p> columns and return them sorted by prime p ascending."""
+    """Detect PM_k<p>_r<r> columns and return them sorted by prime p ascending."""
     mods = []
     for c in df.columns:
-        if c.startswith("RV_mod_"):
+        if c.startswith("PM_k"):
             try:
-                p = int(c.split("_")[-1])
+                # PM_k{prime}_r{remainder}
+                p_part = c.split("_")[1]  # k{prime}
+                p = int(p_part.replace("k", ""))
                 mods.append((p, c))
             except Exception:
                 continue
@@ -178,14 +180,14 @@ def main():
         intr = handleIntraday(raw)  # adds Log_Return, Squared_Return, Volume
         vol = calculate_intraday_realized_volatility(intr)  # RV_d, RV_w, RV_m, Volume
 
-        # add full PM feature set (generates RV_mod_<p> up to product >= n)
+        # add full PM feature set (generates PM_k<p>_r<r> columns)
         pm_full = add_prime_modulo_terms(vol.copy(), args.n)
 
         # collect primes and base features
         prime_cols = _prime_cols(pm_full)
         if not prime_cols:
             raise RuntimeError(
-                "No RV_mod_<p> columns were generated. Check add_prime_modulo_terms and 'n'."
+                "No PM_k<p>_r<r> columns were generated. Check add_prime_modulo_terms and 'n'."
             )
 
         base_feats = [c for c in ["RV_d", "RV_w", "RV_m"] if c in pm_full.columns]

@@ -39,6 +39,7 @@ DISPLAY_NAME = {
     'CP': 'Contiguous Prime (CP)', 'CP_CJ': 'CP-CJ',
     'EXH': 'Exhaustive Prefixes (EXH)', 'HAM': 'Hamming Codes (HAM)',
     'RAND': 'Random (control)',
+    'CRS': 'Contiguous Random (control)',
 }
 
 def load_predictions(pred_dir: str, asset: str) -> pd.DataFrame:

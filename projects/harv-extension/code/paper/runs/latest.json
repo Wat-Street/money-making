@@ -1,0 +1,21 @@
+{
+  "run": "test_2",
+  "timestamp_utc": "2026-01-25 01:10:15 UTC",
+  "tickers": "SPY",
+  "models": "HAR,PM,CP",
+  "local_dir": "code/Datasets/clean",
+  "n": 22,
+  "warmup": 600,
+  "section5_prereq": false,
+  "pred_dir": "code\\paper\\runs\\test_2\\predictions",
+  "tables_dir": "code\\paper\\runs\\test_2\\tables",
+  "fig_out": "code\\paper\\runs\\test_2\\figures",
+  "tex_out": "code\\paper\\runs\\test_2\\latex",
+  "sections": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "6"
+  ]
+}

@@ -1,0 +1,17 @@
+group,baseline,model,n_assets,delta_smape_pct_mean,delta_smape_pct_se,delta_mae_mean,delta_mae_se,delta_rmse_mean,delta_rmse_se,winner_frac_smape,fisher_p_dm,sig_mark
+Broad US Equity,HAR,CP,2,11.185661761329406,11.185661761329404,1.861240020901686e-07,1.8612400209016858e-07,1.4745350348706896e-06,1.4745350348706894e-06,0.5,0.00261625862065884,‡
+Broad US Equity,HAR,PM,2,0.1556149553126005,0.1556149553126005,2.0781425821515166e-08,2.0781425821515162e-08,6.119707931770388e-08,6.119707931770388e-08,0.5,0.018275173902746022,†
+Commodities/Metals,HAR,CP,1,0.0,,0.0,,0.0,,0.0,,
+Commodities/Metals,HAR,PM,1,0.0,,0.0,,0.0,,0.0,,
+Energy/Oil,HAR,CP,1,0.0,,0.0,,0.0,,0.0,,
+Energy/Oil,HAR,PM,1,0.0,,0.0,,0.0,,0.0,,
+Fixed Income,HAR,CP,1,0.0,,0.0,,0.0,,0.0,,
+Fixed Income,HAR,PM,1,0.0,,0.0,,0.0,,0.0,,
+International Equity,HAR,CP,1,0.0,,0.0,,0.0,,0.0,,
+International Equity,HAR,PM,1,0.0,,0.0,,0.0,,0.0,,
+Semiconductors,HAR,CP,1,0.0,,0.0,,0.0,,0.0,,
+Semiconductors,HAR,PM,1,0.0,,0.0,,0.0,,0.0,,
+Thematic/Alt/VIX/Other,HAR,CP,2,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,
+Thematic/Alt/VIX/Other,HAR,PM,2,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,
+US Mega Tech,HAR,CP,1,0.0,,0.0,,0.0,,0.0,,
+US Mega Tech,HAR,PM,1,0.0,,0.0,,0.0,,0.0,,

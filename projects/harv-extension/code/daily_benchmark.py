@@ -14,7 +14,7 @@ from utils.models_utils import (
     add_volume_weighted_prime_modulo_terms,
     add_volume_weighted_adaptive_prime_modulo_terms,
     contig_prime_modulo, contig_prime_modulo_with_jumps,
-    random_sets
+    random_sets, contiguous_random_sets
 )
 from utils.reporting_utils import aggregate_overall_from_predictions, save_table_overall
 
@@ -31,10 +31,11 @@ MODEL_FUNCS = {
     'EXH': add_exhaustive_terms,
     'HAM': add_hamming_terms,
     'RAND': random_sets,
+    'CRS': contiguous_random_sets,
 }
 
 def _default_models(include_variants: bool = True):
-    cores = ['HAR','HAR_J','HAR_CJ','HAR_TCJ','PM','CP','EXH','HAM','RAND']
+    cores = ['HAR','HAR_J','HAR_CJ','HAR_TCJ','PM','CP','EXH','HAM','RAND','CRS']
     variants = ['PM_VW','PM_AD','CP_CJ']
     return cores + (variants if include_variants else [])
 
@@ -53,13 +54,15 @@ def intraday_to_daily(df5m: pd.DataFrame) -> pd.DataFrame:
     vol = df5m['Volume'] if 'Volume' in df5m.columns else pd.Series(0.0, index=df5m.index)
 
     g = df5m.groupby(df5m.index.date)
-    rv_d = g.apply(lambda x: (sr.loc[x.index]).sum())
+    sr_day = g.apply(lambda x: (sr.loc[x.index]).sum())
     vol_sum = g.apply(lambda x: (vol.loc[x.index]).sum())
 
-    daily = pd.DataFrame({'RV_d': rv_d.values, 'Volume': vol_sum.values}, index=pd.to_datetime(rv_d.index))
+    daily = pd.DataFrame({'SR': sr_day.values, 'Volume': vol_sum.values}, index=pd.to_datetime(sr_day.index))
     daily = daily.sort_index()
-    daily['RV_w'] = daily['RV_d'].rolling(window=5, min_periods=5).mean()
-    daily['RV_m'] = daily['RV_d'].rolling(window=22, min_periods=22).mean()
+    # Realized volatility is sqrt of summed variance contributions
+    daily['RV_d'] = np.sqrt(daily['SR'])
+    daily['RV_w'] = np.sqrt(daily['SR'].rolling(window=5, min_periods=5).sum())
+    daily['RV_m'] = np.sqrt(daily['SR'].rolling(window=22, min_periods=22).sum())
     return daily.dropna()
 
 def run_for_ticker_daily(ticker: str, models: list, n: int, warmup: int, local_dir: str, outdir: str):
@@ -81,7 +84,8 @@ def run_for_ticker_daily(ticker: str, models: list, n: int, warmup: int, local_d
             continue
         func = MODEL_FUNCS[m]
         extended = func(daily.copy(), n)
-        features = [c for c in extended.columns if c.startswith('RV')]
+        # Include all engineered feature families (RV_*, PM_*, CP_*)
+        features = [c for c in extended.columns if c.startswith(('RV', 'PM', 'CP'))]
         preds = fit_and_predict_extended(extended, features, n, warmup, model_name=m)
         if preds is None or preds.empty:
             print(f"[DAILY][warn] No predictions for {ticker} with {m}")

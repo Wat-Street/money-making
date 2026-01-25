@@ -1,0 +1,15 @@
+\begin{table}[t]
+\centering
+\caption{Table 2 (Intraday): SMAPE\% by realized-volatility regime.}
+\label{tab:regimes_intraday}
+\begin{tabular}{lccc}
+\toprule
+Model & Low RV & Medium RV & High RV \\
+\midrule
+ HAR-RV & 149.45 $\pm$ 0.00 & 55.12 $\pm$ 0.00 & \textbf{53.39 $\pm$ 0.00} \\
+ Prime Modulo (PM) & \underline{146.70 $\pm$ 0.00} & \underline{52.05 $\pm$ 0.00} & 54.29 $\pm$ 0.00 \\
+ Contiguous Prime (CP) & \textbf{143.46 $\pm$ 0.00} & \textbf{51.29 $\pm$ 0.00} & \underline{53.90 $\pm$ 0.00} \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}\par\footnotesize Lower is better. Values are mean SMAPE\% across assets with $\pm$ standard error. Regimes are terciles of realized volatility (33\% / 66\%).
+\end{table}

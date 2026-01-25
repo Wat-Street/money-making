@@ -31,9 +31,10 @@ DISPLAY = {
     'CP':'Contiguous Prime (CP)', 'CP_CJ':'CP-CJ',
     'EXH':'Exhaustive Prefixes (EXH)', 'HAM':'Hamming Codes (HAM)',
     'RAND':'Random (control)',
+    'CRS':'Contiguous Random (control)',
 }
 
-ORDER = ['HAR','HAR_J','HAR_CJ','HAR_TCJ','PM','PM_VW','PM_AD','CP','CP_CJ','EXH','HAM','RAND']
+ORDER = ['HAR','HAR_J','HAR_CJ','HAR_TCJ','PM','PM_VW','PM_AD','CP','CP_CJ','EXH','HAM','RAND','CRS']
 
 def fmt_mean_se(mean, se, pct=False):
     if pd.isna(mean):

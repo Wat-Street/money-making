@@ -28,6 +28,10 @@ DEFAULT_IN = os.path.join(
 )
 DEFAULT_OUTDIR = os.path.join("code", "paper", "latex")
 
+MODEL_NAME = {
+    "RAND": "Random (control)",
+    "CRS": "Contiguous Random (control)",
+}
 
 def fmt_pm(mean, se, digits=2, pct=False):
     """Format mean ± s.e. Optionally as percentage with requested digits."""
@@ -101,7 +105,8 @@ def build_table(df: pd.DataFrame, scope: str) -> str:
 
     rows = []
     for i, r in df.iterrows():
-        model = escape(r.get("model", "Randomized (control)"))
+        model_code = r.get("model", "RAND")
+        model = escape(MODEL_NAME.get(model_code, model_code))
         ds_mean = float(r.get("delta_smape_pct_mean", float("nan")))
         ds_se = float(r.get("delta_smape_pct_se", float("nan")))
         dmae_mean = float(r.get("delta_mae_mean", float("nan")))

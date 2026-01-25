@@ -63,8 +63,14 @@ def _compute_contiguous_phase_features(frame, value_col, primes, n, per_day_norm
     for k in primes:
         if k <= 0:
             continue
-        rolling = frame[value_col].rolling(window=k, min_periods=k)
-        block_metric = rolling.mean() if per_day_normalize else rolling.sum()
+        if "SR" not in frame.columns:
+            raise KeyError("Expected column 'SR' (squared return / variance contribution). Add it in calculate_*_realized_volatility.")
+
+        rolling = frame["SR"].rolling(window=k, min_periods=k)
+        block_rv = np.sqrt(rolling.sum())
+
+        # per_day_normalize: average RV per block length
+        block_metric = (block_rv / k) if per_day_normalize else block_rv
         complete_blocks = max(1, horizon // k)
 
         base_mask = index_series >= (k - 1)
@@ -84,7 +90,7 @@ def _assign_phase_features(frame, feature_map):
     for col_name, series in feature_map.items():
         frame[col_name] = np.nan
         frame.loc[series.index, col_name] = series
-        frame[col_name] = frame[col_name].ffill()
+        frame[col_name] = frame[col_name].ffill().bfill()
 
 
 def _compute_prime_modulo_features(value_series, n, primes, prefix, weight_series=None):
@@ -252,7 +258,7 @@ def contig_prime_modulo(data, n, per_day_normalize=False, verbose=False):
         print(f"utilizing {len(primes)} primes: {primes}")
     feature_map = _compute_contiguous_phase_features(
         frame=frame,
-        value_col="RV_d",
+        value_col="RV_d",  # kept for signature consistency; function uses SR internally now
         primes=primes,
         n=n,
         per_day_normalize=per_day_normalize,
@@ -263,16 +269,19 @@ def contig_prime_modulo(data, n, per_day_normalize=False, verbose=False):
     return restore_index(frame, orig_index)
 
 
-def random_sets(data, n):
+def random_sets(data, n, seed=None, fill_method="bfill"):
     frame, orig_index = _reset_with_work_index(data)
     horizon = int(n) if n else 0
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(seed)
     primes = build_minimal_primes(n)
+    created_cols = []
     for prime in primes:
         block_len = max(1, len(frame) // prime)
         offset = int(rng.integers(0, block_len)) if block_len > 1 else 0
-        rolling = frame["RV_d"].rolling(window=block_len, min_periods=block_len)
-        block_metric = rolling.sum()
+        if "SR" not in frame.columns:
+            raise KeyError("Expected column 'SR' (squared return / variance contribution). Add it in calculate_*_realized_volatility.")
+        rolling = frame["SR"].rolling(window=block_len, min_periods=block_len)
+        block_metric = np.sqrt(rolling.sum())
         mask = (frame["Index"] >= offset + block_len - 1) & (((frame["Index"] - offset + 1) % block_len) == 0)
         block_series = block_metric[mask].dropna()
         if block_series.empty:
@@ -280,9 +289,18 @@ def random_sets(data, n):
         agg_window = max(1, horizon // block_len) if block_len else 1
         aggregated = block_series.rolling(window=agg_window, min_periods=1).mean()
         col_name = f"RV_rand_{block_len}_a{offset}"
+        created_cols.append(col_name)
         frame[col_name] = np.nan
         frame.loc[aggregated.index, col_name] = aggregated
         frame[col_name] = frame[col_name].ffill()
+        if fill_method == "bfill":
+            frame[col_name] = frame[col_name].bfill()
+        elif fill_method == "zero":
+            frame[col_name] = frame[col_name].fillna(0.0)
+        else:
+            frame[col_name] = frame[col_name].bfill()
+    if created_cols:
+        frame[created_cols] = frame[created_cols].replace([np.inf, -np.inf], np.nan)
     frame = frame.drop(columns=["Index"])
     return restore_index(frame, orig_index)
 
@@ -290,9 +308,12 @@ def random_sets(data, n):
 def contig_prime_modulo_with_jumps(data, n, alpha=0.999, per_day_normalize=False, verbose=False):
     frame, orig_index = _reset_with_work_index(data)
 
+    # Use variance contribution if available; otherwise fall back to RV_d.
+    rv_var = frame["SR"] if "SR" in frame.columns else frame["RV_d"]
+
     const = np.sqrt(2 / np.pi)
-    abs_returns = np.sqrt(frame["RV_d"]).shift(1).abs()
-    frame["BV_d"] = (const * abs_returns * np.sqrt(frame["RV_d"])).fillna(0.0)
+    abs_returns = np.sqrt(rv_var).shift(1).abs()
+    frame["BV_d"] = (const * abs_returns * np.sqrt(rv_var)).fillna(0.0)
 
     abs_returns_power = abs_returns ** (4 / 3)
     tq_product = abs_returns_power * abs_returns_power.shift(1) * abs_returns_power.shift(2)
@@ -304,13 +325,13 @@ def contig_prime_modulo_with_jumps(data, n, alpha=0.999, per_day_normalize=False
     tq_ratio = frame["TQ_d"] / bv_sq
     variance_term = pd.Series(np.maximum(1.0, tq_ratio), index=frame.index).fillna(1.0)
     denom = np.sqrt(delta * ((np.pi ** 2) / 4 + np.pi - 5) * variance_term)
-    frame["z_stat"] = ((frame["RV_d"] - frame["BV_d"]) / denom).replace([np.inf, -np.inf], np.nan)
+    frame["z_stat"] = ((rv_var - frame["BV_d"]) / denom).replace([np.inf, -np.inf], np.nan)
 
     critical_value = stats.norm.ppf(alpha)
     frame["jump_day"] = frame["z_stat"] > critical_value
 
-    frame["J_d"] = np.where(frame["jump_day"], frame["RV_d"] - frame["BV_d"], 0.0)
-    frame["C_d"] = np.where(frame["jump_day"], frame["BV_d"], frame["RV_d"])
+    frame["J_d"] = np.where(frame["jump_day"], rv_var - frame["BV_d"], 0.0)
+    frame["C_d"] = np.where(frame["jump_day"], frame["BV_d"], rv_var)
 
     primes = build_minimal_primes(n)
     if verbose and primes:
@@ -339,15 +360,18 @@ def contig_prime_modulo_with_jumps(data, n, alpha=0.999, per_day_normalize=False
     return restore_index(frame, orig_index)
 
 
-def contiguous_random_sets(data, n, seed=None):
+def contiguous_random_sets(data, n, seed=None, fill_method="bfill"):
     frame, orig_index = _reset_with_work_index(data)
     rng = np.random.default_rng(seed)
     horizon = int(n) if n else 0
     primes = build_minimal_primes(n)
+    created_cols = []
     for prime in primes:
         offset = int(rng.integers(0, prime)) if prime > 1 else 0
-        rolling = frame["RV_d"].rolling(window=prime, min_periods=prime)
-        block_metric = rolling.sum()
+        if "SR" not in frame.columns:
+            raise KeyError("Expected column 'SR' (squared return / variance contribution). Add it in calculate_*_realized_volatility.")
+        rolling = frame["SR"].rolling(window=prime, min_periods=prime)
+        block_metric = np.sqrt(rolling.sum())
         mask = (frame["Index"] >= offset + prime - 1) & (((frame["Index"] - offset + 1) % prime) == 0)
         block_series = block_metric[mask].dropna()
         if block_series.empty:
@@ -355,8 +379,17 @@ def contiguous_random_sets(data, n, seed=None):
         agg_window = max(1, horizon // prime)
         aggregated = block_series.rolling(window=agg_window, min_periods=1).mean()
         col_name = f"RV_contig_rand_{prime}_a{offset}"
+        created_cols.append(col_name)
         frame[col_name] = np.nan
         frame.loc[aggregated.index, col_name] = aggregated
         frame[col_name] = frame[col_name].ffill()
+        if fill_method == "bfill":
+            frame[col_name] = frame[col_name].bfill()
+        elif fill_method == "zero":
+            frame[col_name] = frame[col_name].fillna(0.0)
+        else:
+            frame[col_name] = frame[col_name].bfill()
+    if created_cols:
+        frame[created_cols] = frame[created_cols].replace([np.inf, -np.inf], np.nan)
     frame = frame.drop(columns=["Index"])
     return restore_index(frame, orig_index)

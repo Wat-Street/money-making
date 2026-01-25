@@ -139,7 +139,8 @@ def run_for_ticker(ticker: str, models: list, n: int, warmup: int, local_dir: st
         try:
             func = MODEL_FUNCS[m]
             extended = func(vol.copy(), n)
-            features = [c for c in extended.columns if c.startswith('RV')]
+            # Include all engineered feature families (RV_*, PM_*, CP_*)
+            features = [c for c in extended.columns if c.startswith(('RV', 'PM', 'CP'))]
             preds = fit_and_predict_extended(extended, features, n, warmup, model_name=m)
             if preds is None or preds.empty:
                 print(f"[MODEL] [{ticker}] {m} produced no predictions (skipping)", flush=True)
@@ -219,6 +220,8 @@ def main():
     p.add_argument('--n', type=int, default=22)
     p.add_argument('--warmup', type=int, default=600)
     p.add_argument('--require-explicit', action='store_true', help='Error if --tickers not provided (no auto-discovery).')
+    p.add_argument('--skip-post', action='store_true', help='Skip overall/table aggregation and Section 5 post-run build.')
+    p.add_argument('--skip-section5', action='store_true', help='Skip Section 5 post-run table build (overall table still produced).')
     p.add_argument('--include-variants', dest='include_variants', action='store_true', default=True,
                   help='Include PM_VW, PM_AD, CP_CJ when models not explicitly specified (default: on)')
     p.add_argument('--no-variants', dest='include_variants', action='store_false')
@@ -260,37 +263,41 @@ def main():
             est_total_45 = avg_per_ticker * 45
             so_far = time.perf_counter() - overall_start
             est_remaining_45 = max(est_total_45 - so_far, 0)
-            print(f"[ETA  ] avg/ticker ~ {_fmt_s(avg_per_ticker)} → 45 tickers ≈ {_fmt_s(est_total_45)} "
-                  f"(remaining if aiming for 45: {_fmt_s(est_remaining_45)})",
-                  flush=True)
+            print(
+                f"[ETA  ] avg/ticker ~ {_fmt_s(avg_per_ticker)} -> 45 tickers ~ {_fmt_s(est_total_45)} ",
+                f"(remaining if aiming for 45: {_fmt_s(est_remaining_45)})",
+                flush=True
+            )
 
     except GracefulStop:
         # Stop immediately; keep whatever is already on disk from checkpoints.
         print("[HALT] Graceful stop requested due to OOM-like error. Preserving all checkpoints.", flush=True)
         return
 
-    # Post-run aggregation (only if we completed without a graceful stop)
-    overall, _ = aggregate_overall_from_predictions(os.path.join(args.outdir, 'predictions'), models)
-    out_csv = os.path.join(args.outdir, 'tables', 'Section_1_table_1a_overall.csv')
-    save_table_overall(overall, out_csv)
-    print(f"[INTRA] wrote {out_csv}", flush=True)
+    if not args.skip_post:
+        # Post-run aggregation (only if we completed without a graceful stop)
+        overall, _ = aggregate_overall_from_predictions(os.path.join(args.outdir, 'predictions'), models)
+        out_csv = os.path.join(args.outdir, 'tables', 'Section_1_table_1a_overall.csv')
+        save_table_overall(overall, out_csv)
+        print(f"[INTRA] wrote {out_csv}", flush=True)
 
-    try:
-        import subprocess  # keep os/sys imports at top-level
-        pred_dir = os.path.join(args.outdir, 'predictions')
-        tables_dir = os.path.join(args.outdir, 'tables')
-        models_csv = ",".join(models)
-        cmd = [
-            sys.executable, 'code/Helpers_for_paper_export_scripts/Section_5/build_section5_tables.py',
-            '--pred-dir', pred_dir,
-            '--tables-dir', tables_dir,
-            '--models', models_csv,
-            '--rand-baseline', 'PM'
-        ]
-        print("[post] building Section 5 tables…")
-        subprocess.run(cmd, check=True)
-    except Exception as e:
-        print(f"[post] skipped Section 5 build: {e}")
+        if not args.skip_section5:
+            try:
+                import subprocess  # keep os/sys imports at top-level
+                pred_dir = os.path.join(args.outdir, 'predictions')
+                tables_dir = os.path.join(args.outdir, 'tables')
+                models_csv = ",".join(models)
+                cmd = [
+                    sys.executable, 'code/Helpers_for_paper_export_scripts/Section_5/build_section5_tables.py',
+                    '--pred-dir', pred_dir,
+                    '--tables-dir', tables_dir,
+                    '--models', models_csv,
+                    '--rand-baseline', 'PM'
+                ]
+                print("[post] building Section 5 tables…")
+                subprocess.run(cmd, check=True)
+            except Exception as e:
+                print(f"[post] skipped Section 5 build: {e}")
 
 if __name__ == "__main__":
     main()

@@ -43,7 +43,8 @@ DISPLAY = {
     'HAR':'HAR-RV','HAR_J':'HAR-RV-J','HAR_CJ':'HAR-RV-CJ','HAR_TCJ':'HAR-RV-TCJ',
     'PM':'Prime Modulo (PM)','PM_VW':'PM-VW','PM_AD':'PM-AD',
     'CP':'Contiguous Prime (CP)','CP_CJ':'CP-CJ',
-    'EXH':'Exhaustive Prefixes (EXH)','HAM':'Hamming Codes (HAM)','RAND':'Random (control)'
+    'EXH':'Exhaustive Prefixes (EXH)','HAM':'Hamming Codes (HAM)',
+    'RAND':'Random (control)','CRS':'Contiguous Random (control)'
 }
 
 # ---------- helpers ----------
@@ -192,10 +193,7 @@ def per_asset_metrics(df, models):
 
 # ---------- builders ----------
 
-def aggregate_and_write(rows, out_csv):
-    if not rows:
-        return
-    df = pd.DataFrame(rows)
+def _aggregate_summary(df: pd.DataFrame) -> dict:
     out = {}
 
     # numeric means & SEs (separate assignment; force to float; clean small)
@@ -221,18 +219,42 @@ def aggregate_and_write(rows, out_csv):
     out['fisher_p_dm_rmse']  = fisher('dm_p_rmse')
     out['fisher_p_diracc']   = fisher('p_diracc')
 
-    def sig(p): 
-        if not np.isfinite(p): return ''
-        return '★' if p < 1e-3 else ('‡' if p < 1e-2 else ('†' if p < 5e-2 else ''))
+    def sig(p):
+        if not np.isfinite(p):
+            return ''
+        return '?' if p < 1e-3 else ('Ø' if p < 1e-2 else ('+' if p < 5e-2 else ''))
     out['sig_mark_smape'] = sig(out['fisher_p_dm_smape'])
     out['sig_mark_mae']   = sig(out['fisher_p_dm_mae'])
     out['sig_mark_rmse']  = sig(out['fisher_p_dm_rmse'])
     out['sig_mark_diracc']= sig(out['fisher_p_diracc'])
 
-    out['n_assets'] = int(pd.Series([r['asset'] for r in rows]).nunique())
+    # aliases for scripts expecting generic names
+    out['fisher_p_dm'] = out['fisher_p_dm_smape']
+    out['sig_mark'] = out['sig_mark_smape']
+
+    if 'asset' in df.columns:
+        out['n_assets'] = int(pd.Series(df['asset']).nunique())
+    else:
+        out['n_assets'] = int(len(df))
+    return out
+
+
+def aggregate_and_write(rows, out_csv):
+    if not rows:
+        return
+    df = pd.DataFrame(rows)
 
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)
-    pd.DataFrame([out]).to_csv(out_csv, index=False)
+    if 'model' in df.columns:
+        out_rows = []
+        for model, sub in df.groupby('model'):
+            summary = _aggregate_summary(sub)
+            summary['model'] = model
+            out_rows.append(summary)
+        pd.DataFrame(out_rows).to_csv(out_csv, index=False)
+    else:
+        summary = _aggregate_summary(df)
+        pd.DataFrame([summary]).to_csv(out_csv, index=False)
 
 def build_ablations(pred_dir, tables_dir, models, rand_baseline):
     os.makedirs(tables_dir, exist_ok=True)
@@ -301,10 +323,12 @@ def build_ablations(pred_dir, tables_dir, models, rand_baseline):
                 'p_diracc': p_da,
             })
 
-        # RAND vs baseline (default PM)
+        # RAND / CRS vs baseline (default PM)
         base_name = rand_baseline
-        if all(k in mets for k in ('RAND', base_name)):
-            base = mets[base_name]; var = mets['RAND']
+        for ctrl in ('RAND', 'CRS'):
+            if not all(k in mets for k in (ctrl, base_name)):
+                continue
+            base = mets[base_name]; var = mets[ctrl]
             d_smape = base['smape_series'] - var['smape_series']
             d_mae   = base['mae_series']   - var['mae_series']
             d_sqerr = base['sqerr_series'] - var['sqerr_series']
@@ -317,7 +341,7 @@ def build_ablations(pred_dir, tables_dir, models, rand_baseline):
             p_da = two_prop_z_test(dh_v, nt_v, dh_b, nt_b)
 
             rand_rows.append({
-                'asset': asset, 'model': 'RAND',
+                'asset': asset, 'model': ctrl,
                 'delta_smape_pct': float(np.nanmean(d_smape)),
                 'delta_mae': float(delta_mae),
                 'delta_rmse': float(delta_rmse),
@@ -330,14 +354,14 @@ def build_ablations(pred_dir, tables_dir, models, rand_baseline):
 
     # write PM ablations (variants vs PM)
     if pm_rows:
-        # aggregate both variants together (single-row summary across assets)
+        # aggregate per variant across assets
         aggregate_and_write(pm_rows, os.path.join(tables_dir, 'Section_5_table_5a_pm_ablations.csv'))
 
     # write CP ablations (CP_CJ vs CP)
     if cp_rows:
         aggregate_and_write(cp_rows, os.path.join(tables_dir, 'Section_5_table_5b_cp_ablations.csv'))
 
-    # write RAND control (RAND vs baseline)
+    # write RAND/CRS controls (vs baseline)
     if rand_rows:
         aggregate_and_write(rand_rows, os.path.join(tables_dir, 'Section_5_table_4_random_controls.csv'))
 
@@ -387,8 +411,8 @@ def build_param_eff(pred_dir, tables_dir, models):
         feat = fc[['model','feature_count']].drop_duplicates()
     else:
         feat = pd.DataFrame({
-            'model': ['HAR','HAR_J','HAR_CJ','HAR_TCJ','PM','PM_VW','PM_AD','CP','CP_CJ','EXH','HAM','RAND'],
-            'feature_count': [3,9,9,9,6,6,6,6,6,15,12,6]
+            'model': ['HAR','HAR_J','HAR_CJ','HAR_TCJ','PM','PM_VW','PM_AD','CP','CP_CJ','EXH','HAM','RAND','CRS'],
+            'feature_count': [3,9,9,9,6,6,6,6,6,15,12,6,6]
         })
     out = agg.merge(feat, on='model', how='left')
     out.to_csv(os.path.join(tables_dir, 'Section_5_table_3_param_eff_joined.csv'), index=False)

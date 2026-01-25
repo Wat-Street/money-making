@@ -1,4 +1,22 @@
-Note: A lot of the figures have the functionality to be tweaked for style, color, scale, etc. Pls look into the files if you need to change anything. Most of these commands should return the visuals, unless we perform the final run (with all tickers), in which case we might need to omit specifying "SPY". 
+Note: A lot of the figures have the functionality to be tweaked for style, color, scale, etc. Pls look into the files if you need to change anything. Most of these commands should return the visuals, unless we perform the final run (with all tickers), in which case we might need to omit specifying "SPY".
+
+Canonical run layout (use this instead of top-level outputs/paper):
+- `code/paper/runs/<RUN>/predictions`
+- `code/paper/runs/<RUN>/tables`
+- `code/paper/runs/<RUN>/figures`
+- `code/paper/runs/<RUN>/latex`
+
+When using the commands below, replace paths as follows:
+- `code/outputs/intraday/predictions` -> `code/paper/runs/<RUN>/predictions`
+- `code/outputs/intraday/tables` -> `code/paper/runs/<RUN>/tables`
+- `code/paper/figures` -> `code/paper/runs/<RUN>/figures`
+- `code/paper/latex` -> `code/paper/runs/<RUN>/latex`
+
+Important fixed-path helpers:
+- Section 2 helper writes to `code/outputs/intraday/tables/Section_2_regimes.csv` and expects predictions in `code/outputs/intraday/predictions`.
+  If running manually, sync your `<RUN>/predictions` into that scratch path, run the helper, then copy the CSV back into `<RUN>/tables`.
+- Section 4 figure script writes `Section_4_error_advantage_summary_*.csv` to `code/outputs/intraday/tables`.
+  Copy those summaries into `<RUN>/tables` after running.
 - Some sections produce both latex tables and figures. We can always choose to keep either one of those, or both. If any additional changes are required to the visuals, they can absolutely be made. All relevant visual producing files can be found under paper_export.
 - We have the flexibility to choose what tickers we want to include in the resulting table/figure that is returned to us by almost every script in paper_export
 - Some of these sections require helper scripts, as mentioned in the instructions below.

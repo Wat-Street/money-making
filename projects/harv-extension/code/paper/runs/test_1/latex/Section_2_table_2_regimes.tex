@@ -1,0 +1,25 @@
+\begin{table}[t]
+\centering
+\caption{Table 2 (Intraday): SMAPE\% by realized-volatility regime.}
+\label{tab:regimes_intraday}
+\begin{tabular}{lccc}
+\toprule
+Model & Low RV & Medium RV & High RV \\
+\midrule
+ HAR-RV & 198.12 $\pm$ 0.55 & 167.06 $\pm$ 3.04 & 82.72 $\pm$ 2.94 \\
+ HAR-RV-J & \underline{193.70 $\pm$ 0.35} & \underline{144.34 $\pm$ 12.90} & 81.64 $\pm$ 2.67 \\
+ HAR-RV-CJ & 193.78 $\pm$ 0.35 & 145.42 $\pm$ 12.74 & 81.67 $\pm$ 3.26 \\
+ HAR-RV-TCJ & 194.40 $\pm$ 0.33 & 145.16 $\pm$ 14.17 & 81.23 $\pm$ 1.08 \\
+ Prime Modulo (PM) & 198.11 $\pm$ 0.56 & 167.00 $\pm$ 3.05 & 82.70 $\pm$ 2.94 \\
+ Prime Modulo (PM-VW) & 194.78 $\pm$ 0.32 & 147.49 $\pm$ 13.84 & 80.49 $\pm$ 2.64 \\
+ Prime Modulo (PM-AD) & 194.80 $\pm$ 0.31 & 147.64 $\pm$ 13.83 & 80.37 $\pm$ 2.74 \\
+ Contiguous Prime (CP) & 196.68 $\pm$ 1.66 & 162.63 $\pm$ 5.48 & 81.89 $\pm$ 3.04 \\
+ Contiguous Prime (CP-CJ) & \textbf{179.97 $\pm$ 0.84} & \textbf{108.82 $\pm$ 8.89} & \textbf{74.70 $\pm$ 0.61} \\
+ Exhaustive Prefixes (EXH) & 194.72 $\pm$ 0.32 & 147.51 $\pm$ 13.74 & 81.19 $\pm$ 2.54 \\
+ Hamming Codes (HAM) & 194.79 $\pm$ 0.31 & 147.51 $\pm$ 13.88 & \underline{80.15 $\pm$ 2.70} \\
+ Randomized (control) & 194.68 $\pm$ 0.31 & 146.91 $\pm$ 13.71 & 81.93 $\pm$ 2.17 \\
+ Contiguous Random (control) & 194.65 $\pm$ 0.32 & 147.47 $\pm$ 13.79 & 80.61 $\pm$ 2.66 \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}\par\footnotesize Lower is better. Values are mean SMAPE\% across assets with $\pm$ standard error. Regimes are terciles of realized volatility (33\% / 66\%).
+\end{table}
