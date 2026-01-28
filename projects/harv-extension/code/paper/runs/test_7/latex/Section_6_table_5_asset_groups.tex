@@ -1,0 +1,18 @@
+\begin{table}[t]
+\centering
+\caption{Table 5: Group-level significance (intraday). $\Delta$SMAPE is HAR $-$ Model (positive indicates improvement). Wins are the fraction of assets in each group with $p<0.05$ (DM test on MAE).}
+\label{tab:groups}
+\begin{tabular}{l r r r r r}
+\toprule
+Asset Group & $\Delta$SMAPE (PM) & Wins (PM) & Fisher $p$ (PM) & $\Delta$SMAPE (CP) & Wins (CP) \\
+\midrule
+US Mega Tech & 1.26 $\pm$ 0.13★ & 100\% & 0.00e+00 & 1.79 $\pm$ 0.25 & 100\% \\
+Broad US Equity & 1.51 $\pm$ 0.10★ & 100\% & 0.00e+00 & 2.99 $\pm$ 0.07 & 100\% \\
+International Equity & 0.13 $\pm$ 0.13★ & 100\% & 3.33e-05 & 0.16 $\pm$ 0.34 & 50\% \\
+Commodities/Metals & -0.04 & 0\% & 9.75e-12 & 0.04 & 100\% \\
+Fixed Income & 0.31 $\pm$ 0.24★ & 100\% & 2.36e-13 & 0.59 $\pm$ 0.56 & 100\% \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\footnotesize{Wins are the share of assets in group with $p<0.05$ (DM vs HAR). Fisher combines per-asset $p$-values.}
+\end{table}

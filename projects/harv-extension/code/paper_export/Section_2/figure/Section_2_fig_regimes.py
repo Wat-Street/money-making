@@ -51,9 +51,10 @@ def make_relative(df):
     har = df[df['model'] == 'HAR']
     if har.empty:
         raise ValueError("HAR row not found in regimes CSV; relative plot needs HAR as baseline.")
-    H_low,  H_low_se  = float(har['smape_low_pct_mean']),  float(har['smape_low_pct_se'])
-    H_med,  H_med_se  = float(har['smape_med_pct_mean']),  float(har['smape_med_pct_se'])
-    H_high, H_high_se = float(har['smape_high_pct_mean']), float(har['smape_high_pct_se'])
+    har_row = har.iloc[0]
+    H_low,  H_low_se  = float(har_row['smape_low_pct_mean']),  float(har_row['smape_low_pct_se'])
+    H_med,  H_med_se  = float(har_row['smape_med_pct_mean']),  float(har_row['smape_med_pct_se'])
+    H_high, H_high_se = float(har_row['smape_high_pct_mean']), float(har_row['smape_high_pct_se'])
 
     rel = df.copy()
     def _rel(mean_m, se_m, mean_h, se_h):
