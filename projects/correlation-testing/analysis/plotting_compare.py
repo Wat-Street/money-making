@@ -32,8 +32,9 @@ def plot_lagged_correlation(
         filename = f"plots/{ticker_a}_{ticker_b}_lagged_{method.lower()}_corr.png"
         plt.savefig(filename, dpi=150)
         print(f"Saved plot to {filename}")
-
-    plt.show()
+        plt.close()
+    else:
+        plt.show()
     return corr_df
 
 def plot_lagged_correlation_compare(
@@ -67,8 +68,9 @@ def plot_lagged_correlation_compare(
         filename = f"plots/{ticker_a}_{ticker_b}_lagged_corr_compare.png"
         plt.savefig(filename, dpi=150)
         print(f"Saved plot to {filename}")
-
-    plt.show()
+        plt.close()
+    else:
+        plt.show()
     return pearson_df, spearman_df
 
 def print_best_lag_summary(pearson_df: pd.DataFrame, spearman_df: pd.DataFrame) -> None:
