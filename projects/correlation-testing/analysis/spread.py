@@ -3,6 +3,13 @@ import numpy as np
 from typing import Tuple, Dict
 
 
+def _safe_divisor(divisor, tol=1e-12):
+    """Replace zero or near-zero values with NaN to avoid division errors."""
+    if np.isscalar(divisor):
+        return np.nan if abs(divisor) < tol else divisor
+    return divisor.where(divisor.abs() >= tol, np.nan)
+
+
 def calculate_price_difference_spread(series_a: pd.Series, series_b: pd.Series) -> pd.Series:
     """Calculate simple price difference spread."""
     return series_a - series_b
@@ -10,12 +17,14 @@ def calculate_price_difference_spread(series_a: pd.Series, series_b: pd.Series) 
 
 def calculate_ratio_spread(series_a: pd.Series, series_b: pd.Series) -> pd.Series:
     """Calculate price ratio spread."""
-    return series_a / series_b
+    return series_a / _safe_divisor(series_b)
 
 
 def calculate_log_ratio_spread(series_a: pd.Series, series_b: pd.Series) -> pd.Series:
     """Calculate log price ratio spread."""
-    return np.log(series_a / series_b)
+    ratio = calculate_ratio_spread(series_a, series_b)
+    ratio = ratio.where(ratio > 0, np.nan)
+    return np.log(ratio)
 
 
 def calculate_zscore(spread: pd.Series, window: int = None) -> pd.Series:
@@ -31,14 +40,12 @@ def calculate_zscore(spread: pd.Series, window: int = None) -> pd.Series:
     """
     if window is None:
         mean = spread.mean()
-        std = spread.std()
-        zscore = (spread - mean) / std
+        std = _safe_divisor(spread.std())
     else:
         mean = spread.rolling(window=window).mean()
-        std = spread.rolling(window=window).std()
-        zscore = (spread - mean) / std
+        std = _safe_divisor(spread.rolling(window=window).std())
     
-    return zscore
+    return (spread - mean) / std
 
 
 def calculate_spread_metrics(df: pd.DataFrame, ticker_a: str, ticker_b: str, 
