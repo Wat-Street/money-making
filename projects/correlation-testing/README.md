@@ -22,6 +22,39 @@ Correlation Testing is a research and development initiative aimed at analyzing 
 
 ---
 
+**Getting Started**
+
+1. Navigate to the project directory (all scripts use relative paths):
+   ```bash
+   cd projects/correlation-testing
+   ```
+
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. Run **lagged correlation analysis** across all research pairs:
+   ```bash
+   python main.py
+   ```
+   Fetches historical price data from yfinance (cached locally to `data/raw/` on first run), computes Pearson correlation at lags from -10 to +10 days for each pair, and saves plots to `plots/`.
+
+4. Run **spread analysis** across all research pairs:
+   ```bash
+   python visualize_spread.py
+   ```
+   Loads cached price data, computes log-ratio spreads and z-scores, prints trading signals (long/short/hold) to the console, and saves spread analysis and histogram plots to `plots/spreads/`.
+
+**Output locations:**
+| Directory | Contents |
+|-----------|----------|
+| `data/raw/` | Cached CSV price data per ticker |
+| `plots/` | Lagged correlation plots |
+| `plots/spreads/` | Spread analysis and histogram plots |
+
+---
+
 **Purpose and Application**  
 - **Foundation for Statistical Arbitrage**  
   Results from this project will inform strategies like **pairs trading**, where two historically correlated stocks are traded based on deviations from their typical relationship.
