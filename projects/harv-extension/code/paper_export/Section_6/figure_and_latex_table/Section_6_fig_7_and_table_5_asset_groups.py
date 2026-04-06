@@ -229,19 +229,34 @@ def render_figure(df_group_long: pd.DataFrame, out_fig: str):
         cp_means.append(to_float_safe(cp['delta_smape_pct_mean'].iloc[0]) if not cp.empty else np.nan)
         cp_se.append(to_float_safe(cp['delta_smape_pct_se'].iloc[0]) if not cp.empty else np.nan)
 
-    plt.rcParams.update({'font.size': 9})
-    fig, ax = plt.subplots(figsize=(7.0, 3.8))
+    pretty_labels = {
+        'US Mega Tech': 'US Mega\nTech',
+        'Broad US Equity': 'Broad US\nEquity',
+        'International Equity': 'International\nEquity',
+        'Commodities/Metals': 'Commodities/\nMetals',
+        'Fixed Income': 'Fixed\nIncome',
+    }
+    group_labels = [pretty_labels.get(g, g) for g in groups]
+
+    plt.rcParams.update({
+        'font.size': 11,
+        'axes.labelsize': 11,
+        'legend.fontsize': 10,
+        'font.family': 'serif',
+        'mathtext.fontset': 'dejavuserif',
+    })
+    fig, ax = plt.subplots(figsize=(9.0, 5.0))
     ax.bar(idx - width/2, pm_means, width, yerr=pm_se, capsize=3, label='PM', color='#333333', alpha=0.9)
     ax.bar(idx + width/2, cp_means, width, yerr=cp_se, capsize=3, label='CP', color='#777777', alpha=0.9)
 
     ax.set_xticks(idx)
-    ax.set_xticklabels(groups, rotation=25, ha='right')
-    ax.set_ylabel(r'$\Delta$SMAPE (HAR $-$ Model, pp)')
+    ax.set_xticklabels(group_labels, rotation=0, ha='center')
+    ax.set_ylabel(r'$\Delta$SMAPE relative to HAR-RV (pp)')
     ax.axhline(0, color='k', linewidth=0.8)
     ax.grid(axis='y', linestyle=':', linewidth=0.6, alpha=0.6)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    ax.legend(frameon=False)
+    ax.legend(frameon=False, loc='upper right')
     fig.tight_layout()
 
     os.makedirs(os.path.dirname(out_fig), exist_ok=True)

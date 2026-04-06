@@ -81,8 +81,8 @@ def style_axes(ax):
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.grid(True, axis='y', linestyle=':', linewidth=0.6, alpha=0.6)
-    ax.tick_params(axis='x', labelrotation=30, labelsize=9)
-    ax.tick_params(axis='y', labelsize=9)
+    ax.tick_params(axis='x', labelrotation=0, labelsize=10)
+    ax.tick_params(axis='y', labelsize=10)
 
 def _apply_scale(ax, scale):
     if scale is None:
@@ -98,8 +98,15 @@ def plot_absolute(df, out_pdf, out_svg, scale):
     x = np.arange(len(df))
     width = 0.25
 
-    plt.rcParams.update({'font.size': 10})
-    fig = plt.figure(figsize=(11, 4.6))
+    plt.rcParams.update({
+        'font.size': 11,
+        'axes.titlesize': 12,
+        'axes.labelsize': 11,
+        'legend.fontsize': 10,
+        'font.family': 'serif',
+        'mathtext.fontset': 'dejavuserif',
+    })
+    fig = plt.figure(figsize=(10.2, 5.4))
     ax = plt.gca()
 
     ax.bar(x - width, df['smape_low_pct_mean'],  width,
@@ -109,18 +116,17 @@ def plot_absolute(df, out_pdf, out_svg, scale):
     ax.bar(x + width,  df['smape_high_pct_mean'], width,
            yerr=df['smape_high_pct_se'].fillna(0.0),capsize=3, label='High')
 
-    ax.set_xticks(x); ax.set_xticklabels(labels, ha='right')
+    ax.set_xticks(x); ax.set_xticklabels(labels, ha='center')
     ax.set_ylabel('SMAPE (%)')
-    ax.set_title('SMAPE% by RV Regime (Intraday)')
     style_axes(ax)
     _apply_scale(ax, scale)
-    ax.legend(ncol=3, frameon=False, fontsize=9)
+    ax.legend(ncol=3, frameon=False)
 
     # regime note
     fig.text(0.99, 0.02, 'RV regimes = terciles by realized volatility (33rd/66th percentiles).',
-             ha='right', va='bottom', fontsize=8)
+             ha='right', va='bottom', fontsize=9)
 
-    fig.tight_layout()
+    fig.tight_layout(rect=[0, 0.04, 1, 1])
     os.makedirs(os.path.dirname(out_pdf), exist_ok=True)
     fig.savefig(out_pdf, bbox_inches='tight')
     fig.savefig(out_svg, bbox_inches='tight')
@@ -132,8 +138,15 @@ def plot_relative(df, out_pdf, out_svg, scale):
     x = np.arange(len(rel))
     width = 0.25
 
-    plt.rcParams.update({'font.size': 10})
-    fig = plt.figure(figsize=(11, 4.6))
+    plt.rcParams.update({
+        'font.size': 11,
+        'axes.titlesize': 12,
+        'axes.labelsize': 11,
+        'legend.fontsize': 10,
+        'font.family': 'serif',
+        'mathtext.fontset': 'dejavuserif',
+    })
+    fig = plt.figure(figsize=(10.2, 5.4))
     ax = plt.gca()
 
     ax.axhline(0.0, linewidth=1.0)
@@ -145,17 +158,16 @@ def plot_relative(df, out_pdf, out_svg, scale):
     ax.bar(x + width,  rel['d_high_mean'], width,
            yerr=rel['d_high_se'].fillna(0.0),capsize=3, label='High')
 
-    ax.set_xticks(x); ax.set_xticklabels(labels, ha='right')
-    ax.set_ylabel('Î”SMAPE vs HAR (%)  (positive = better)')
-    ax.set_title('Relative Improvement by RV Regime (Intraday)')
+    ax.set_xticks(x); ax.set_xticklabels(labels, ha='center')
+    ax.set_ylabel(r'$\Delta$SMAPE relative to HAR-RV (%)')
     style_axes(ax)
     _apply_scale(ax, scale)
-    ax.legend(ncol=3, frameon=False, fontsize=9)
+    ax.legend(ncol=3, frameon=False)
 
     fig.text(0.99, 0.02, 'RV regimes = terciles by realized volatility (33rd/66th percentiles).',
-             ha='right', va='bottom', fontsize=8)
+             ha='right', va='bottom', fontsize=9)
 
-    fig.tight_layout()
+    fig.tight_layout(rect=[0, 0.04, 1, 1])
     os.makedirs(os.path.dirname(out_pdf), exist_ok=True)
     fig.savefig(out_pdf, bbox_inches='tight')
     fig.savefig(out_svg, bbox_inches='tight')

@@ -1,0 +1,19 @@
+\begin{table}[H]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\caption*{Table 1A. Intraday overall forecasting performance across the ten-asset cross-section. Lower is better except Directional Accuracy.}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccc}
+\toprule
+Model & SMAPE (\%) & RMSE & MAE & Dir. Acc. (\%) & MedAE & N \\
+\midrule
+HAR-RV & 102.17 $\pm$ 7.51 & 1.40e-03 $\pm$ 1.7e-04 & 6.04e-04 $\pm$ 7.6e-05 & 58.54 $\pm$ 3.69 & 4.32e-04 $\pm$ 5.6e-05 & 36747 \\
+Prime Modulo (PM) & \underline{101.41 $\pm$ 7.66$^{\star}$} & \underline{1.40e-03 $\pm$ 1.7e-04} & \underline{5.95e-04 $\pm$ 7.6e-05} & \underline{59.11 $\pm$ 3.82} & \underline{4.09e-04 $\pm$ 5.4e-05} & 36747 \\
+Contiguous Prime (CP) & \textbf{100.88 $\pm$ 7.79} & \textbf{1.39e-03 $\pm$ 1.7e-04} & \textbf{5.86e-04 $\pm$ 7.5e-05} & \textbf{59.49 $\pm$ 3.90} & \textbf{3.94e-04 $\pm$ 5.2e-05} & 36747 \\
+\bottomrule
+\end{tabular}
+}
+\vspace{2pt}
+\footnotesize{\emph{Notes.} Entries report cross-sectional means with $\pm$ standard errors. Bold marks the best value and underline marks the second-best value in each column. The superscript on PM SMAPE denotes a Diebold--Mariano improvement over HAR-RV at the 0.1\% level.}
+\end{table}

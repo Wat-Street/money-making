@@ -22,6 +22,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from matplotlib.offsetbox import AnchoredText
 
 try:
@@ -117,6 +118,11 @@ def _style_axes(ax):
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.grid(True, axis='y', linestyle=':', linewidth=0.6, alpha=0.6)
+    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=3))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+    for label in ax.get_xticklabels():
+        label.set_rotation(0)
+        label.set_ha('center')
 
 def _apply_scale(ax, scale: str | None):
     if not scale:
@@ -150,8 +156,17 @@ def plot_error_advantage(
         raise SystemExit(f"Baseline predictions not found: {base_col}")
     base_loss = _loss_series(y, df[base_col].values.astype(float), metric)
 
+    plt.rcParams.update({
+        'font.size': 11,
+        'axes.titlesize': 12,
+        'axes.labelsize': 11,
+        'legend.fontsize': 9,
+        'font.family': 'serif',
+        'mathtext.fontset': 'dejavuserif',
+    })
+
     n = len(models)
-    fig, axes = plt.subplots(n, 1, figsize=(12, 3.2 * n), sharex=True, sharey=True)
+    fig, axes = plt.subplots(n, 1, figsize=(12, 3.8 * n), sharex=True, sharey=True)
     if n == 1:
         axes = [axes]
 
@@ -187,20 +202,21 @@ def plot_error_advantage(
         ax.fill_between(x, 0, np.where(yv < 0, yv, 0), color=red,   alpha=alpha*0.85, label='HAR-RV better', interpolate=True)
         ax.plot(x, s_smooth.values, color='#1a1a1a', linewidth=1.1, alpha=0.9)
 
-        metric_lbl = 'SMAPE (%)' if metric.lower() == 'smape' else 'MAE'
-        ax.set_ylabel(f'Î” {metric_lbl}')
-        ax.set_title(f'Error Advantage vs {DISPLAY_NAME.get(baseline, baseline)} â€” {DISPLAY_NAME.get(m, m)}')
+        metric_lbl = r'$\Delta$SMAPE relative to HAR-RV (pp)' if metric.lower() == 'smape' else 'MAE advantage'
+        ax.set_ylabel(metric_lbl)
+        ax.set_title(DISPLAY_NAME.get(m, m), loc='left')
         _style_axes(ax)
         _apply_scale(ax, scale)
-        ax.legend(loc='upper left', frameon=False, fontsize=8)
+        ax.legend(loc='upper left', frameon=False)
 
         # Stat box with mathtext
-        mean_str = rf"Mean Î”: {stats['mean_delta']:.2f}" + (r"\%" if metric.lower() == 'smape' else "")
-        win_str  = f"Win rate: {100*stats['win_rate']:.1f}%"
-        cld_str  = fr"CLD: {_sci_mathtext(stats['cld'])}"
-        p_str    = fr"DM p: {_pval_mathtext(stats['dm_pvalue'])}"
+        mean_unit = " pp" if metric.lower() == 'smape' else ""
+        mean_str = f"Mean advantage: {stats['mean_delta']:.2f}{mean_unit}"
+        win_str  = f"Timestamp win rate: {100*stats['win_rate']:.1f}%"
+        cld_str  = fr"Cumulative advantage: {_sci_mathtext(stats['cld'])}"
+        p_str    = fr"DM $p$: {_pval_mathtext(stats['dm_pvalue'])}"
         box = AnchoredText("\n".join([mean_str, win_str, cld_str, p_str]),
-                           loc='upper right', prop=dict(size=8),
+                           loc='upper right', prop=dict(size=9),
                            frameon=True, borderpad=0.4)
         box.patch.set_alpha(0.90)
         ax.add_artist(box)

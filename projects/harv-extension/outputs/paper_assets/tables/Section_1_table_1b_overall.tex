@@ -1,0 +1,19 @@
+\begin{table}[H]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\caption*{Table 1B. Daily overall forecasting performance across the same ten-asset universe. Lower is better except Directional Accuracy.}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccc}
+\toprule
+Model & SMAPE (\%) & RMSE & MAE & Dir. Acc. (\%) & MedAE & N \\
+\midrule
+HAR-RV & \textbf{36.45 $\pm$ 2.46} & \textbf{7.52e-03 $\pm$ 1.0e-03} & \textbf{4.47e-03 $\pm$ 5.3e-04} & \textbf{70.06 $\pm$ 0.69} & \textbf{3.07e-03 $\pm$ 3.5e-04} & 396 \\
+Prime Modulo (PM) & \underline{37.64 $\pm$ 2.37} & \underline{7.65e-03 $\pm$ 1.0e-03} & \underline{4.64e-03 $\pm$ 5.6e-04} & 68.69 $\pm$ 0.89 & \underline{3.11e-03 $\pm$ 3.7e-04} & 396 \\
+Contiguous Prime (CP) & 37.88 $\pm$ 2.40 & 7.74e-03 $\pm$ 1.0e-03 & 4.70e-03 $\pm$ 5.7e-04 & \underline{69.35 $\pm$ 0.85} & 3.12e-03 $\pm$ 3.7e-04 & 396 \\
+\bottomrule
+\end{tabular}
+}
+\vspace{2pt}
+\footnotesize{\emph{Notes.} Entries report cross-sectional means with $\pm$ standard errors. Bold marks the best value and underline marks the second-best value in each column.}
+\end{table}

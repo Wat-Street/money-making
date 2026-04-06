@@ -93,7 +93,7 @@ def style_axes(ax):
     ax.spines['right'].set_visible(False)
     ax.grid(True, axis='y', linestyle=':', linewidth=0.6, alpha=0.6)
     # cleaner date ticks
-    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=3))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
     for label in ax.get_xticklabels():
         label.set_rotation(0)
@@ -164,30 +164,33 @@ def main():
 
     # figure aesthetics
     plt.rcParams.update({
-        'font.size': 10,
+        'font.size': 11,
         'axes.titlesize': 12,
-        'axes.labelsize': 10,
-        'legend.fontsize': 9,
+        'axes.labelsize': 11,
+        'legend.fontsize': 10,
+        'font.family': 'serif',
+        'mathtext.fontset': 'dejavuserif',
     })
-    fig = plt.figure(figsize=(11.5, 4.2))
+    fig = plt.figure(figsize=(11.8, 5.0))
     ax = plt.gca()
 
     colors, dashes = prepare_style(args.style, len(models))
 
     for i, m in enumerate(models):
         label = DISPLAY_NAME.get(m, m)
-        line, = ax.plot(idx, series[m].values, linewidth=1.6, label=label,
+        line, = ax.plot(idx, series[m].values, linewidth=1.9, label=label,
                         color=colors[i], zorder=2+i)
         line.set_dashes(dashes[i])
         if args.trend:
             add_linear_trend(ax, idx, series[m].values, color=colors[i], linewidth=1.1)
 
-    ax.set_title(f'Rolling SMAPE (window={args.window}) — {args.asset}')
+    title_asset = 'Cross-Sectional Average' if args.asset.upper() == 'ALL_MEAN' else args.asset
+    ax.set_title(title_asset)
     ax.set_ylabel('Rolling SMAPE (%)')
     ax.set_xlabel('Time')
     style_axes(ax)
     apply_scale(ax, args.scale)
-    ax.legend(frameon=False, ncol=min(3, len(models)), loc='upper left')
+    ax.legend(frameon=False, ncol=min(3, len(models)), loc='upper right')
 
     fig.tight_layout()
     os.makedirs(args.outdir, exist_ok=True)
