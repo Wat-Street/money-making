@@ -56,7 +56,13 @@ def get_stock_data(ticker, start_date, end_date, cache=True):
 
     df = yf.download(ticker, start=start_date, end=end_date)
     df.reset_index(inplace=True)
-    df = df[["Date", "Close"]]
+    
+    # Handle multi-index columns from yfinance
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    
+    # Extract just Date and Close, ensure Close is a flat series
+    df = df[["Date", "Close"]].copy()
     df["Ticker"] = ticker
 
     df["Daily Returns"] = calculate_daily_returns(df, price_col='Close')
