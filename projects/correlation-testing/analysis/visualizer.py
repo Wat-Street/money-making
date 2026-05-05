@@ -2,7 +2,7 @@ import os
 import matplotlib.pyplot as plt
 from analysis.correlation import compute_lagged_correlation
 
-def plot_lagged_correlation(ticker_a, ticker_b, df, max_lag=10, save=False):
+def plot_lagged_correlation(ticker_a, ticker_b, df, max_lag=10, save=False, returns=True):
     """
     Plot lagged correlation between two stocks over a given lag range.
 
@@ -13,8 +13,13 @@ def plot_lagged_correlation(ticker_a, ticker_b, df, max_lag=10, save=False):
         max_lag (int): Max lag to compute correlations over.
         save (bool): Whether to save plot to file.
     """
-    series_a = df[f"Close_{ticker_a}"]
-    series_b = df[f"Close_{ticker_b}"]
+    if returns:
+        series_a = df[f"Daily Returns_{ticker_a}"]
+        series_b = df[f"Daily Returns_{ticker_b}"]
+    else:
+        series_a = df[f"Close_{ticker_a}"]
+        series_b = df[f"Close_{ticker_b}"]
+
     corr_df = compute_lagged_correlation(series_a, series_b, max_lag)
 
     plt.figure(figsize=(10, 6))

@@ -18,6 +18,24 @@ def get_data_path(ticker, start_date, end_date, folder="data/raw"):
     filename = f"{ticker}_{start_date}_to_{end_date}_raw.csv"
     return os.path.join(folder, filename)
 
+def calculate_daily_returns(df, price_col='Close'):
+    """
+    Calculate daily returns for a stock DataFrame.
+    Uses the formula (Current - Previous) / Previous * 100%
+
+    Args:
+        df (pd.DataFrame): DataFrame containing stock price data with a 'Date' column.
+        price_col (str): Column name for the closing price.
+    
+    Returns:
+        pd.DataFrame: DataFrame with an additional 'Daily_Return' column.
+    """
+
+    # look into shift, and maybe pct_change() ?
+
+    prices = df[price_col]
+    returns = (prices - prices.shift(1)) / prices.shift(1) * 100
+    return returns
 
 def get_stock_data(ticker, start_date, end_date, cache=True):
     """
@@ -40,9 +58,12 @@ def get_stock_data(ticker, start_date, end_date, cache=True):
     df.reset_index(inplace=True)
     df = df[["Date", "Close"]]
     df["Ticker"] = ticker
-    if cache:
-        os.makedirs("data/raw", exist_ok=True)
-        df.to_csv(path, index=False)
+
+    df["Daily Returns"] = calculate_daily_returns(df, price_col='Close')
+    df = df[["Date", "Daily Returns", "Ticker"]]
+    # if cache:
+    #     os.makedirs("data/raw", exist_ok=True)
+    #     df.to_csv(path, index=False)
     
     return df
 
@@ -66,7 +87,6 @@ def load_pair_data(ticker_a, ticker_b, start_date, end_date, cache=True):
 
     print(f"Loading data for {ticker_b}")
     df_b = get_stock_data(ticker_b, start_date, end_date, cache)
-
     merged = pd.merge(df_a, df_b, on="Date", suffixes=(f"_{ticker_a}", f"_{ticker_b}"))
     return merged
 

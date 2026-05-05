@@ -18,13 +18,13 @@ def main():
         print(f"{'='*50}")
 
         try:
-            df = load_pair_data(ticker_a, ticker_b, start_date, end_date, cache=True)
+            df = load_pair_data(ticker_a, ticker_b, start_date, end_date, cache=True, returns=True)
             if df.empty:
                 print(f"❌ No data for {ticker_a} and {ticker_b}")
                 continue
 
             print(f"✅ Successfully loaded data for {ticker_a}-{ticker_b} ")
-            plot_lagged_correlation(ticker_a, ticker_b, df, max_lag=10, save=True)
+            plot_lagged_correlation(ticker_a, ticker_b, df, max_lag=10, save=False, returns=True)
             success += 1
         
         except Exception as e:
