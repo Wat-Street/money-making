@@ -1,0 +1,204 @@
+name: HARV Section 5 Robust Ablation
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Run folder name under code/paper/runs"
+        required: true
+        default: "section5_robust"
+      tickers:
+        description: "Comma-separated tickers"
+        required: true
+        default: "AAPL,AMZN,GOOGL,SPY,QQQ,EEM,FXI,GLD,HYG,TLT"
+      suites:
+        description: "Comma-separated suites"
+        required: true
+        default: "core,capacity,contiguous,modulo,random,external"
+      k_grid:
+        description: "Feature counts for capacity curve"
+        required: true
+        default: "3,6,9"
+      seeds:
+        description: "Random-control seeds"
+        required: true
+        default: "0,1,2"
+  push:
+    branches:
+      - pre-final
+    paths:
+      - ".github/workflows/harv-section5-robust-ablation.yml"
+      - "projects/harv-extension/code/Helpers_for_paper_export_scripts/Section_5/robust_ablation_benchmark.py"
+      - "projects/harv-extension/code/Helpers_for_paper_export_scripts/Section_5/aggregate_robust_ablation.py"
+
+env:
+  ROBUST_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_id || 'section5_robust_push' }}
+  ROBUST_TICKERS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tickers || 'AAPL,AMZN,GOOGL,SPY,QQQ,EEM,FXI,GLD,HYG,TLT' }}
+  ROBUST_SUITES: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.suites || 'core,capacity,contiguous,modulo,random,external' }}
+  ROBUST_K_GRID: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.k_grid || '3,6,9' }}
+  ROBUST_SEEDS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.seeds || '0,1,2' }}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  make-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.matrix.outputs.include }}
+    steps:
+      - id: matrix
+        shell: python
+        run: |
+          import json, os
+          tickers = [t.strip().upper() for t in os.environ["ROBUST_TICKERS"].split(",") if t.strip()]
+          suites = [s.strip().lower() for s in os.environ["ROBUST_SUITES"].split(",") if s.strip()]
+          include = [{"ticker": ticker, "suite": suite} for ticker in tickers for suite in suites]
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write("include=" + json.dumps(include) + "\n")
+
+  robust-suite:
+    needs: make-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.make-matrix.outputs.include) }}
+    defaults:
+      run:
+        working-directory: projects/harv-extension
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==1.26.4 pandas==2.2.2 scipy==1.13.1 statsmodels==0.14.4 scikit-learn==1.5.0 matplotlib==3.9.0 yfinance==0.2.40 joblib==1.4.2 arch==7.0.0
+
+      - name: Show suite models
+        run: |
+          python code/Helpers_for_paper_export_scripts/Section_5/robust_ablation_benchmark.py \
+            --ticker "${{ matrix.ticker }}" \
+            --suite "${{ matrix.suite }}" \
+            --k-grid "$ROBUST_K_GRID" \
+            --seeds "$ROBUST_SEEDS" \
+            --list-models
+
+      - name: Run robust ticker suite
+        shell: bash
+        run: |
+          set -o pipefail
+          RUN_DIR="code/paper/runs/$ROBUST_RUN_ID"
+          echo "### ${{ matrix.ticker }} / ${{ matrix.suite }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Run folder: $RUN_DIR" >> "$GITHUB_STEP_SUMMARY"
+          echo "K grid: $ROBUST_K_GRID; seeds: $ROBUST_SEEDS" >> "$GITHUB_STEP_SUMMARY"
+          timeout --signal=TERM 350m python code/Helpers_for_paper_export_scripts/Section_5/robust_ablation_benchmark.py \
+            --ticker "${{ matrix.ticker }}" \
+            --suite "${{ matrix.suite }}" \
+            --local-dir code/Datasets/clean \
+            --outdir "$RUN_DIR" \
+            --n 22 \
+            --warmup 600 \
+            --k-grid "$ROBUST_K_GRID" \
+            --seeds "$ROBUST_SEEDS" \
+            --resume
+
+      - name: Summarize checkpoint
+        if: always()
+        shell: bash
+        run: |
+          RUN_DIR="code/paper/runs/$ROBUST_RUN_ID"
+          {
+            echo ""
+            echo "Checkpoint files:"
+            find "$RUN_DIR" -maxdepth 3 -type f | sort || true
+            if [ -f "$RUN_DIR/status/${{ matrix.ticker }}_${{ matrix.suite }}_status.csv" ]; then
+              echo ""
+              echo "Status:"
+              tail -n 20 "$RUN_DIR/status/${{ matrix.ticker }}_${{ matrix.suite }}_status.csv"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload suite checkpoint artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robust-${{ env.ROBUST_RUN_ID }}-${{ matrix.ticker }}-${{ matrix.suite }}
+          path: |
+            projects/harv-extension/code/paper/runs/${{ env.ROBUST_RUN_ID }}/predictions/${{ matrix.ticker }}_${{ matrix.suite }}.csv
+            projects/harv-extension/code/paper/runs/${{ env.ROBUST_RUN_ID }}/status/${{ matrix.ticker }}_${{ matrix.suite }}_status.csv
+            projects/harv-extension/code/paper/runs/${{ env.ROBUST_RUN_ID }}/logs/${{ matrix.ticker }}_${{ matrix.suite }}*
+          if-no-files-found: ignore
+          retention-days: 30
+
+  aggregate-robust:
+    if: always()
+    needs: [make-matrix, robust-suite]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: projects/harv-extension
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install aggregate dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==1.26.4 pandas==2.2.2 scipy==1.13.1 matplotlib==3.9.0
+
+      - name: Download suite artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: projects/harv-extension/_robust_artifacts
+          merge-multiple: false
+
+      - name: Merge and summarize robust ablation
+        shell: bash
+        run: |
+          set -euxo pipefail
+          RUN_DIR="code/paper/runs/$ROBUST_RUN_ID"
+          mkdir -p "$RUN_DIR/predictions_by_suite" "$RUN_DIR/robust_summary" "$RUN_DIR/status" "$RUN_DIR/logs"
+          find _robust_artifacts -path '*/predictions/*.csv' -type f -exec cp -f {} "$RUN_DIR/predictions_by_suite/" \; || true
+          find _robust_artifacts -path '*/status/*.csv' -type f -exec cp -f {} "$RUN_DIR/status/" \; || true
+          find _robust_artifacts -path '*/logs/*' -type f -exec cp -f {} "$RUN_DIR/logs/" \; || true
+          ls -lh "$RUN_DIR/predictions_by_suite" || true
+          python code/Helpers_for_paper_export_scripts/Section_5/aggregate_robust_ablation.py \
+            --pred-dir "$RUN_DIR/predictions_by_suite" \
+            --outdir "$RUN_DIR/robust_summary"
+          {
+            echo "### Robust Section 5 aggregate"
+            echo "Prediction suite files:"
+            ls "$RUN_DIR/predictions_by_suite" || true
+            echo ""
+            echo "Tables:"
+            find "$RUN_DIR/robust_summary/tables" -maxdepth 1 -type f -printf '%f\n' | sort || true
+            echo ""
+            echo "Figures:"
+            find "$RUN_DIR/robust_summary/figures" -maxdepth 1 -type f -printf '%f\n' | sort || true
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload robust combined package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robust-${{ env.ROBUST_RUN_ID }}-combined
+          path: |
+            projects/harv-extension/code/paper/runs/${{ env.ROBUST_RUN_ID }}/predictions_by_suite/*.csv
+            projects/harv-extension/code/paper/runs/${{ env.ROBUST_RUN_ID }}/status/*.csv
+            projects/harv-extension/code/paper/runs/${{ env.ROBUST_RUN_ID }}/logs/*
+            projects/harv-extension/code/paper/runs/${{ env.ROBUST_RUN_ID }}/robust_summary/**
+          if-no-files-found: ignore
+          retention-days: 30
