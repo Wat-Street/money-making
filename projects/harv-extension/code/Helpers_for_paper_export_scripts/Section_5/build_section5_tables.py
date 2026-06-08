@@ -268,10 +268,14 @@ def build_ablations(pred_dir, tables_dir, models, rand_baseline):
             continue
         mets = per_asset_metrics(df, models)
 
-        # PM family
-        if all(k in mets for k in ('PM','PM_VW','PM_AD')):
+        # PM family. Write every available PM modifier instead of requiring
+        # the whole modifier set; some runs may omit PM_AD but still include
+        # PM_VW, and the section should still render the available ablation.
+        if 'PM' in mets:
             base = mets['PM']
             for variant in ('PM_VW','PM_AD'):
+                if variant not in mets:
+                    continue
                 var = mets[variant]
                 d_smape = base['smape_series'] - var['smape_series']
                 d_mae   = base['mae_series']   - var['mae_series']

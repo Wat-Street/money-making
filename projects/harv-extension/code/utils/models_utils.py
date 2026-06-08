@@ -244,7 +244,7 @@ def add_volume_weighted_adaptive_prime_modulo_terms(data, n):
         prime = int(segment.split("_")[0])
         activation = prime_activation.get(prime)
         if activation is not None:
-            series = series.where(activation, np.nan)
+            series = series.where(activation, 0.0)
         frame[col_name] = series
 
     frame = frame.drop(columns=["Index"])

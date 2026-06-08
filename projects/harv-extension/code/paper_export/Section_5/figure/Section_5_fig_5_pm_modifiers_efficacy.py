@@ -50,8 +50,10 @@ def main():
     df["name"] = df["model"].map(name_map).fillna(df["model"])
     df["sig"] = df["sig_mark"].map(_fix_sig_mark)
 
-    order = ["PM_AD", "PM_VW"]
-    df = df.set_index("model").reindex(order).reset_index()
+    order = [m for m in ["PM_AD", "PM_VW"] if m in set(df["model"])]
+    if not order:
+        raise SystemExit(f"No supported PM modifier rows found in feeder CSV: {in_csv}")
+    df = df.set_index("model").loc[order].reset_index()
 
     vals = df["delta_smape_pct_mean"].astype(float).values
     ses  = df["delta_smape_pct_se"].astype(float).values

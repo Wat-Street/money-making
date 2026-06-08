@@ -86,7 +86,8 @@ def _append_model_checkpoint(out_csv: str, f: pd.DataFrame, model_name: str):
     Append/merge this model's columns into the ticker predictions CSV progressively.
     - Keeps 'Actual' only once (prefers existing file's Actual if present)
     - Drops any prior columns for this model so new ones overwrite cleanly
-    - Uses INNER join to preserve the pipeline's alignment invariant
+    - Uses OUTER join so variants with shorter aligned windows do not truncate
+      previously checkpointed baseline predictions
     """
     new = f.copy()
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)
@@ -97,6 +98,7 @@ def _append_model_checkpoint(out_csv: str, f: pd.DataFrame, model_name: str):
             acc = acc.rename(columns={'index': 'Date'})
         acc = acc.set_index('Date')
 
+        new_actual = new['Actual'].copy() if 'Actual' in new.columns else None
         if 'Actual' in acc.columns and 'Actual' in new.columns:
             new = new.drop(columns=['Actual'])
 
@@ -105,7 +107,9 @@ def _append_model_checkpoint(out_csv: str, f: pd.DataFrame, model_name: str):
         if model_cols_existing:
             acc = acc.drop(columns=model_cols_existing)
 
-        joined = acc.join(new, how='inner')
+        joined = acc.join(new, how='outer')
+        if new_actual is not None and 'Actual' in joined.columns:
+            joined['Actual'] = joined['Actual'].combine_first(new_actual.reindex(joined.index))
     else:
         joined = new
 
