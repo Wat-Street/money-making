@@ -60,7 +60,7 @@ jobs:
     timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 10
       matrix:
         ticker: ${{ fromJson(needs.make-matrix.outputs.tickers) }}
     defaults:
@@ -139,7 +139,7 @@ jobs:
     timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 10
       matrix:
         ticker: ${{ fromJson(needs.make-matrix.outputs.tickers) }}
     defaults:
