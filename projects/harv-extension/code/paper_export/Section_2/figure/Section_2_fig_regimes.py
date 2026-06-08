@@ -39,6 +39,13 @@ def _prep_df(df, include_variants: bool):
     df = df.sort_values('model').reset_index(drop=True)
     return df
 
+def _plot_palette():
+    return {
+        'Low': '#4c4c4c',
+        'Medium': '#8a8a8a',
+        'High': '#c2c2c2',
+    }
+
 def _delta_method_ratio(mean_m, se_m, mean_h, se_h):
     if not np.isfinite(mean_h) or mean_h == 0:
         return np.nan
@@ -106,21 +113,25 @@ def plot_absolute(df, out_pdf, out_svg, scale):
         'font.family': 'serif',
         'mathtext.fontset': 'dejavuserif',
     })
-    fig = plt.figure(figsize=(10.2, 5.4))
+    fig = plt.figure(figsize=(7.2, 3.2))
     ax = plt.gca()
+    palette = _plot_palette()
 
     ax.bar(x - width, df['smape_low_pct_mean'],  width,
-           yerr=df['smape_low_pct_se'].fillna(0.0),  capsize=3, label='Low')
+           yerr=df['smape_low_pct_se'].fillna(0.0),  capsize=3, label='Low',
+           color=palette['Low'])
     ax.bar(x,          df['smape_med_pct_mean'],  width,
-           yerr=df['smape_med_pct_se'].fillna(0.0), capsize=3, label='Med')
+           yerr=df['smape_med_pct_se'].fillna(0.0), capsize=3, label='Medium',
+           color=palette['Medium'])
     ax.bar(x + width,  df['smape_high_pct_mean'], width,
-           yerr=df['smape_high_pct_se'].fillna(0.0),capsize=3, label='High')
+           yerr=df['smape_high_pct_se'].fillna(0.0),capsize=3, label='High',
+           color=palette['High'], edgecolor='#777777', linewidth=0.4)
 
     ax.set_xticks(x); ax.set_xticklabels(labels, ha='center')
     ax.set_ylabel('SMAPE (%)')
     style_axes(ax)
     _apply_scale(ax, scale)
-    ax.legend(ncol=3, frameon=False)
+    ax.legend(ncol=3, frameon=False, loc='upper right')
 
     # regime note
     fig.text(0.99, 0.02, 'RV regimes = terciles by realized volatility (33rd/66th percentiles).',
@@ -134,6 +145,7 @@ def plot_absolute(df, out_pdf, out_svg, scale):
 
 def plot_relative(df, out_pdf, out_svg, scale):
     rel = make_relative(df)
+    rel = rel[rel['model'] != 'HAR'].reset_index(drop=True)
     labels = [DISPLAY_NAME.get(m, m) for m in rel['model']]
     x = np.arange(len(rel))
     width = 0.25
@@ -146,23 +158,27 @@ def plot_relative(df, out_pdf, out_svg, scale):
         'font.family': 'serif',
         'mathtext.fontset': 'dejavuserif',
     })
-    fig = plt.figure(figsize=(10.2, 5.4))
+    fig = plt.figure(figsize=(7.2, 3.0))
     ax = plt.gca()
+    palette = _plot_palette()
 
     ax.axhline(0.0, linewidth=1.0)
 
     ax.bar(x - width, rel['d_low_mean'],  width,
-           yerr=rel['d_low_se'].fillna(0.0),  capsize=3, label='Low')
+           yerr=rel['d_low_se'].fillna(0.0),  capsize=3, label='Low',
+           color=palette['Low'])
     ax.bar(x,          rel['d_med_mean'],  width,
-           yerr=rel['d_med_se'].fillna(0.0), capsize=3, label='Med')
+           yerr=rel['d_med_se'].fillna(0.0), capsize=3, label='Medium',
+           color=palette['Medium'])
     ax.bar(x + width,  rel['d_high_mean'], width,
-           yerr=rel['d_high_se'].fillna(0.0),capsize=3, label='High')
+           yerr=rel['d_high_se'].fillna(0.0),capsize=3, label='High',
+           color=palette['High'], edgecolor='#777777', linewidth=0.4)
 
     ax.set_xticks(x); ax.set_xticklabels(labels, ha='center')
     ax.set_ylabel(r'$\Delta$SMAPE relative to HAR-RV (%)')
     style_axes(ax)
     _apply_scale(ax, scale)
-    ax.legend(ncol=3, frameon=False)
+    ax.legend(ncol=3, frameon=False, loc='upper left')
 
     fig.text(0.99, 0.02, 'RV regimes = terciles by realized volatility (33rd/66th percentiles).',
              ha='right', va='bottom', fontsize=9)

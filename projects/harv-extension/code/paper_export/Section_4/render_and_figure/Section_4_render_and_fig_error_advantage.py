@@ -166,7 +166,7 @@ def plot_error_advantage(
     })
 
     n = len(models)
-    fig, axes = plt.subplots(n, 1, figsize=(12, 3.8 * n), sharex=True, sharey=True)
+    fig, axes = plt.subplots(n, 1, figsize=(7.8, 2.1 * n), sharex=True, sharey=True)
     if n == 1:
         axes = [axes]
 
@@ -200,23 +200,24 @@ def plot_error_advantage(
         ax.axhline(0.0, color='#333333', linewidth=0.9)
         ax.fill_between(x, 0, np.where(yv > 0, yv, 0), color=green, alpha=alpha, label=f'{DISPLAY_NAME.get(m,m)} better', interpolate=True)
         ax.fill_between(x, 0, np.where(yv < 0, yv, 0), color=red,   alpha=alpha*0.85, label='HAR-RV better', interpolate=True)
-        ax.plot(x, s_smooth.values, color='#1a1a1a', linewidth=1.1, alpha=0.9)
+        ax.plot(x, s_smooth.values, color='#1a1a1a', linewidth=0.95, alpha=0.9)
 
-        metric_lbl = r'$\Delta$SMAPE relative to HAR-RV (pp)' if metric.lower() == 'smape' else 'MAE advantage'
-        ax.set_ylabel(metric_lbl)
+        metric_lbl = r'$\Delta$SMAPE vs HAR-RV (pp)' if metric.lower() == 'smape' else 'MAE advantage'
+        if n == 1:
+            ax.set_ylabel(metric_lbl)
         ax.set_title(DISPLAY_NAME.get(m, m), loc='left')
         _style_axes(ax)
         _apply_scale(ax, scale)
-        ax.legend(loc='upper left', frameon=False)
+        ax.legend(loc='upper left', frameon=False, fontsize=8, handlelength=1.5)
 
         # Stat box with mathtext
         mean_unit = " pp" if metric.lower() == 'smape' else ""
-        mean_str = f"Mean advantage: {stats['mean_delta']:.2f}{mean_unit}"
-        win_str  = f"Timestamp win rate: {100*stats['win_rate']:.1f}%"
-        cld_str  = fr"Cumulative advantage: {_sci_mathtext(stats['cld'])}"
+        mean_str = f"Mean: {stats['mean_delta']:.2f}{mean_unit}"
+        win_str  = f"Win rate: {100*stats['win_rate']:.1f}%"
+        cld_str  = fr"CLD: {_sci_mathtext(stats['cld'])}"
         p_str    = fr"DM $p$: {_pval_mathtext(stats['dm_pvalue'])}"
         box = AnchoredText("\n".join([mean_str, win_str, cld_str, p_str]),
-                           loc='upper right', prop=dict(size=9),
+                           loc='upper right', prop=dict(size=8),
                            frameon=True, borderpad=0.4)
         box.patch.set_alpha(0.90)
         ax.add_artist(box)
@@ -226,8 +227,10 @@ def plot_error_advantage(
             **stats
         })
 
+    if n > 1:
+        fig.supylabel(metric_lbl, x=0.015)
     axes[-1].set_xlabel('Time')
-    fig.tight_layout()
+    fig.tight_layout(rect=[0.035 if n > 1 else 0, 0, 1, 1])
 
     os.makedirs(os.path.dirname(out_pdf), exist_ok=True)
     fig.savefig(out_pdf, bbox_inches='tight')

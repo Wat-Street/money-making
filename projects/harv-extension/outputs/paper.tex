@@ -1,5 +1,4 @@
 \documentclass[a4paper]{article}
-\usepackage{graphicx} % Required for inserting images
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{subcaption} %for images 
@@ -7,7 +6,7 @@
 % Packages
 \usepackage{geometry}
 \geometry{left=1.5cm, right=1.5cm, top=2.54cm, bottom=2.54cm}
-\usepackage{graphicx, hyperref, setspace, amsmath, amssymb, titlesec, fancyhdr, multicol, parskip, indentfirst, etoolbox, caption, cite, hyperref, xcolor}
+\usepackage{graphicx, hyperref, setspace, titlesec, fancyhdr, multicol, parskip, indentfirst, etoolbox, caption, cite, xcolor}
 \newtheorem{theorem}{Theorem}
 
 % Title Formatting
@@ -18,8 +17,9 @@
 \title{
     \textbf{Using Prime Modulo Classes to Improve the HAR-RV Model} 
 }
+\author{}
 
-\date{March 15, 2025} % No date
+\date{March 15, 2025}
 
 % Section Numbering
 % Define numbering format
@@ -38,15 +38,12 @@
 % Fancy Header Configuration
 \pagestyle{fancy}
 \fancyhf{} % Clear all header/footer fields
+\setlength{\headheight}{17pt}
 
 % First Page Header
 \fancypagestyle{firstpage}{
-    \fancyhead[C]{
-        \centering
-        {\fontsize{14pt}{12pt}\selectfont
-        \textbf{Wat Street}\\
-        \textbf{}}\\
-        }
+    \fancyhf{}
+    \fancyhead[C]{\textbf{Wat Street}}
 }
 
 % Default Header for Other Pages
@@ -62,13 +59,13 @@
 	\centering
 	\textbf{Reshi Adavan}\\
 	\textit{University of Waterloo}\\
-	\textit{...}\\
+	\textit{Wat Street}\\
 	
 	\vfill
 
    \textbf{Jacob Yan}\\
 	\textit{University of Waterloo}\\
-	\textit{...}\\
+	\textit{Wat Street}\\
 	
     \vfill
 
@@ -76,13 +73,13 @@
 
    \textbf{Kamakshi Sarvananthan}\\
 	\textit{University of Waterloo}\\
-	\textit{...}\\
+	\textit{Wat Street}\\
 
      \vfill
 
     \textbf{Harman Singh}\\
         \textit{University of Waterloo}\\
-        \textit{...}\\
+        \textit{Wat Street}\\
 
     
 
@@ -93,7 +90,7 @@
 
  \textbf{Krish Modi}\\
 	\textit{University of Waterloo}\\
-	\textit{...}\\
+	\textit{Wat Street}\\
 	
     \vfill
 
@@ -111,15 +108,15 @@
 \section{Introduction}
 \vspace{0.3cm}
 \noindent
-Volatility plays a key role in financial market forecasting, particularly in the pricing of derivatives and risk management. A well-established model for predicting volatility based on historical data is the Heterogeneous Autoregressive model of Realized Volatility (HAR-RV) [1]. This model leverages realized volatility---volatility observed from historical high-frequency data---and incorporates information from multiple time horizons (daily, weekly, and monthly) to capture the persistence and heterogeneity of volatility dynamics. Although the HAR-RV model was originally developed for daily volatility forecasting, it has shown strong performance in high-frequency trading contexts, where asset prices update on the order of seconds or minutes. The realized volatility on day $t$ is computed as:
+Volatility plays a key role in financial market forecasting, particularly in the pricing of derivatives and risk management. A well-established model for predicting volatility based on historical data is the Heterogeneous Autoregressive model of Realized Volatility (HAR-RV) \cite{corsi2009}. This model leverages realized volatility---volatility observed from historical high-frequency data---and incorporates information from multiple time horizons, typically daily, weekly, and monthly, to capture the persistence and heterogeneity of volatility dynamics. Although the HAR-RV model was originally developed for daily volatility forecasting, the same multi-horizon idea is useful in high-frequency settings where asset prices update on the order of seconds or minutes. The realized volatility over a given evaluation period is computed as:
 \[
 RV_t = \sqrt{\sum_{j=1}^n \left(\log\left(\frac{X_j}{X_{j-1}}\right)\right)^2},
 \]
-where $X_j$ denotes the asset price at the $j$-th intraday interval in day $t$ (Zhao, 2022).
+where $X_j$ denotes the asset price at the $j$-th intraday interval in that period.
 \vspace{0.3cm}
-\\ The following equation for predicting realized volatility follows from the derivation of the HAR-RV model $$RV_{t+1} = C + \beta_d RV_t + \beta_wRVW_t + \beta_m RVM_t + \overline{\omega}_t,$$ where $\beta_d, \beta_w, \beta_m$ are the learned parameters, $\overline{\omega}$ represents the errors, $C$ is a constant, and we have $$RVW_t = \frac15\left(\sum_{i=1}^5 RV_{t-i+1}\right)$$ and $$RVM_t = \frac1{22}\left(\sum_{i=1}^{22} RV_{t-i+1}\right),$$ which represent the weekly and monthly volatilities in terms of the daily volatility (Zhao, 2022). The goal of this paper is to present improvements on the existing HAR-RV model by adding additional terms with learned parameters using equivalence classes of prime moduli.
+\\ The standard HAR-RV forecast can be written as $$RV_{t+1} = C + \beta_d RV_t + \beta_wRVW_t + \beta_m RVM_t + \overline{\omega}_t,$$ where $\beta_d, \beta_w, \beta_m$ are learned parameters, $\overline{\omega}_t$ is the error term, $C$ is a constant, and $$RVW_t = \frac15\left(\sum_{i=1}^5 RV_{t-i+1}\right)$$ and $$RVM_t = \frac1{22}\left(\sum_{i=1}^{22} RV_{t-i+1}\right).$$ These terms represent weekly and monthly averages of realized volatility in terms of the shorter-horizon series. The goal of this paper is to present an order-aware extension of HAR-RV by adding learned features built from equivalence classes of prime moduli.
 \vspace{0.3cm}
-\\ A problem with our current model is, if any two of $RV_i$ and $RV_j$ are swapped for $i \neq j$, $i, j \in \{t, t-1, \cdots, t-4\}$ or $i, j \in \{t-5, t-6, \cdots, t-21\}$, then there is no change to $RV_{t+1}$, even though in reality, the ordering of volatility events should matter in financial markets. We would like to add extra terms such that for any two of $RV_t, RV_{t-1}, \cdots, RV_{t-n+1}$ for some fixed $n$, swapping them will lead to a change in $RV_{t+1}$ if we fix the learned parameters.
+\\ The standard HAR-RV aggregation creates a symmetry problem. If two lagged realized-volatility values are swapped within the weekly average or within the monthly average, the corresponding HAR-RV features are unchanged, even though the order of volatility events can carry market information. We therefore add features such that, for any two of $RV_t, RV_{t-1}, \cdots, RV_{t-n+1}$ for a fixed horizon $n$, a swap can change at least one model input while holding the learned parameters fixed.
 \section{Prime Modulo Classes}
 \noindent To address this symmetry issue, we propose introducing additional terms that ensure any pair-wise swap of volatility values affects the model's predictions. Our goal is to find a minimal set of additional terms that captures these temporal dependencies while keeping the model parsimonious. The solution should generalize beyond the standard weekly and monthly intervals to arbitrary time periods, without compromising the model's predictive accuracy.
 \vspace{0.3cm}
@@ -148,9 +145,9 @@ where $X_j$ denotes the asset price at the $j$-th intraday interval in day $t$ (
     Let $c^*$ denote the optimal objective function in $(\star)$ and let $t^*$ be the optimal $t$ in this optimizer. Let $c$ be the sum of the first $t^{\star\star}$ primes where $t^{\star\star}$ is minimal such that $$N := \displaystyle\prod_{i=1}^{t^{\star\star}} p_i \geq n,$$where $p_i$ denotes the $i-$th prime. Then, $$c = c^* \cdot \frac{\log(n)}{\log(\log(n))}(1+o(1)).$$
 \end{theorem}
 \vspace{0.3cm}
-\noindent The proof is omitted, but the idea behind the approximate optimality of this construction is we can find that powers of primes are extremely bad for the summation. 
+\noindent The proof is omitted, but the main intuition is that using powers of repeated primes gives poor tradeoffs between the product constraint and the sum objective. Distinct small primes provide much better coverage per added feature while preserving the pairwise separation property above.
 \vspace{0.3cm}
-\\ To see that the prime modulo classes method works the best, we present in-house benchmarks that test the vanilla HAR-RV model against our prime modulo classes extension on both intraday and daily data provided by Yahoo Finance. We also built benchmarks that test on nuanced versions of HAR-RV, namely HAR-RV-J, HAR-RV-CJ, and HAR-RV-TCJ [1], as well as positive and negative volatility HAR-RV [X], etc [Y]. Our presented solution will build upon the idea of the prime modulo equivalence classes, adding extra terms that are not the average of the daily realized volatilities, but are the averages of the realized volatilities of time period length $p$ ending on the days in each set $a_j$. In other words, we take the root-mean-square of the daily realized volatilities in the $p$ consecutive days up to and including the days in each set $a_j$. We utilize the realized volatilities of time period length $p$ to capture information on how the asset price fluctuated within and between each time period. 
+\\ The empirical section tests two prime-based extensions against the HAR-RV baseline. Prime Modulo (PM) uses the modular equivalence classes described above. Contiguous Prime (CP) keeps the same prime-motivated capacity but uses contiguous prime-length structure, preserving more local ordering information. The main draft focuses on HAR-RV, PM, and CP only. Additional supported variants and randomized controls are reserved for the ablation subsection once the aligned robustness run is complete.
 
 \end{multicols}
 
@@ -215,12 +212,19 @@ Contiguous Prime (CP) & \textbf{169.00 $\pm$ 7.16} & \textbf{65.26 $\pm$ 8.53} &
 
 {\renewcommand{\thefigure}{1}
 \begin{center}
-\includegraphics[width=0.94\textwidth]{paper_assets/figures/Section_2_fig_1_regimes_absolute.pdf}\\[0.1cm]
-\footnotesize (a) Absolute SMAPE by realized-volatility regime.\\[0.35cm]
-\includegraphics[width=0.94\textwidth]{paper_assets/figures/Section_2_fig_1_regimes_relative.pdf}\\[0.1cm]
+\begin{minipage}{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{paper_assets/figures/Section_2_fig_1_regimes_absolute.pdf}\\[-0.05cm]
+\footnotesize (a) Absolute SMAPE.
+\end{minipage}
+\hfill
+\begin{minipage}{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{paper_assets/figures/Section_2_fig_1_regimes_relative.pdf}\\[-0.05cm]
 \footnotesize (b) Relative improvement against HAR-RV.
+\end{minipage}
 
-\captionof{figure}{Forecast performance across realized-volatility terciles. Panel (a) reports absolute SMAPE. Panel (b) reports $\Delta \mathrm{SMAPE} = \mathrm{SMAPE}_{\mathrm{HAR}} - \mathrm{SMAPE}_m$ relative to HAR-RV.}
+\captionof{figure}{Forecast performance across realized-volatility terciles. Panel (a) reports absolute SMAPE. Panel (b) reports percentage improvement relative to HAR-RV, $100(\mathrm{SMAPE}_{\mathrm{HAR}} - \mathrm{SMAPE}_m)/\mathrm{SMAPE}_{\mathrm{HAR}}$.}
 \label{fig:regime_panels}
 \end{center}}
 
@@ -255,7 +259,7 @@ The figure also shows that all three models deteriorate together during broad ma
 \end{center}}
 
 \noindent
-Figure~\ref{fig:error_advantage} clarifies how the aggregate gains are distributed through time. PM improves on HAR-RV by 1.97 percentage points in mean per-timestamp SMAPE advantage, with a 56.9\% timestamp win rate and a 2.04 percentage point median advantage. CP is materially stronger, with a 4.06 percentage point mean advantage, a 63.0\% timestamp win rate, and a 5.16 percentage point median advantage. For both models, the corresponding Diebold--Mariano tests reject equal predictive accuracy at $p < 10^{-6}$.
+Figure~\ref{fig:error_advantage} clarifies how the aggregate gains are distributed through time. PM improves on HAR-RV by 1.97 percentage points in mean per-timestamp SMAPE advantage, with a 56.9\% timestamp win rate and a 2.04 percentage point median advantage. CP is materially stronger, with a 4.06 percentage point mean advantage, a 63.0\% timestamp win rate, and a 5.16 percentage point median advantage. For both models, the corresponding Diebold--Mariano tests reject equal predictive accuracy at $p < 10^{-6}$ \cite{diebold1995}.
 
 \noindent
 The gain profile is also balanced rather than outlier-driven. When PM outperforms HAR-RV, the average gain is 9.85 percentage points, versus an 8.43 percentage point average loss when it does not. For CP, those figures are 13.07 and 11.28 percentage points respectively. That asymmetry, together with the positive timestamp win rates, indicates that the improvement arises from many recurrent advantages rather than from a small number of isolated episodes.
@@ -263,10 +267,13 @@ The gain profile is also balanced rather than outlier-driven. When PM outperform
 \subsection{Ablations and Drivers}
 
 \noindent
-The current \texttt{test\_7} paper bundle does not yet include a Section 5 package that is fully aligned with the ten-asset cross-sectional intraday evaluation used above. Figures 4 through 6 and Tables 3 and 4 are therefore omitted from the main draft rather than being populated with older, non-comparable outputs.
+Section 5 is intentionally left as a placeholder in this draft. The available ablation outputs are not yet fully aligned with the ten-asset cross-sectional intraday evaluation used above, so Figures 4 through 6 and Tables 3 and 4 are omitted rather than mixing the main results with older, non-comparable outputs.
 
 \noindent
-Those ablations remain central to the final empirical argument because they separate three competing explanations for the observed gains: genuinely informative order structure, simple parameter expansion, and accidental feature enrichment. Once regenerated on the same ten-asset universe, Section 5 should establish whether the PM and CP gains survive controlled comparisons in capacity, modifiers, and randomized baselines.
+This omission does not change the headline interpretation of Sections A through D, but it does define the remaining robustness burden. The final Section 5 package should use the same tickers, date range, 5-minute horizon, and train-test alignment as the main intraday panel, and should introduce only already-supported controls rather than new headline models. Its role is to separate three competing explanations for the observed gains: genuinely informative order structure, simple parameter expansion, and accidental feature enrichment.
+
+\noindent
+The aligned ablation section should therefore contain three checks. First, a capacity curve should test whether the PM gains saturate once the minimal prime coverage is reached. Second, PM and CP modifiers should test whether extra volatility or jump features improve on the core order-aware construction. Third, randomized and contiguous-random controls should test whether arbitrary feature enrichment can replicate the PM and CP improvements. If the prime-based extensions remain competitive under these controls, the empirical argument becomes stronger; if not, the final claim should be narrowed to the direct out-of-sample performance evidence reported above.
 
 \subsection{Statistical Significance by Asset Groups}
 
@@ -280,6 +287,7 @@ The final question is where the gains are strongest. The broad pattern is that o
 \label{fig:asset_groups}
 \end{center}}
 
+\noindent\begin{minipage}{\textwidth}
 {\renewcommand{\thetable}{5}
 \begin{center}
 \captionof{table}{Group-level performance and significance by asset class. Positive $\Delta \mathrm{SMAPE}$ indicates lower SMAPE than HAR-RV.}
@@ -324,6 +332,7 @@ Fixed Income & 0.59 $\pm$ 0.56 & 100\% & $< 10^{-300}$ \\
 \vspace{0.1cm}
 \footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Asset Win Rate is the share of assets in each group with positive $\Delta \mathrm{SMAPE}$ relative to HAR-RV. Fisher combined $p$-values aggregate per-asset Diebold--Mariano tests based on absolute-error loss. Values below machine precision are reported as $< 10^{-300}$. Standard errors are unavailable for single-asset groups.}
 \end{center}}
+\end{minipage}
 
 \noindent
 Figure~\ref{fig:asset_groups} and Table~\ref{tab:groups} make the cross-sectional pattern explicit. The largest gains appear in Broad US Equity and US Mega Tech, where both PM and CP improve on every asset and where CP delivers the largest group-level gains. Fixed Income remains positive but is estimated less precisely, while International Equity is positive on average with wider dispersion. Commodities and Metals are essentially flat, with PM slightly negative and CP only marginally positive.
@@ -334,7 +343,20 @@ This cross-group pattern is economically coherent. The strongest gains arise in 
 
 \section{Future Improvements}
 
-...
+\noindent
+The present evidence supports a deliberately narrow conclusion: on the ten-asset 5-minute intraday panel, the prime-based extensions improve average forecasting accuracy relative to the HAR-RV baseline, with the strongest and most stable gains coming from CP. The appendix daily mirror shows that this advantage does not automatically transfer to daily sampling. Future work should therefore focus less on adding new model names and more on clarifying when the ordered lag structure is statistically and economically reliable.
+
+\noindent
+A first improvement is to broaden the loss functions used for evaluation. SMAPE, RMSE, MAE, MedAE, and Directional Accuracy cover scale-normalized error, tail-sensitive squared error, absolute error, median robustness, and directional movement. For volatility forecasts, however, a QLIKE-style loss would be a useful addition because it is commonly used for volatility forecast comparison and is less tied to the scale issues of percentage errors \cite{patton2011}. Reporting out-of-sample $R^2$ relative to HAR-RV would also make the magnitude of improvement easier to interpret.
+
+\noindent
+A second improvement is to strengthen the inference layer. The current paper uses Newey--West Diebold--Mariano tests and Fisher combined $p$-values, but these tools should be complemented by block-bootstrap confidence intervals for $\Delta$SMAPE and by multiple-testing adjustments across assets, regimes, and model comparisons \cite{politis1994}. If more model variants are reported in future drafts, a model confidence set or a reality-check style procedure would help distinguish genuine predictive improvement from data snooping \cite{hansen2011,white2000}.
+
+\noindent
+A third improvement is to make robustness conditional rather than only aggregate. The current regime and asset-group results already point in this direction: prime-based ordering appears more useful in liquid US equity exposures than in commodities, metals, or more jump-driven markets. Future work should test this directly through regime-specific significance tests, separate analyses around market stress periods, and stability checks across alternative intraday windows.
+
+\noindent
+Finally, the empirical design should remain fixed while the paper is finalized. The current draft should not change ticker lists, sampling frequency, date range, warmup length, or headline model set unless all sections are regenerated under the same specification. This constraint is important because the paper's main contribution is comparative: the reader should be able to trace each table and figure back to one consistent evaluation panel.
 
 \newpage
 \appendix
@@ -365,6 +387,17 @@ Contiguous Prime (CP) & 37.88 $\pm$ 2.40 & 7.744 $\pm$ 1.016 & 4.705 $\pm$ 0.569
 
 \noindent
 Table~\ref{tab:overall_daily} is included as a supporting appendix result rather than a main-text finding. On this daily sample, HAR-RV has the lowest average SMAPE, RMSE, MAE, and MedAE, while PM and CP do not preserve the intraday ordering seen in Table~\ref{tab:overall_intraday}. The daily mirror therefore places a clear boundary on the main empirical claim of the paper: the present advantage of the prime-based extensions is concentrated at the intraday horizon rather than being a uniform improvement across sampling frequencies.
+
+\section{Empirical Design}
+
+\noindent
+The main empirical panel contains ten liquid assets: AAPL, AMZN, GOOGL, SPY, QQQ, EEM, FXI, GLD, HYG, and TLT. These assets were chosen to cover large-cap US technology, broad US equity exposure, international equity, commodities and metals, and fixed income. The main evaluation uses cleaned 5-minute intraday data. After feature construction, alignment, and warmup, each asset contributes roughly 36,747 evaluation observations.
+
+\noindent
+The headline model set is fixed to HAR-RV, PM, and CP. This restriction is intentional. The paper's central claim is not that every engineered variant is useful, but that order-aware prime-based features can improve the HAR-RV baseline under a common data split and evaluation protocol. HAR-RV is therefore the benchmark in every main-text comparison, PM is the direct modular-equivalence extension, and CP is the contiguous prime extension.
+
+\noindent
+All reported main-text metrics are first computed separately for each asset and are then summarized across assets. This avoids letting the most densely represented or easiest-to-predict asset dominate the aggregate result. Time-series plots use the cross-sectional average prediction series only for visual clarity; their reported summary statistics are still computed from the underlying full-resolution forecast errors.
 
 \section{Metric Definitions and Inference}
 
@@ -452,7 +485,7 @@ with statistic
 =
 \frac{\bar{d}^{\,m}_i}{\sqrt{\widehat{\mathrm{Var}}_{\mathrm{NW}}(\bar{d}^{\,m}_i)}}.
 \end{align*}
-Figure~\ref{fig:error_advantage} applies this logic to the timestamp-level SMAPE differential, while Table~\ref{tab:groups} combines per-asset Diebold--Mariano $p$-values based on absolute-error loss. If $\{p^{\,m}_{i,g}\}_{i \in g}$ are the valid per-asset $p$-values for group $g$, the Fisher combined statistic is
+Figure~\ref{fig:error_advantage} applies this logic to the timestamp-level SMAPE differential, while Table~\ref{tab:groups} combines per-asset Diebold--Mariano $p$-values based on absolute-error loss \cite{diebold1995}. If $\{p^{\,m}_{i,g}\}_{i \in g}$ are the valid per-asset $p$-values for group $g$, the Fisher combined statistic is
 \begin{align*}
 X^{\,m}_g &= -2\sum_{i \in g}\log p^{\,m}_{i,g},\\
 p^{\,m,\mathrm{Fisher}}_g &= 1 - F_{\chi^2_{2N_g}}\!\left(X^{\,m}_g\right),
@@ -460,8 +493,43 @@ p^{\,m,\mathrm{Fisher}}_g &= 1 - F_{\chi^2_{2N_g}}\!\left(X^{\,m}_g\right),
 where $F_{\chi^2_{2N_g}}$ is the chi-squared cumulative distribution function with $2N_g$ degrees of freedom.
 
 
-\begin{thebibliography}{1} % 1 = Number of items
-\bibitem{1} Insert citation for HAR-RV paper by Yue Zhao.
+\begin{thebibliography}{9}
+
+\bibitem{corsi2009}
+F. Corsi.
+\newblock A simple approximate long-memory model of realized volatility.
+\newblock \textit{Journal of Financial Econometrics}, 7(2):174--196, 2009.
+\newblock doi: 10.1093/jjfinec/nbp001.
+
+\bibitem{diebold1995}
+F. X. Diebold and R. S. Mariano.
+\newblock Comparing predictive accuracy.
+\newblock \textit{Journal of Business \& Economic Statistics}, 13(3):253--263, 1995.
+\newblock doi: 10.1080/07350015.1995.10524599.
+
+\bibitem{hansen2011}
+P. R. Hansen, A. Lunde, and J. M. Nason.
+\newblock The model confidence set.
+\newblock \textit{Econometrica}, 79(2):453--497, 2011.
+\newblock doi: 10.3982/ECTA5771.
+
+\bibitem{patton2011}
+A. J. Patton.
+\newblock Volatility forecast comparison using imperfect volatility proxies.
+\newblock \textit{Journal of Econometrics}, 160(1):246--256, 2011.
+\newblock doi: 10.1016/j.jeconom.2010.03.034.
+
+\bibitem{politis1994}
+D. N. Politis and J. P. Romano.
+\newblock The stationary bootstrap.
+\newblock \textit{Journal of the American Statistical Association}, 89(428):1303--1313, 1994.
+\newblock doi: 10.1080/01621459.1994.10476870.
+
+\bibitem{white2000}
+H. White.
+\newblock A reality check for data snooping.
+\newblock \textit{Econometrica}, 68(5):1097--1126, 2000.
+\newblock doi: 10.1111/1468-0262.00152.
 
 
 \end{thebibliography}

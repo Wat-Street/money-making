@@ -171,18 +171,18 @@ def main():
         'font.family': 'serif',
         'mathtext.fontset': 'dejavuserif',
     })
-    fig = plt.figure(figsize=(11.8, 5.0))
+    fig = plt.figure(figsize=(7.4, 3.25))
     ax = plt.gca()
 
     colors, dashes = prepare_style(args.style, len(models))
 
     for i, m in enumerate(models):
         label = DISPLAY_NAME.get(m, m)
-        line, = ax.plot(idx, series[m].values, linewidth=1.9, label=label,
+        line, = ax.plot(idx, series[m].values, linewidth=1.55, label=label,
                         color=colors[i], zorder=2+i)
         line.set_dashes(dashes[i])
         if args.trend:
-            add_linear_trend(ax, idx, series[m].values, color=colors[i], linewidth=1.1)
+            add_linear_trend(ax, idx, series[m].values, color=colors[i], linewidth=0.9)
 
     title_asset = 'Cross-Sectional Average' if args.asset.upper() == 'ALL_MEAN' else args.asset
     ax.set_title(title_asset)
@@ -190,7 +190,8 @@ def main():
     ax.set_xlabel('Time')
     style_axes(ax)
     apply_scale(ax, args.scale)
-    ax.legend(frameon=False, ncol=min(3, len(models)), loc='upper right')
+    ax.legend(frameon=False, ncol=min(3, len(models)), loc='upper right',
+              borderaxespad=0.2, handlelength=2.4)
 
     fig.tight_layout()
     os.makedirs(args.outdir, exist_ok=True)

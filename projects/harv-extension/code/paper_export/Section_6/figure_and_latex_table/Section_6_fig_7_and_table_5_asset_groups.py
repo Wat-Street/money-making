@@ -245,9 +245,11 @@ def render_figure(df_group_long: pd.DataFrame, out_fig: str):
         'font.family': 'serif',
         'mathtext.fontset': 'dejavuserif',
     })
-    fig, ax = plt.subplots(figsize=(9.0, 5.0))
-    ax.bar(idx - width/2, pm_means, width, yerr=pm_se, capsize=3, label='PM', color='#333333', alpha=0.9)
-    ax.bar(idx + width/2, cp_means, width, yerr=cp_se, capsize=3, label='CP', color='#777777', alpha=0.9)
+    fig, ax = plt.subplots(figsize=(7.4, 3.35))
+    ax.bar(idx - width/2, pm_means, width, yerr=pm_se, capsize=3, label='PM',
+           color='#3f3f3f', alpha=0.95)
+    ax.bar(idx + width/2, cp_means, width, yerr=cp_se, capsize=3, label='CP',
+           color='#8c8c8c', alpha=0.95)
 
     ax.set_xticks(idx)
     ax.set_xticklabels(group_labels, rotation=0, ha='center')
@@ -256,7 +258,7 @@ def render_figure(df_group_long: pd.DataFrame, out_fig: str):
     ax.grid(axis='y', linestyle=':', linewidth=0.6, alpha=0.6)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    ax.legend(frameon=False, loc='upper right')
+    ax.legend(frameon=False, loc='upper right', ncol=2, handlelength=1.4)
     fig.tight_layout()
 
     os.makedirs(os.path.dirname(out_fig), exist_ok=True)
