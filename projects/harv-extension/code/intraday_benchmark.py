@@ -113,12 +113,25 @@ def _append_model_checkpoint(out_csv: str, f: pd.DataFrame, model_name: str):
     out_df.to_csv(out_csv, index=False)
     print(f"[CHECKPOINT] appended {model_name} -> {out_csv} (rows={len(out_df)}, cols={len(out_df.columns)})", flush=True)
 
+def _completed_models_from_checkpoint(out_csv: str, models: list) -> set:
+    if not os.path.exists(out_csv):
+        return set()
+    try:
+        header = pd.read_csv(out_csv, nrows=0).columns
+    except Exception:
+        return set()
+    return {m for m in models if f"Predicted_{m}" in header}
+
 def run_for_ticker(ticker: str, models: list, n: int, warmup: int, local_dir: str, outdir: str,
-                   timing_log_path: str) -> float:
+                   timing_log_path: str, resume: bool = False) -> float:
     t0 = time.perf_counter()
     pred_dir = os.path.join(outdir, 'predictions')
     os.makedirs(pred_dir, exist_ok=True)
     out_csv = os.path.join(pred_dir, f'{ticker}.csv')
+    completed_models = _completed_models_from_checkpoint(out_csv, models) if resume else set()
+    if completed_models:
+        done = ",".join([m for m in models if m in completed_models])
+        print(f"[RESUME] [{ticker}] checkpoint has completed models: {done}", flush=True)
 
     print(f"[STEP] [{ticker}] fetch_intraday_data...", flush=True)
     s = time.perf_counter()
@@ -134,6 +147,11 @@ def run_for_ticker(ticker: str, models: list, n: int, warmup: int, local_dir: st
     per_model_times = []
 
     for m in models:
+        if m in completed_models:
+            print(f"[RESUME] [{ticker}] {m} already checkpointed; skipping", flush=True)
+            per_model_times.append((m, 0.0))
+            continue
+
         print(f"[MODEL] [{ticker}] {m} start", flush=True)
         ms = time.perf_counter()
         try:
@@ -185,21 +203,27 @@ def run_for_ticker(ticker: str, models: list, n: int, warmup: int, local_dir: st
             gc.collect()
 
     if not frames:
-        print(f"[WARN] [{ticker}] No model produced frames; skipping save.", flush=True)
-        return time.perf_counter() - t0
+        if resume and os.path.exists(out_csv):
+            print(f"[RESUME] [{ticker}] no new models needed; preserving {out_csv}", flush=True)
+        else:
+            print(f"[WARN] [{ticker}] No model produced frames; skipping save.", flush=True)
+            return time.perf_counter() - t0
 
-    # --- safe merge: keep 'Actual' only once ---
-    merged = frames[0].copy()
-    for f in frames[1:]:
-        f2 = f.drop(columns=[c for c in ['Actual'] if c in f.columns])
-        merged = merged.join(f2, how='inner')
+    if frames and not resume:
+        # --- safe merge: keep 'Actual' only once ---
+        merged = frames[0].copy()
+        for f in frames[1:]:
+            f2 = f.drop(columns=[c for c in ['Actual'] if c in f.columns])
+            merged = merged.join(f2, how='inner')
 
-    merged = merged.reset_index().rename(columns={'index':'Date'})
+        merged = merged.reset_index().rename(columns={'index':'Date'})
 
-    print(f"[SAVE ] [{ticker}] writing predictions CSV...", flush=True)
-    s = time.perf_counter()
-    merged.to_csv(out_csv, index=False)
-    print(f"[SAVE ] [{ticker}] wrote {out_csv} in {_fmt_s(time.perf_counter()-s)} (rows={len(merged)})", flush=True)
+        print(f"[SAVE ] [{ticker}] writing predictions CSV...", flush=True)
+        s = time.perf_counter()
+        merged.to_csv(out_csv, index=False)
+        print(f"[SAVE ] [{ticker}] wrote {out_csv} in {_fmt_s(time.perf_counter()-s)} (rows={len(merged)})", flush=True)
+    elif frames:
+        print(f"[SAVE ] [{ticker}] resume mode: preserving checkpoint-merged {out_csv}", flush=True)
 
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     _append_line(timing_log_path, f"[{now}] TICKER {ticker} model timings:")
@@ -222,6 +246,7 @@ def main():
     p.add_argument('--require-explicit', action='store_true', help='Error if --tickers not provided (no auto-discovery).')
     p.add_argument('--skip-post', action='store_true', help='Skip overall/table aggregation and Section 5 post-run build.')
     p.add_argument('--skip-section5', action='store_true', help='Skip Section 5 post-run table build (overall table still produced).')
+    p.add_argument('--resume', action='store_true', help='Skip models whose Predicted_<MODEL> columns already exist in prediction checkpoints.')
     p.add_argument('--include-variants', dest='include_variants', action='store_true', default=True,
                   help='Include PM_VW, PM_AD, CP_CJ when models not explicitly specified (default: on)')
     p.add_argument('--no-variants', dest='include_variants', action='store_false')
@@ -252,7 +277,7 @@ def main():
     try:
         for idx, t in enumerate(tickers, start=1):
             print(f"[INTRA] {t}", flush=True)
-            elapsed = run_for_ticker(t, models, args.n, args.warmup, args.local_dir, args.outdir, timing_log_path)
+            elapsed = run_for_ticker(t, models, args.n, args.warmup, args.local_dir, args.outdir, timing_log_path, resume=args.resume)
             elapsed_list.append(elapsed)
             now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
             hhmm = _fmt_s(elapsed)

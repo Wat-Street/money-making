@@ -1,0 +1,266 @@
+﻿name: HARV Section 5 Cloud Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Run folder name under code/paper/runs"
+        required: true
+        default: "section5_cloud"
+      tickers:
+        description: "Comma-separated tickers to run"
+        required: true
+        default: "AAPL,AMZN,GOOGL,SPY,QQQ,EEM,FXI,GLD,HYG,TLT"
+      models:
+        description: "Comma-separated models"
+        required: true
+        default: "HAR,PM,CP,PM_VW,PM_AD,CP_CJ,RAND,CRS"
+      run_capacity:
+        description: "Also run the PM capacity sweep for Figure 4"
+        required: true
+        type: choice
+        options: ["false", "true"]
+        default: "false"
+  push:
+    branches:
+      - pre-final
+    paths:
+      - ".github/workflows/harv-section5-cloud.yml"
+      - "projects/harv-extension/code/intraday_benchmark.py"
+      - "projects/harv-extension/code/Helpers_for_paper_export_scripts/Section_5/**"
+      - "projects/harv-extension/code/paper/runs/section5_cloud_seed/**"
+
+env:
+  SECTION5_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_id || 'section5_cloud_push' }}
+  SECTION5_TICKERS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tickers || 'AAPL,AMZN,GOOGL,SPY,QQQ,EEM,FXI,GLD,HYG,TLT' }}
+  SECTION5_MODELS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.models || 'HAR,PM,CP,PM_VW,PM_AD,CP_CJ,RAND,CRS' }}
+  SECTION5_RUN_CAPACITY: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_capacity || 'false' }}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  make-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      tickers: ${{ steps.matrix.outputs.tickers }}
+    steps:
+      - id: matrix
+        shell: python
+        run: |
+          import json, os
+          tickers = [t.strip().upper() for t in os.environ["SECTION5_TICKERS"].split(',') if t.strip()]
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
+              f.write('tickers=' + json.dumps(tickers) + '\n')
+
+  section5-ticker:
+    needs: make-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        ticker: ${{ fromJson(needs.make-matrix.outputs.tickers) }}
+    defaults:
+      run:
+        working-directory: projects/harv-extension
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==1.26.4 pandas==2.2.2 scipy==1.13.1 statsmodels==0.14.4 scikit-learn==1.5.0 matplotlib==3.9.0 yfinance==0.2.40 joblib==1.4.2
+
+      - name: Seed existing checkpoints
+        shell: bash
+        run: |
+          set -euxo pipefail
+          RUN_DIR="code/paper/runs/$SECTION5_RUN_ID"
+          mkdir -p "$RUN_DIR/predictions" "$RUN_DIR/tables"
+          if [ -d "code/paper/runs/section5_cloud_seed" ]; then
+            cp -a code/paper/runs/section5_cloud_seed/. "$RUN_DIR/"
+          fi
+          if [ -f "$RUN_DIR/predictions/${{ matrix.ticker }}.csv" ]; then
+            echo "Seed checkpoint found for ${{ matrix.ticker }}"
+            head -n 1 "$RUN_DIR/predictions/${{ matrix.ticker }}.csv"
+          else
+            echo "No seed checkpoint for ${{ matrix.ticker }}"
+          fi
+
+      - name: Run Section 5 ticker benchmark
+        shell: bash
+        run: |
+          set -o pipefail
+          RUN_DIR="code/paper/runs/$SECTION5_RUN_ID"
+          echo "### ${{ matrix.ticker }} Section 5 run" >> "$GITHUB_STEP_SUMMARY"
+          echo "Models: $SECTION5_MODELS" >> "$GITHUB_STEP_SUMMARY"
+          timeout --signal=TERM 330m python code/intraday_benchmark.py \
+            --tickers "${{ matrix.ticker }}" \
+            --models "$SECTION5_MODELS" \
+            --local-dir code/Datasets/clean \
+            --outdir "$RUN_DIR" \
+            --n 22 \
+            --warmup 600 \
+            --require-explicit \
+            --resume \
+            --skip-post
+          status=$?
+          echo "Exit status: $status" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f "$RUN_DIR/predictions/${{ matrix.ticker }}.csv" ]; then
+            python -c "import os, pandas as pd; from pathlib import Path; p=Path('code/paper/runs') / os.environ['SECTION5_RUN_ID'] / 'predictions' / '${{ matrix.ticker }}.csv'; cols=pd.read_csv(p,nrows=0).columns; models=[c.replace('Predicted_','') for c in cols if c.startswith('Predicted_')]; print('Checkpointed models: ' + ', '.join(models))" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $status
+
+      - name: Upload ticker checkpoint artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: section5-${{ env.SECTION5_RUN_ID }}-${{ matrix.ticker }}
+          path: |
+            projects/harv-extension/code/paper/runs/${{ env.SECTION5_RUN_ID }}/predictions/${{ matrix.ticker }}.csv
+            projects/harv-extension/code/paper/runs/${{ env.SECTION5_RUN_ID }}/tables/timing_by_ticker.csv
+            projects/harv-extension/code/paper/runs/${{ env.SECTION5_RUN_ID }}/timing_progress.log
+            projects/harv-extension/code/paper/runs/${{ env.SECTION5_RUN_ID }}/FATAL_STOP.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+  capacity-ticker:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_capacity == 'true' }}
+    needs: make-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        ticker: ${{ fromJson(needs.make-matrix.outputs.tickers) }}
+    defaults:
+      run:
+        working-directory: projects/harv-extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==1.26.4 pandas==2.2.2 scipy==1.13.1 statsmodels==0.14.4 scikit-learn==1.5.0 matplotlib==3.9.0 joblib==1.4.2
+      - name: Run PM capacity sweep for ticker
+        shell: bash
+        run: |
+          set -o pipefail
+          OUT="code/paper/runs/$SECTION5_RUN_ID/tables/Section_5_fig_4_capacity_curve_${{ matrix.ticker }}.csv"
+          timeout --signal=TERM 330m python code/Helpers_for_paper_export_scripts/Section_5/sweep_pm_capacity.py \
+            --assets "${{ matrix.ticker }}" \
+            --k-grid 3,4,5,6,7,8 \
+            --n 390 \
+            --warmup 200 \
+            --local-dir code/Datasets/clean \
+            --out-csv "$OUT"
+      - name: Upload capacity artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: section5-capacity-${{ env.SECTION5_RUN_ID }}-${{ matrix.ticker }}
+          path: projects/harv-extension/code/paper/runs/${{ env.SECTION5_RUN_ID }}/tables/Section_5_fig_4_capacity_curve_${{ matrix.ticker }}.csv
+          if-no-files-found: ignore
+          retention-days: 14
+
+  aggregate-section5:
+    if: always()
+    needs: [make-matrix, section5-ticker, capacity-ticker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: projects/harv-extension
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install render dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==1.26.4 pandas==2.2.2 scipy==1.13.1 statsmodels==0.14.4 scikit-learn==1.5.0 matplotlib==3.9.0 joblib==1.4.2
+
+      - name: Download ticker artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: projects/harv-extension/_cloud_artifacts
+          merge-multiple: false
+
+      - name: Merge artifacts and render Section 5 outputs
+        shell: bash
+        run: |
+          set -euxo pipefail
+          RUN_DIR="code/paper/runs/$SECTION5_RUN_ID"
+          mkdir -p "$RUN_DIR/predictions" "$RUN_DIR/tables" "$RUN_DIR/figures" "$RUN_DIR/latex"
+          find _cloud_artifacts -path '*/predictions/*.csv' -type f -exec cp -f {} "$RUN_DIR/predictions/" \;
+          ls -lh "$RUN_DIR/predictions" || true
+          python code/Helpers_for_paper_export_scripts/Section_5/build_section5_tables.py \
+            --pred-dir "$RUN_DIR/predictions" \
+            --tables-dir "$RUN_DIR/tables" \
+            --models "$SECTION5_MODELS" \
+            --rand-baseline PM
+          python code/paper_export/Section_5/latex_table/Section_5_table_3_param_efficiency.py \
+            --csv "$RUN_DIR/tables/Section_5_table_3_param_eff_joined.csv" \
+            --out "$RUN_DIR/latex/Section_5_table_3_param_eff.tex"
+          python code/paper_export/Section_5/latex_table/Section_5_table_4_random_controls.py \
+            --in "$RUN_DIR/tables/Section_5_table_4_random_controls.csv" \
+            --outdir "$RUN_DIR/latex" \
+            --scope intraday
+          python code/paper_export/Section_5/figure/Section_5_fig_5_pm_modifiers_efficacy.py \
+            --tables-dir "$RUN_DIR/tables" \
+            --outdir "$RUN_DIR/figures" \
+            --style mono
+          python code/paper_export/Section_5/figure/Section_5_fig_6_cp_vs_cj_variant.py \
+            --tables-dir "$RUN_DIR/tables" \
+            --outdir "$RUN_DIR/figures" \
+            --style mono \
+            --metrics smape,mae,rmse,diracc
+          if [ "$SECTION5_RUN_CAPACITY" = "true" ]; then
+            find _cloud_artifacts -name 'Section_5_fig_4_capacity_curve_*.csv' -type f -exec cp -f {} "$RUN_DIR/tables/" \;
+            python code/Helpers_for_paper_export_scripts/Section_5/combine_capacity_curve.py \
+              --tables-dir "$RUN_DIR/tables"
+            python code/paper_export/Section_5/figure/Section_5_fig_4_capacity_curve.py \
+              --csv "$RUN_DIR/tables/Section_5_fig_4_capacity_curve.csv" \
+              --outdir "$RUN_DIR/figures"
+          fi
+          {
+            echo "### Section 5 aggregate"
+            echo "Prediction files:"
+            ls "$RUN_DIR/predictions" || true
+            echo "Tables:"
+            ls "$RUN_DIR/tables" || true
+            echo "Figures:"
+            ls "$RUN_DIR/figures" || true
+            echo "LaTeX:"
+            ls "$RUN_DIR/latex" || true
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload combined Section 5 package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: section5-${{ env.SECTION5_RUN_ID }}-combined
+          path: |
+            projects/harv-extension/code/paper/runs/${{ env.SECTION5_RUN_ID }}/predictions/*.csv
+            projects/harv-extension/code/paper/runs/${{ env.SECTION5_RUN_ID }}/tables/*
+            projects/harv-extension/code/paper/runs/${{ env.SECTION5_RUN_ID }}/figures/*
+            projects/harv-extension/code/paper/runs/${{ env.SECTION5_RUN_ID }}/latex/*
+          if-no-files-found: ignore
+          retention-days: 30
