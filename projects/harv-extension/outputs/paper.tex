@@ -108,7 +108,7 @@
 \section{Introduction}
 \vspace{0.3cm}
 \noindent
-Volatility plays a key role in financial market forecasting, particularly in the pricing of derivatives and risk management. A well-established model for predicting volatility based on historical data is the Heterogeneous Autoregressive model of Realized Volatility (HAR-RV) \cite{corsi2009}. This model leverages realized volatility---volatility observed from historical high-frequency data---and incorporates information from multiple time horizons, typically daily, weekly, and monthly, to capture the persistence and heterogeneity of volatility dynamics. Although the HAR-RV model was originally developed for daily volatility forecasting, the same multi-horizon idea is useful in high-frequency settings where asset prices update on the order of seconds or minutes. The realized volatility over a given evaluation period is computed as:
+Volatility plays a key role in financial market forecasting, particularly in the pricing of derivatives and risk management. A well-established model for predicting volatility based on historical data is the Heterogeneous Autoregressive model of Realized Volatility (HAR-RV) \cite{corsi2009}. This model leverages realized volatility, meaning volatility observed from historical high-frequency data, and incorporates information from multiple time horizons, typically daily, weekly, and monthly, to capture the persistence and heterogeneity of volatility dynamics. Although the HAR-RV model was originally developed for daily volatility forecasting, the same multi-horizon idea is useful in high-frequency settings where asset prices update on the order of seconds or minutes. The realized volatility over a given evaluation period is computed as:
 \[
 RV_t = \sqrt{\sum_{j=1}^n \left(\log\left(\frac{X_j}{X_{j-1}}\right)\right)^2},
 \]
@@ -267,20 +267,66 @@ The gain profile is also balanced rather than outlier-driven. When PM outperform
 \subsection{Ablations and Drivers}
 
 \noindent
-Section 5 is intentionally left as a placeholder in this draft. The available ablation outputs are not yet fully aligned with the ten-asset cross-sectional intraday evaluation used above, so Figures 4 through 6 and Tables 3 and 4 are omitted rather than mixing the main results with older, non-comparable outputs.
+The robust ablation exercise asks which assumptions behind the prime-based extensions are empirically important. The checks use the same ten tickers, date range, 5-minute inputs, warmup, and expanding-window protocol as the main intraday study. The central object is the paired SMAPE improvement relative to HAR-RV, computed asset by asset before cross-sectional averaging.
+
+{\renewcommand{\thetable}{3}
+\begin{center}
+\captionof{table}{Robust ablation summary. Positive $\Delta$SMAPE indicates lower SMAPE than HAR-RV.}
+\label{tab:param_efficiency}
+\small
+\renewcommand{\arraystretch}{1.12}
+\setlength{\tabcolsep}{5pt}
+\resizebox{0.98\textwidth}{!}{\input{paper_assets/tables/Section_5_table_3_robust_summary.tex}}
+
+\vspace{0.1cm}
+\footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Entries report cross-sectional means with standard errors across assets. Timestamp Win Rate is the average share of evaluation timestamps where the model has lower SMAPE than HAR-RV. A model can have a win rate below 50\% and positive mean improvement if its gains are larger than its losses.}
+\end{center}}
 
 \noindent
-This omission does not change the headline interpretation of Sections A through D, but it does define the remaining robustness burden. The final Section 5 package should use the same tickers, date range, 5-minute horizon, and train-test alignment as the main intraday panel, and should introduce only already-supported controls rather than new headline models. Its role is to separate three competing explanations for the observed gains: genuinely informative order structure, simple parameter expansion, and accidental feature enrichment.
+Table~\ref{tab:param_efficiency} shows that the CP specification remains the strongest prime-based model. PM improves on HAR-RV by 0.76 percentage points in mean SMAPE, while CP improves by 1.29 percentage points. The reduced six-feature CP version captures nearly all of the full CP gain, which indicates that the improvement is not mainly a consequence of adding a large number of regressors. Equal-window and prefix-window controls are close to CP at six features, so the evidence points to local ordered segmentation as the main empirical ingredient.
+
+{\renewcommand{\thefigure}{4}
+\begin{center}
+\includegraphics[width=0.82\textwidth]{paper_assets/figures/Section_5_fig_4_feature_count_curve.pdf}
+\captionof{figure}{Feature-count curve for ordered and non-ordered lag constructions. Positive values indicate lower SMAPE than HAR-RV.}
+\label{fig:feature_count_curve}
+\end{center}}
 
 \noindent
-The aligned ablation section should therefore contain three checks. First, a capacity curve should test whether the PM gains saturate once the minimal prime coverage is reached. Second, PM and CP modifiers should test whether extra volatility or jump features improve on the core order-aware construction. Third, randomized and contiguous-random controls should test whether arbitrary feature enrichment can replicate the PM and CP improvements. If the prime-based extensions remain competitive under these controls, the empirical argument becomes stronger; if not, the final claim should be narrowed to the direct out-of-sample performance evidence reported above.
+Figure~\ref{fig:feature_count_curve} reinforces this interpretation. CP improves sharply between three and six extra features and then flattens, while PM is essentially flat across feature counts. Equal-window and prefix-window controls also improve on HAR-RV, which weakens any claim that primality alone drives the result. The more defensible interpretation is that CP is a compact way to encode useful short-run ordering information.
+
+{\renewcommand{\thefigure}{5}
+\begin{center}
+\includegraphics[width=0.82\textwidth]{paper_assets/figures/Section_5_fig_5_random_controls.pdf}
+\captionof{figure}{Matched random controls by feature count. Random points show the three tested seeds for RAND and CRS. Positive values indicate lower SMAPE than HAR-RV.}
+\label{fig:random_controls}
+\end{center}}
+
+\noindent
+Figure~\ref{fig:random_controls} compares PM and CP with matched random feature sets. PM is not clearly separated from random controls, especially once the number of added features is fixed. CP is more robust: at six and nine added features it exceeds all sampled RAND and CRS controls. This supports the claim that CP captures a repeatable ordering effect rather than merely benefiting from arbitrary feature enrichment.
+
+{\renewcommand{\thetable}{4}
+\begin{center}
+\captionof{table}{Driver checks from the robust ablation run. Positive $\Delta$SMAPE indicates lower SMAPE than HAR-RV.}
+\label{tab:driver_checks}
+\footnotesize
+\renewcommand{\arraystretch}{1.12}
+\setlength{\tabcolsep}{4pt}
+\resizebox{0.98\textwidth}{!}{\input{paper_assets/tables/Section_5_table_4_driver_checks.tex}}
+
+\vspace{0.1cm}
+\footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Random-control rows average the three tested seeds. External baselines are interpreted using paired timestamp comparisons against HAR-RV. HAR-TCJ has a shorter aligned sample in raw levels, so the paired $\Delta$SMAPE column is the relevant comparison.}
+\end{center}}
+
+\noindent
+Table~\ref{tab:driver_checks} separates the main assumptions. Composite and non-coprime modulo controls are nearly identical to PM at matched feature counts, so the prime-modulo construction is not empirically distinguished by primality alone. Local ordered segmentation is more important: CP is stronger than PM and remains competitive against equal, prefix, shifted, and random local controls. EWMA and GARCH(1,1) perform poorly in this intraday realized-volatility setting. HARQ is weakly positive, and HAR-TCJ is not a clear improvement once evaluated on paired timestamps. The robust ablation evidence therefore supports a narrower claim: the strongest contribution is CP's compact ordered local segmentation, not every aspect of the prime-modulo construction.
 
 \subsection{Statistical Significance by Asset Groups}
 
 \noindent
 The final question is where the gains are strongest. The broad pattern is that ordered features help most in large, liquid US equity exposures, remain positive but less precise in fixed income and international equity, and add little in commodities and metals.
 
-{\renewcommand{\thefigure}{7}
+{\renewcommand{\thefigure}{6}
 \begin{center}
 \includegraphics[width=0.88\textwidth]{paper_assets/figures/Section_6_fig_7_asset_groups.pdf}
 \captionof{figure}{Average SMAPE improvement relative to HAR-RV by asset group.}
@@ -344,7 +390,7 @@ This cross-group pattern is economically coherent. The strongest gains arise in 
 \section{Future Improvements}
 
 \noindent
-The present evidence supports a deliberately narrow conclusion: on the ten-asset 5-minute intraday panel, the prime-based extensions improve average forecasting accuracy relative to the HAR-RV baseline, with the strongest and most stable gains coming from CP. The appendix daily mirror shows that this advantage does not automatically transfer to daily sampling. Future work should therefore focus less on adding new model names and more on clarifying when the ordered lag structure is statistically and economically reliable.
+The present evidence supports a deliberately narrow conclusion: on the ten-asset 5-minute intraday panel, the prime-based extensions improve average forecasting accuracy relative to the HAR-RV baseline, with the strongest and most robust gains coming from CP. The ablations suggest that local ordered segmentation is more important empirically than primality by itself. The appendix daily mirror shows that this advantage does not automatically transfer to daily sampling. Future work should therefore focus less on adding new model names and more on clarifying when ordered lag structure is statistically and economically reliable.
 
 \noindent
 A first improvement is to broaden the loss functions used for evaluation. SMAPE, RMSE, MAE, MedAE, and Directional Accuracy cover scale-normalized error, tail-sensitive squared error, absolute error, median robustness, and directional movement. For volatility forecasts, however, a QLIKE-style loss would be a useful addition because it is commonly used for volatility forecast comparison and is less tied to the scale issues of percentage errors \cite{patton2011}. Reporting out-of-sample $R^2$ relative to HAR-RV would also make the magnitude of improvement easier to interpret.
@@ -399,6 +445,75 @@ The headline model set is fixed to HAR-RV, PM, and CP. This restriction is inten
 \noindent
 All reported main-text metrics are first computed separately for each asset and are then summarized across assets. This avoids letting the most densely represented or easiest-to-predict asset dominate the aggregate result. Time-series plots use the cross-sectional average prediction series only for visual clarity; their reported summary statistics are still computed from the underlying full-resolution forecast errors.
 
+\section{Robust Ablation Details}
+
+\noindent
+This appendix reports the full robust Section 5 grids. Each entry is a paired comparison against HAR-RV unless otherwise noted. Positive $\Delta$SMAPE means that the candidate model has lower SMAPE than HAR-RV on the aligned evaluation timestamps.
+
+{\renewcommand{\thetable}{C1}
+\begin{center}
+\captionof{table}{Feature-count curve details. Positive $\Delta$SMAPE indicates lower SMAPE than HAR-RV.}
+\label{tab:appendix_feature_count}
+\scriptsize
+\renewcommand{\arraystretch}{1.08}
+\resizebox{0.86\textwidth}{!}{\input{paper_assets/tables/Appendix_Table_C1_feature_count.tex}}
+\end{center}}
+
+\noindent
+Table~\ref{tab:appendix_feature_count} shows that PM is nearly unchanged as additional modulo features are added. CP improves from three to six features and then flattens, while equal-window and prefix-window controls remain close to CP.
+
+{\renewcommand{\thetable}{C2}
+\begin{center}
+\captionof{table}{Contiguous-window controls. Positive $\Delta$SMAPE indicates lower SMAPE than HAR-RV.}
+\label{tab:appendix_contiguous}
+\scriptsize
+\renewcommand{\arraystretch}{1.08}
+\resizebox{0.90\textwidth}{!}{\input{paper_assets/tables/Appendix_Table_C2_contiguous_windows.tex}}
+\end{center}}
+
+\noindent
+Table~\ref{tab:appendix_contiguous} shows that shifted contiguous controls remain positive, but they are weaker than the strongest CP and prefix-window specifications. This supports the importance of local ordering while keeping the exact CP construction as one compact implementation.
+
+{\renewcommand{\thetable}{C3}
+\begin{center}
+\captionof{table}{Prime and non-prime modulo controls. Positive $\Delta$SMAPE indicates lower SMAPE than HAR-RV.}
+\label{tab:appendix_prime_nonprime}
+\scriptsize
+\renewcommand{\arraystretch}{1.08}
+\resizebox{0.84\textwidth}{!}{\input{paper_assets/tables/Appendix_Table_C3_prime_nonprime.tex}}
+\end{center}}
+
+\noindent
+Table~\ref{tab:appendix_prime_nonprime} shows that prime, composite, and non-coprime modulo constructions produce very similar paired improvements at matched feature counts. The empirical evidence therefore does not isolate primality as the main driver of the PM result.
+
+\clearpage
+
+{\renewcommand{\thetable}{C4}
+\begin{center}
+\captionof{table}{Matched random controls. Positive $\Delta$SMAPE indicates lower SMAPE than HAR-RV.}
+\label{tab:appendix_random}
+\scriptsize
+\renewcommand{\arraystretch}{1.08}
+\resizebox{0.88\textwidth}{!}{\input{paper_assets/tables/Appendix_Table_C4_random_controls.tex}}
+\end{center}}
+
+\noindent
+Table~\ref{tab:appendix_random} reports the individual random-control seeds. CP at six and nine features is above all tested RAND and CRS controls. PM is not similarly separated from random controls.
+
+{\renewcommand{\thetable}{C5}
+\begin{center}
+\captionof{table}{External baseline checks. Positive $\Delta$SMAPE indicates lower SMAPE than HAR-RV on paired timestamps.}
+\label{tab:appendix_external}
+\scriptsize
+\renewcommand{\arraystretch}{1.08}
+\resizebox{0.62\textwidth}{!}{\input{paper_assets/tables/Appendix_Table_C5_external.tex}}
+\end{center}}
+
+\noindent
+Table~\ref{tab:appendix_external} shows that EWMA and GARCH(1,1) are poor fits for this 5-minute realized-volatility target. HARQ is only mildly positive. HAR-TCJ has a much lower raw SMAPE level on its own aligned sample, but the paired comparison against HAR-RV is small and noisy, so it is not treated as a main-text competitor.
+
+\clearpage
+
 \section{Metric Definitions and Inference}
 
 \noindent
@@ -434,7 +549,7 @@ If $M_i^{\,m}$ denotes any one of the asset-level metrics above, the tables repo
 where $N$ is the number of assets and $s(\cdot)$ is the sample standard deviation across assets.
 
 \vspace{0.15cm}
-\noindent \textbf{Advantage measures used in Figures 3 and 7 and in Table 5.}
+\noindent \textbf{Advantage measures used in Figures 3 and 6 and in Table 5.}
 For the timestamp-level advantage plot, we define
 \begin{align*}
 \delta_t^{\,m}

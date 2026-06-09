@@ -1,0 +1,17 @@
+\begin{tabular}{|l|l|c|c|}
+\hline
+Comparison & Driver Tested & \shortstack{$\Delta$SMAPE\\vs HAR-RV (pp)} & \shortstack{Timestamp\\Win Rate (\%)} \\
+\hline
+CP, 6 features & Local segmentation & 1.23 $\pm$ 0.35 & 45.4 \\
+CP, 9 features & Local segmentation & 1.30 $\pm$ 0.38 & 45.3 \\
+PM, 6 features & Prime modulo & 0.77 $\pm$ 0.21 & 43.9 \\
+Composite modulo, 6 features & Non-prime modulo & 0.77 $\pm$ 0.21 & 43.9 \\
+Non-coprime modulo, 6 features & Non-prime modulo & 0.76 $\pm$ 0.21 & 43.8 \\
+Random controls, 6 features & Random sets & 0.79 $\pm$ 0.07 & 44.4 \\
+Contiguous random, 6 features & Random local sets & 1.07 $\pm$ 0.08 & 45.6 \\
+HARQ & External HAR variant & 0.35 $\pm$ 0.19 & 44.8 \\
+HAR-TCJ & External HAR variant & 0.12 $\pm$ 0.59 & 47.5 \\
+EWMA & External baseline & -10.77 $\pm$ 1.22 & 28.2 \\
+GARCH(1,1) & External baseline & -16.88 $\pm$ 2.32 & 22.1 \\
+\hline
+\end{tabular}
