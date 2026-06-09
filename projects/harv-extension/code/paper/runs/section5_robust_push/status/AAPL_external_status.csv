@@ -1,0 +1,5 @@
+time_utc,ticker,suite,model,family,feature_count,status,n_obs,seconds,error
+2026-06-08 23:03:51 UTC,AAPL,external,EWMA,EWMA,0,complete,36739,1.3847558030000187,
+2026-06-08 23:10:36 UTC,AAPL,external,HARQ,HARQ,4,complete,35719,405.491247216,
+2026-06-08 23:17:41 UTC,AAPL,external,HAR_TCJ,HAR_TCJ,6,complete,32682,424.173030553,
+2026-06-08 23:17:48 UTC,AAPL,external,GARCH11,GARCH11,0,complete,36739,7.494560263000039,

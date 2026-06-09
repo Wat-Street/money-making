@@ -1,0 +1,4 @@
+time_utc,ticker,suite,model,family,feature_count,status,n_obs,seconds,error
+2026-06-09 01:47:30 UTC,SPY,core,HAR,HAR,0,complete,36739,248.90125451,
+2026-06-09 01:57:22 UTC,SPY,core,PM,PM,10,complete,36739,592.034026926,
+2026-06-09 02:06:50 UTC,SPY,core,CP,CP,10,complete,36739,567.8408193289999,

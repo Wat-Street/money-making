@@ -1,0 +1,4 @@
+time_utc,ticker,suite,model,family,feature_count,status,n_obs,seconds,error
+2026-06-08 23:07:54 UTC,AMZN,core,HAR,HAR,0,complete,36739,249.382642116,
+2026-06-08 23:17:41 UTC,AMZN,core,PM,PM,10,complete,36739,587.1036102539999,
+2026-06-08 23:27:02 UTC,AMZN,core,CP,CP,10,complete,36739,561.3293407890001,

@@ -1,0 +1,5 @@
+time_utc,ticker,suite,model,family,feature_count,status,n_obs,seconds,error
+2026-06-09 00:45:45 UTC,QQQ,external,EWMA,EWMA,0,complete,36739,1.7205534229999557,
+2026-06-09 00:53:02 UTC,QQQ,external,HARQ,HARQ,4,complete,35719,436.79261669699997,
+2026-06-09 01:01:57 UTC,QQQ,external,HAR_TCJ,HAR_TCJ,6,complete,35704,534.99328569,
+2026-06-09 01:02:05 UTC,QQQ,external,GARCH11,GARCH11,0,complete,36739,8.30944006499999,

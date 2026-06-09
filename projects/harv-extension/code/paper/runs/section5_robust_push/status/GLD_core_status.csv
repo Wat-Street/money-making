@@ -1,0 +1,4 @@
+time_utc,ticker,suite,model,family,feature_count,status,n_obs,seconds,error
+2026-06-09 00:48:38 UTC,GLD,core,HAR,HAR,0,complete,36739,245.83543176599997,
+2026-06-09 00:58:16 UTC,GLD,core,PM,PM,10,complete,36739,577.9627502809999,
+2026-06-09 01:07:36 UTC,GLD,core,CP,CP,10,complete,36739,559.642470862,

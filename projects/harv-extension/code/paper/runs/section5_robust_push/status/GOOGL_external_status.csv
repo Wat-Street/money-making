@@ -1,0 +1,5 @@
+time_utc,ticker,suite,model,family,feature_count,status,n_obs,seconds,error
+2026-06-09 01:08:16 UTC,GOOGL,external,EWMA,EWMA,0,complete,36739,1.7619764629999963,
+2026-06-09 01:15:28 UTC,GOOGL,external,HARQ,HARQ,4,complete,35719,431.84385085199995,
+2026-06-09 01:22:29 UTC,GOOGL,external,HAR_TCJ,HAR_TCJ,6,complete,29866,421.56167655600007,
+2026-06-09 01:22:38 UTC,GOOGL,external,GARCH11,GARCH11,0,complete,36739,8.511406854000029,

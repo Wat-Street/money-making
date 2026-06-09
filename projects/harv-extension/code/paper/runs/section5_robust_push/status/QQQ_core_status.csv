@@ -1,0 +1,4 @@
+time_utc,ticker,suite,model,family,feature_count,status,n_obs,seconds,error
+2026-06-09 01:12:31 UTC,QQQ,core,HAR,HAR,0,complete,36739,242.39340868399998,
+2026-06-09 01:21:55 UTC,QQQ,core,PM,PM,10,complete,36739,564.245682747,
+2026-06-09 01:31:07 UTC,QQQ,core,CP,CP,10,complete,36739,552.5080592700001,

@@ -1,0 +1,4 @@
+time_utc,ticker,suite,model,family,feature_count,status,n_obs,seconds,error
+2026-06-08 23:08:06 UTC,GOOGL,core,HAR,HAR,0,complete,36739,259.94402579800004,
+2026-06-08 23:17:59 UTC,GOOGL,core,PM,PM,10,complete,36739,592.988014164,
+2026-06-08 23:27:29 UTC,GOOGL,core,CP,CP,10,complete,36739,569.7832611800001,

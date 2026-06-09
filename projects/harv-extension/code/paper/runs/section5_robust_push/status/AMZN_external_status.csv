@@ -1,0 +1,5 @@
+time_utc,ticker,suite,model,family,feature_count,status,n_obs,seconds,error
+2026-06-09 00:48:07 UTC,AMZN,external,EWMA,EWMA,0,complete,36739,1.4130317000000048,
+2026-06-09 00:54:39 UTC,AMZN,external,HARQ,HARQ,4,complete,35719,391.71121244700004,
+2026-06-09 01:01:31 UTC,AMZN,external,HAR_TCJ,HAR_TCJ,6,complete,31879,412.427842499,
+2026-06-09 01:01:40 UTC,AMZN,external,GARCH11,GARCH11,0,complete,36739,8.292294593000065,

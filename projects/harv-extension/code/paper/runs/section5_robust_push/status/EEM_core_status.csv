@@ -1,0 +1,4 @@
+time_utc,ticker,suite,model,family,feature_count,status,n_obs,seconds,error
+2026-06-09 00:52:43 UTC,EEM,core,HAR,HAR,0,complete,36739,165.217282875,
+2026-06-09 01:00:10 UTC,EEM,core,PM,PM,10,complete,36739,446.94008416900004,
+2026-06-09 01:07:20 UTC,EEM,core,CP,CP,10,complete,36739,429.90113579499996,

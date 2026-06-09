@@ -1,0 +1,4 @@
+time_utc,ticker,suite,model,family,feature_count,status,n_obs,seconds,error
+2026-06-08 23:45:18 UTC,AAPL,core,HAR,HAR,0,complete,36739,243.08724025600003,
+2026-06-08 23:58:27 UTC,AAPL,core,PM,PM,10,complete,36739,788.4331656080001,
+2026-06-09 00:11:03 UTC,AAPL,core,CP,CP,10,complete,36739,755.6293416200001,
