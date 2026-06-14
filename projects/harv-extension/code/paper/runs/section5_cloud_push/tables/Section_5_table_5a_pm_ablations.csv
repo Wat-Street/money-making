@@ -1,0 +1,2 @@
+delta_smape_pct_mean,delta_smape_pct_se,delta_mae_mean,delta_mae_se,delta_rmse_mean,delta_rmse_se,delta_diracc_pct_mean,delta_diracc_pct_se,winner_frac_smape,fisher_p_dm_smape,fisher_p_dm_mae,fisher_p_dm_rmse,fisher_p_diracc,sig_mark_smape,sig_mark_mae,sig_mark_rmse,sig_mark_diracc,fisher_p_dm,sig_mark,n_assets,model
+-1.3772384470988208,0.4770355144391616,-2.4285209505835012e-05,8.391518231532406e-06,7.383809586946661e-06,2.1978180831927983e-06,8.142536054998878,0.9673412353060338,0.2,0.0,3.3306690738754696e-15,4.440892098500626e-16,0.0,?,?,?,?,0.0,?,10,PM_VW

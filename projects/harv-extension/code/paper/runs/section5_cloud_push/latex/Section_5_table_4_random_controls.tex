@@ -1,0 +1,16 @@
+% Auto-generated: Section 5 — Table 4 (Randomized control)
+\begin{table}[t]
+  \centering
+  \caption{Section 5, Table 4 (Intraday). Randomized feature sets as a negative control. Deltas are reported as HAR$-$Model, so positive values indicate improvement over HAR.}
+  \label{tab:section5_random_control}
+  \begin{tabular}{lcccccc}
+    \toprule
+    \textbf{Model} & \textbf{$\Delta$SMAPE (\%)} & \textbf{$\Delta$MAE} & \textbf{$\Delta$RMSE} & \textbf{Wins $p{<}.05$} & \textbf{Fisher $p$} & \textbf{Sig.} \\
+    \midrule
+    Contiguous Random (control) & \textbf{0.13 $\pm$ 0.07} & 2.16e-06 $\pm$ 9.38e-07 & 1.47e-06 $\pm$ 9.97e-07 & 7/10 & $8.77 \times 10^{-15}$ & ? \\
+    Random (control) & -0.67 $\pm$ 0.24 & -2.73e-06 $\pm$ 3.70e-06 & -6.61e-06 $\pm$ 1.36e-06 & 2/10 & $0$ & ? \\
+    \bottomrule
+  \end{tabular}
+  \vspace{2pt}
+  {\footnotesize Notes: $\Delta$ columns are HAR$-$Model; positive means improvement. Wins counts assets with Diebold--Mariano $p{<}.05$ vs HAR.}
+\end{table}

@@ -1,0 +1,2 @@
+delta_smape_pct_mean,delta_smape_pct_se,delta_mae_mean,delta_mae_se,delta_rmse_mean,delta_rmse_se,delta_diracc_pct_mean,delta_diracc_pct_se,winner_frac_smape,fisher_p_dm_smape,fisher_p_dm_mae,fisher_p_dm_rmse,fisher_p_diracc,sig_mark_smape,sig_mark_mae,sig_mark_rmse,sig_mark_diracc,fisher_p_dm,sig_mark,n_assets,model
+0.0,8.662036763339842e-15,0.0,9.146812438698713e-20,0.0,8.211434836129471e-20,0.0,0.0,0.0,0.0019297885403352089,0.0008039181531646067,0.2645564769770059,1.0,Ø,?,,,0.0019297885403352089,Ø,10,CP_CJ

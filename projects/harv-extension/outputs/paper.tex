@@ -6,7 +6,7 @@
 % Packages
 \usepackage{geometry}
 \geometry{left=1.5cm, right=1.5cm, top=2.54cm, bottom=2.54cm}
-\usepackage{graphicx, hyperref, setspace, titlesec, fancyhdr, multicol, parskip, indentfirst, etoolbox, caption, cite, xcolor}
+\usepackage{graphicx, hyperref, setspace, titlesec, fancyhdr, multicol, parskip, indentfirst, etoolbox, caption, cite, xcolor, booktabs}
 \newtheorem{theorem}{Theorem}
 
 % Title Formatting
@@ -153,7 +153,7 @@ where $X_j$ denotes the asset price at the $j$-th intraday interval in that peri
 
 
 \section{Results and Analysis}
-\captionsetup{font=small,hypcap=false}
+\captionsetup{font=small,labelfont=bf,labelsep=period,hypcap=false}
 
 \noindent
 This section evaluates the baseline HAR-RV specification against the Prime Modulo (PM) and Contiguous Prime (CP) extensions on the ten-asset intraday panel used throughout the empirical study. The main text focuses on the 5-minute horizon. Unless otherwise noted, each reported metric is first computed asset by asset and is then summarized by the cross-sectional mean with a standard error across AAPL, AMZN, GOOGL, SPY, QQQ, EEM, FXI, GLD, HYG, and TLT.
@@ -162,23 +162,15 @@ This section evaluates the baseline HAR-RV specification against the Prime Modul
 
 {\renewcommand{\thetable}{1A}
 \begin{center}
-\captionof{table}{Overall forecasting performance at the 5-minute horizon. Lower values are better except for Directional Accuracy.}
+\captionof{table}{Overall forecasting performance at the 5-minute horizon.}
 \label{tab:overall_intraday}
 \small
 \renewcommand{\arraystretch}{1.15}
 \setlength{\tabcolsep}{6pt}
-\begin{tabular}{|l|c|c|c|c|c|}
-\hline
-Model & SMAPE (\%) & \shortstack{RMSE\\$(\times 10^{-3})$} & \shortstack{MAE\\$(\times 10^{-4})$} & \shortstack{MedAE\\$(\times 10^{-4})$} & \shortstack{Directional\\Accuracy (\%)} \\
-\hline
-HAR-RV & 102.17 $\pm$ 7.51 & 1.403 $\pm$ 0.174 & 6.04 $\pm$ 0.76 & 4.32 $\pm$ 0.56 & 58.54 $\pm$ 3.69 \\
-Prime Modulo (PM) & 101.41 $\pm$ 7.66 & 1.396 $\pm$ 0.173 & 5.95 $\pm$ 0.76 & 4.09 $\pm$ 0.54 & 59.11 $\pm$ 3.82 \\
-Contiguous Prime (CP) & \textbf{100.88 $\pm$ 7.79} & \textbf{1.389 $\pm$ 0.172} & \textbf{5.86 $\pm$ 0.75} & \textbf{3.94 $\pm$ 0.52} & \textbf{59.49 $\pm$ 3.90} \\
-\hline
-\end{tabular}
+\resizebox{0.98\textwidth}{!}{\input{paper_assets/tables_journal/table_overall_intraday.tex}}
 
 \vspace{0.1cm}
-\footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Entries report the cross-sectional mean with standard errors across assets. Error columns are rescaled for readability. Each asset contributes roughly 36,747 aligned 5-minute evaluation observations. Bold marks the best value in each column.}
+\footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Lower values are better except for Directional Accuracy. Entries report the cross-sectional mean with standard errors across assets. Error columns are rescaled for readability. Each asset contributes roughly 36,747 aligned 5-minute evaluation observations. Bold marks the best value in each column.}
 \end{center}}
 
 \noindent
@@ -191,23 +183,15 @@ The consistency across loss functions matters. It implies that the gain is not c
 
 {\renewcommand{\thetable}{2}
 \begin{center}
-\captionof{table}{SMAPE by realized-volatility regime. Lower values are better.}
+\captionof{table}{SMAPE by realized-volatility regime.}
 \label{tab:regimes_intraday}
 \small
 \renewcommand{\arraystretch}{1.15}
 \setlength{\tabcolsep}{10pt}
-\begin{tabular}{|l|c|c|c|}
-\hline
-Model & Low RV & Medium RV & High RV \\
-\hline
-HAR-RV & 171.34 $\pm$ 6.46 & 65.47 $\pm$ 7.65 & 57.30 $\pm$ 1.64 \\
-Prime Modulo (PM) & 170.11 $\pm$ 6.79 & 65.36 $\pm$ 8.51 & 57.11 $\pm$ 1.48 \\
-Contiguous Prime (CP) & \textbf{169.00 $\pm$ 7.16} & \textbf{65.26 $\pm$ 8.53} & \textbf{56.76 $\pm$ 1.49} \\
-\hline
-\end{tabular}
+\input{paper_assets/tables_journal/table_regimes_intraday.tex}
 
 \vspace{0.1cm}
-\footnotesize \parbox{0.84\textwidth}{\textit{Notes:} Regimes are defined by within-asset terciles of realized volatility. Entries are cross-sectional mean SMAPE with standard errors across assets.}
+\footnotesize \parbox{0.84\textwidth}{\textit{Notes:} Lower values are better. Regimes are defined by within-asset terciles of realized volatility. Entries are cross-sectional mean SMAPE with standard errors across assets.}
 \end{center}}
 
 {\renewcommand{\thefigure}{1}
@@ -276,7 +260,7 @@ The robust ablation exercise asks which assumptions behind the prime-based exten
 \small
 \renewcommand{\arraystretch}{1.12}
 \setlength{\tabcolsep}{5pt}
-\resizebox{0.98\textwidth}{!}{\input{paper_assets/tables/Section_5_table_3_robust_summary.tex}}
+\resizebox{0.98\textwidth}{!}{\input{paper_assets/tables_journal/table_section5_summary.tex}}
 
 \vspace{0.1cm}
 \footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Entries report cross-sectional means with standard errors across assets. Timestamp Win Rate is the average share of evaluation timestamps where the model has lower SMAPE than HAR-RV. A model can have a win rate below 50\% and positive mean improvement if its gains are larger than its losses.}
@@ -305,6 +289,8 @@ Figure~\ref{fig:feature_count_curve} reinforces this interpretation. CP improves
 \noindent
 Figure~\ref{fig:random_controls} compares PM and CP with matched random feature sets. PM is not clearly separated from random controls, especially once the number of added features is fixed. CP is more robust: at six and nine added features it exceeds all sampled RAND and CRS controls. This supports the claim that CP captures a repeatable ordering effect rather than merely benefiting from arbitrary feature enrichment.
 
+\clearpage
+
 {\renewcommand{\thetable}{4}
 \begin{center}
 \captionof{table}{Driver checks from the robust ablation run. Positive $\Delta$SMAPE indicates lower SMAPE than HAR-RV.}
@@ -312,7 +298,7 @@ Figure~\ref{fig:random_controls} compares PM and CP with matched random feature 
 \footnotesize
 \renewcommand{\arraystretch}{1.12}
 \setlength{\tabcolsep}{4pt}
-\resizebox{0.98\textwidth}{!}{\input{paper_assets/tables/Section_5_table_4_driver_checks.tex}}
+\resizebox{0.98\textwidth}{!}{\input{paper_assets/tables_journal/table_section5_drivers.tex}}
 
 \vspace{0.1cm}
 \footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Random-control rows average the three tested seeds. External baselines are interpreted using paired timestamp comparisons against HAR-RV. HAR-TCJ has a shorter aligned sample in raw levels, so the paired $\Delta$SMAPE column is the relevant comparison.}
@@ -333,52 +319,20 @@ The final question is where the gains are strongest. The broad pattern is that o
 \label{fig:asset_groups}
 \end{center}}
 
-\noindent\begin{minipage}{\textwidth}
+\clearpage
+
 {\renewcommand{\thetable}{5}
 \begin{center}
-\captionof{table}{Group-level performance and significance by asset class. Positive $\Delta \mathrm{SMAPE}$ indicates lower SMAPE than HAR-RV.}
+\captionof{table}{Group-level performance and significance by asset class.}
 \label{tab:groups}
 \small
 \renewcommand{\arraystretch}{1.15}
 \setlength{\tabcolsep}{8pt}
-\begin{minipage}{0.88\textwidth}
-\centering
-\textbf{Panel A. Prime Modulo (PM)}\\[0.1cm]
-\begin{tabular}{|l|c|c|c|}
-\hline
-Asset Group & $\Delta \mathrm{SMAPE}$ (pp) & Asset Win Rate (\%) & Fisher Combined $p$-value \\
-\hline
-US Mega Tech & 1.26 $\pm$ 0.13 & 100\% & $6.11 \times 10^{-33}$ \\
-Broad US Equity & 1.51 $\pm$ 0.10 & 100\% & $6.30 \times 10^{-19}$ \\
-International Equity & 0.13 $\pm$ 0.13 & 100\% & $< 10^{-300}$ \\
-Commodities/Metals & -0.04 & 0\% & $9.75 \times 10^{-12}$ \\
-Fixed Income & 0.31 $\pm$ 0.24 & 100\% & $< 10^{-300}$ \\
-\hline
-\end{tabular}
-\end{minipage}
-
-\vspace{0.25cm}
-
-\begin{minipage}{0.88\textwidth}
-\centering
-\textbf{Panel B. Contiguous Prime (CP)}\\[0.1cm]
-\begin{tabular}{|l|c|c|c|}
-\hline
-Asset Group & $\Delta \mathrm{SMAPE}$ (pp) & Asset Win Rate (\%) & Fisher Combined $p$-value \\
-\hline
-US Mega Tech & 1.79 $\pm$ 0.25 & 100\% & $< 10^{-300}$ \\
-Broad US Equity & 2.99 $\pm$ 0.07 & 100\% & $< 10^{-300}$ \\
-International Equity & 0.16 $\pm$ 0.34 & 50\% & $< 10^{-300}$ \\
-Commodities/Metals & 0.04 & 100\% & $< 10^{-300}$ \\
-Fixed Income & 0.59 $\pm$ 0.56 & 100\% & $< 10^{-300}$ \\
-\hline
-\end{tabular}
-\end{minipage}
+\resizebox{0.88\textwidth}{!}{\input{paper_assets/tables_journal/table_asset_groups.tex}}
 
 \vspace{0.1cm}
-\footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Asset Win Rate is the share of assets in each group with positive $\Delta \mathrm{SMAPE}$ relative to HAR-RV. Fisher combined $p$-values aggregate per-asset Diebold--Mariano tests based on absolute-error loss. Values below machine precision are reported as $< 10^{-300}$. Standard errors are unavailable for single-asset groups.}
+\footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Positive $\Delta \mathrm{SMAPE}$ indicates lower SMAPE than HAR-RV. Asset Win Rate is the share of assets in each group with positive $\Delta \mathrm{SMAPE}$ relative to HAR-RV. Fisher combined $p$-values aggregate per-asset Diebold--Mariano tests based on absolute-error loss. Values below machine precision are reported as $< 10^{-300}$. Standard errors are unavailable for single-asset groups.}
 \end{center}}
-\end{minipage}
 
 \noindent
 Figure~\ref{fig:asset_groups} and Table~\ref{tab:groups} make the cross-sectional pattern explicit. The largest gains appear in Broad US Equity and US Mega Tech, where both PM and CP improve on every asset and where CP delivers the largest group-level gains. Fixed Income remains positive but is estimated less precisely, while International Equity is positive on average with wider dispersion. Commodities and Metals are essentially flat, with PM slightly negative and CP only marginally positive.
@@ -412,23 +366,15 @@ Finally, the empirical design should remain fixed while the paper is finalized. 
 
 {\renewcommand{\thetable}{1B}
 \begin{center}
-\captionof{table}{Overall forecasting performance at the daily horizon. Lower values are better except for Directional Accuracy.}
+\captionof{table}{Overall forecasting performance at the daily horizon.}
 \label{tab:overall_daily}
 \small
 \renewcommand{\arraystretch}{1.15}
 \setlength{\tabcolsep}{6pt}
-\begin{tabular}{|l|c|c|c|c|c|}
-\hline
-Model & SMAPE (\%) & \shortstack{RMSE\\$(\times 10^{-3})$} & \shortstack{MAE\\$(\times 10^{-3})$} & \shortstack{MedAE\\$(\times 10^{-3})$} & \shortstack{Directional\\Accuracy (\%)} \\
-\hline
-HAR-RV & \textbf{36.45 $\pm$ 2.46} & \textbf{7.515 $\pm$ 1.002} & \textbf{4.467 $\pm$ 0.527} & \textbf{3.069 $\pm$ 0.354} & \textbf{70.06 $\pm$ 0.69} \\
-Prime Modulo (PM) & 37.64 $\pm$ 2.37 & 7.649 $\pm$ 1.014 & 4.640 $\pm$ 0.560 & 3.114 $\pm$ 0.366 & 68.69 $\pm$ 0.89 \\
-Contiguous Prime (CP) & 37.88 $\pm$ 2.40 & 7.744 $\pm$ 1.016 & 4.705 $\pm$ 0.569 & 3.121 $\pm$ 0.369 & 69.35 $\pm$ 0.85 \\
-\hline
-\end{tabular}
+\resizebox{0.98\textwidth}{!}{\input{paper_assets/tables_journal/table_overall_daily.tex}}
 
 \vspace{0.1cm}
-\footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Entries report the cross-sectional mean with standard errors across assets. Error columns are rescaled for readability. Each asset contributes roughly 396 aligned daily observations. Bold marks the best value in each column.}
+\footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Lower values are better except for Directional Accuracy. Entries report the cross-sectional mean with standard errors across assets. Error columns are rescaled for readability. Each asset contributes roughly 396 aligned daily observations. Bold marks the best value in each column.}
 \end{center}}
 
 \noindent
@@ -450,13 +396,15 @@ All reported main-text metrics are first computed separately for each asset and 
 \noindent
 This appendix reports the full robust Section 5 grids. Each entry is a paired comparison against HAR-RV unless otherwise noted. Positive $\Delta$SMAPE means that the candidate model has lower SMAPE than HAR-RV on the aligned evaluation timestamps.
 
+\clearpage
+
 {\renewcommand{\thetable}{C1}
 \begin{center}
 \captionof{table}{Feature-count curve details. Positive $\Delta$SMAPE indicates lower SMAPE than HAR-RV.}
 \label{tab:appendix_feature_count}
 \scriptsize
 \renewcommand{\arraystretch}{1.08}
-\resizebox{0.86\textwidth}{!}{\input{paper_assets/tables/Appendix_Table_C1_feature_count.tex}}
+\resizebox{0.86\textwidth}{!}{\input{paper_assets/tables_journal/table_appendix_c1_feature_count.tex}}
 \end{center}}
 
 \noindent
@@ -468,11 +416,13 @@ Table~\ref{tab:appendix_feature_count} shows that PM is nearly unchanged as addi
 \label{tab:appendix_contiguous}
 \scriptsize
 \renewcommand{\arraystretch}{1.08}
-\resizebox{0.90\textwidth}{!}{\input{paper_assets/tables/Appendix_Table_C2_contiguous_windows.tex}}
+\resizebox{0.90\textwidth}{!}{\input{paper_assets/tables_journal/table_appendix_c2_contiguous.tex}}
 \end{center}}
 
 \noindent
 Table~\ref{tab:appendix_contiguous} shows that shifted contiguous controls remain positive, but they are weaker than the strongest CP and prefix-window specifications. This supports the importance of local ordering while keeping the exact CP construction as one compact implementation.
+
+\clearpage
 
 {\renewcommand{\thetable}{C3}
 \begin{center}
@@ -480,7 +430,7 @@ Table~\ref{tab:appendix_contiguous} shows that shifted contiguous controls remai
 \label{tab:appendix_prime_nonprime}
 \scriptsize
 \renewcommand{\arraystretch}{1.08}
-\resizebox{0.84\textwidth}{!}{\input{paper_assets/tables/Appendix_Table_C3_prime_nonprime.tex}}
+\resizebox{0.84\textwidth}{!}{\input{paper_assets/tables_journal/table_appendix_c3_prime_nonprime.tex}}
 \end{center}}
 
 \noindent
@@ -494,7 +444,7 @@ Table~\ref{tab:appendix_prime_nonprime} shows that prime, composite, and non-cop
 \label{tab:appendix_random}
 \scriptsize
 \renewcommand{\arraystretch}{1.08}
-\resizebox{0.88\textwidth}{!}{\input{paper_assets/tables/Appendix_Table_C4_random_controls.tex}}
+\resizebox{0.88\textwidth}{!}{\input{paper_assets/tables_journal/table_appendix_c4_random.tex}}
 \end{center}}
 
 \noindent
@@ -506,7 +456,7 @@ Table~\ref{tab:appendix_random} reports the individual random-control seeds. CP 
 \label{tab:appendix_external}
 \scriptsize
 \renewcommand{\arraystretch}{1.08}
-\resizebox{0.62\textwidth}{!}{\input{paper_assets/tables/Appendix_Table_C5_external.tex}}
+\resizebox{0.62\textwidth}{!}{\input{paper_assets/tables_journal/table_appendix_c5_external.tex}}
 \end{center}}
 
 \noindent

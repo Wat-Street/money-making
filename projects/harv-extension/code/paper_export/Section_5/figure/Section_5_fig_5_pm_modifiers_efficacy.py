@@ -23,6 +23,8 @@ def _fix_sig_mark(s: str) -> str:
     if not isinstance(s, str):
         return ""
     s = s.strip()
+    if s in {"?", "Ã˜", "Ø"}:
+        return ""
     # common mojibake normalizations
     s = s.replace("â˜…", "★").replace("â€¡", "‡").replace("â€ ", "†").replace("â€\xA0", "†")
     return s

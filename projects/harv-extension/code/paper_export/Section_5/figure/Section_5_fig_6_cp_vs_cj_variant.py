@@ -70,6 +70,8 @@ def _fix_sig_mark(s: str) -> str:
     if not isinstance(s, str):
         return ""
     s = s.strip()
+    if s in {"?", "Ã˜", "Ø"}:
+        return ""
     return (
         s.replace("â˜…", "★")
          .replace("â€¡", "‡")
