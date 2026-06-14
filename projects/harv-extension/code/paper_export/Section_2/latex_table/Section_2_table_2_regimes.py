@@ -1,11 +1,11 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Table 2 (Intraday only): Performance by RV regime
-- Columns: Model, Low RV, Medium RV, High RV (SMAPE% mean ± s.e.)
+- Columns: Model, Low RV, Medium RV, High RV (SMAPE% mean Â± s.e.)
 - Rows: all models present in CSV by default; --no-variants to keep cores only
 - Formatting: bold = best, underline = second-best per column
-- Notes: lower is better; ± is standard error; regimes defined by RV terciles (33%/66%)
+- Notes: lower is better; Â± is standard error; regimes defined by RV terciles (33%/66%)
 """
 
 import os
@@ -44,7 +44,7 @@ def fmt_pm(x, se, digits=2):
     return f'{x:.{digits}f} $\\pm$ {se:.{digits}f}'
 
 def bold_underline(col_strs, higher_is_better=False):
-    # col_strs: list of formatted strings like "123.45 ± 0.67"
+    # col_strs: list of formatted strings like "123.45 Â± 0.67"
     # Find numeric core value for ranking (left of first space)
     vals = []
     for s in col_strs:
@@ -104,7 +104,7 @@ def build_table(df: pd.DataFrame, include_variants: bool, caption: str, label: s
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--csv', required=True, help='Path to code/outputs/intraday/tables/Section_2_regimes.csv')
+    ap.add_argument('--csv', required=True, help='Path to run_results/current_intraday/tables/Section_2_regimes.csv')
     ap.add_argument('--out', required=True, help='Output .tex path')
     ap.add_argument('--include-variants', dest='include_variants', action='store_true', default=True)
     ap.add_argument('--no-variants', dest='include_variants', action='store_false')

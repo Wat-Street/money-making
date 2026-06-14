@@ -1,12 +1,12 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
-Section 5 — Table 4 (Randomized control).
+Section 5 â€” Table 4 (Randomized control).
 Reads the aggregated random-control CSV and emits a Booktabs-style LaTeX table.
 
 Input  (default):
-  code/outputs/intraday/tables/Section_5_table_4_random_controls.csv
+  run_results/current_intraday/tables/Section_5_table_4_random_controls.csv
 
 Output (default):
   code/paper/latex/Section_5_table_4_random_controls.tex
@@ -15,7 +15,7 @@ CSV schema expected:
   model,n_assets,delta_smape_pct_mean,delta_smape_pct_se,
   delta_mae_mean,delta_mae_se,delta_rmse_mean,delta_rmse_se,
   winner_frac_smape,fisher_p_dm,sig_mark
-Where deltas are (HAR − Model). Positive = our model improves over HAR.
+Where deltas are (HAR âˆ’ Model). Positive = our model improves over HAR.
 """
 
 import argparse
@@ -24,9 +24,9 @@ import math
 import pandas as pd
 
 DEFAULT_IN = os.path.join(
-    "code", "outputs", "intraday", "tables", "Section_5_table_4_random_controls.csv"
+    "run_results", "current_intraday", "tables", "Section_5_table_4_random_controls.csv"
 )
-DEFAULT_OUTDIR = os.path.join("code", "paper", "latex")
+DEFAULT_OUTDIR = os.path.join("run_results", "current_intraday", "latex")
 
 MODEL_NAME = {
     "RAND": "Random (control)",
@@ -34,7 +34,7 @@ MODEL_NAME = {
 }
 
 def fmt_pm(mean, se, digits=2, pct=False):
-    """Format mean ± s.e. Optionally as percentage with requested digits."""
+    """Format mean Â± s.e. Optionally as percentage with requested digits."""
     if pd.isna(mean):
         return "--"
     if pct:
@@ -52,7 +52,7 @@ def fmt_pm(mean, se, digits=2, pct=False):
 
 
 def sci_to_tex(x, digits=2):
-    """Format a p-value (or any float) to LaTeX sci notation a × 10^{b}."""
+    """Format a p-value (or any float) to LaTeX sci notation a Ã— 10^{b}."""
     if pd.isna(x):
         return "--"
     if x == 0:
@@ -81,15 +81,15 @@ def build_table(df: pd.DataFrame, scope: str) -> str:
     df = df.copy()
     df["wins_str"] = wins_col
 
-    # Determine bolding for best ΔSMAPE (highest mean improvement)
-    # Positive Δ means improvement (HAR − Model).
+    # Determine bolding for best Î”SMAPE (highest mean improvement)
+    # Positive Î” means improvement (HAR âˆ’ Model).
     if "delta_smape_pct_mean" in df.columns:
         idx_best = df["delta_smape_pct_mean"].astype(float).idxmax()
     else:
         idx_best = None
 
     header = (
-        "% Auto-generated: Section 5 — Table 4 (Randomized control)\n"
+        "% Auto-generated: Section 5 â€” Table 4 (Randomized control)\n"
         "\\begin{table}[t]\n"
         "  \\centering\n"
         "  \\caption{Section 5, Table 4 ("

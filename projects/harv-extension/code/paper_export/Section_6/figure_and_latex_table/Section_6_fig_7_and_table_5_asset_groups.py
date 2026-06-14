@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Section 6: Statistical Significance by Asset Groups (Intraday focus).
@@ -272,8 +272,8 @@ def render_figure(df_group_long: pd.DataFrame, out_fig: str):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--pred-dir', type=str, default='code/outputs/intraday/predictions')
-    ap.add_argument('--tables-dir', type=str, default='code/outputs/intraday/tables')
+    ap.add_argument('--pred-dir', type=str, default='run_results/current_intraday/predictions')
+    ap.add_argument('--tables-dir', type=str, default='run_results/current_intraday/tables')
     ap.add_argument('--out-tex', type=str, default='code/paper/latex/Section_6_table_5_asset_groups.tex')
     ap.add_argument('--out-fig', type=str, default='code/paper/figures/Section_6_fig_7_asset_groups.pdf', help='Grouped-bar figure path (.pdf)')
     ap.add_argument('--baseline', type=str, default='HAR')

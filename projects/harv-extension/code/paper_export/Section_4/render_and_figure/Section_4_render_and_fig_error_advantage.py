@@ -283,7 +283,7 @@ def main():
 
     out_pdf = os.path.join(args.outdir, f"{args.prefix}_{args.asset}.pdf")
     out_svg = os.path.join(args.outdir, f"{args.prefix}_{args.asset}.svg")
-    out_csv = os.path.join("code/outputs/intraday/tables", f"Section_4_error_advantage_summary_{args.asset}.csv")
+    out_csv = os.path.join("run_results/current_intraday/tables", f"Section_4_error_advantage_summary_{args.asset}.csv")
 
     plot_error_advantage(
         df=df,

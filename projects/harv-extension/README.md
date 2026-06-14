@@ -1,80 +1,64 @@
-# Enhancing the HAR-VR Models for Volatility Prediction
+# HAR-V Extension
 
-## **Motivation**
-Volatility prediction is critical for financial analysis, portfolio management, and risk assessment. Traditional HAR-RV (Heterogeneous Autoregressive Realized Volatility) models provide a foundation for predicting realized volatility using daily, weekly, and monthly averages of squared returns. However, this project aims to explore extended modeling strategies that incorporate innovative feature engineering techniques such as exhaustive search, Hamming codes, and prime modulo classes. These extensions aim to improve predictive performance by capturing diverse patterns and periodicities in financial time series data.
+This repository is organized around five top-level questions: where is the final paper, what generated it, where are the empirical results, where is the source data, and what configuration is needed to rerun it.
 
-## **Project Overview**
-This project extends the standard HAR-RV model by introducing advanced feature engineering strategies and benchmarking their predictive performance. The workflow includes:
+## Top-Level Map
 
-1. **Data Collection:** Fetch financial data from Yahoo Finance using `yfinance`.
-2. **Feature Engineering:** Create volatility-based features using innovative strategies.
-3. **Model Training and Prediction:** Use Ordinary Least Squares (OLS) regression to predict daily realized volatility.
-4. **Performance Evaluation:** Compare strategies using metrics like SMAPE (Symmetric Mean Absolute Percentage Error).
-5. **Visualization:** Generate plots to compare predicted and actual volatility for all strategies.
+| Folder | What belongs here | Use it when |
+|---|---|---|
+| `final_paper/` | Submission-ready manuscript, final PDF, and the exact table/figure assets used by that manuscript. | You want to read, compile, or upload the final paper. |
+| `paper_outputs/` | Alternate manuscript export, working paper assets, previews, supplemental figures, and archived generated paper outputs. | You want generated paper material that is not the final submission bundle. |
+| `run_results/` | Empirical predictions, tables, figures, LaTeX fragments, and historical test runs. | You want model outputs or evidence from a specific run. |
+| `code/` | Python source code, paper export scripts, and shared utilities. | You want to rerun models or regenerate figures/tables. |
+| `data/` | Raw and cleaned market data. | You need source input data for the empirical pipeline. |
+| `config/` | Environment requirements and command notes. | You need setup or reproduction commands. |
+| `references/` | Literature and reference PDFs. | You need background/reference material. |
 
-## **Strategies**
-1. **Standard HAR-RV Model:**
-   - Incorporates traditional daily, weekly, and monthly rolling averages of squared returns.
-   
-2. **Exhaustive Search:**
-   - Creates features by computing rolling averages over all possible window sizes up to a specified limit.
+## Final Paper
 
-3. **Hamming Codes:**
-   - Encodes time indices into binary representation, creating features by weighting squared returns based on binary patterns.
+- Main manuscript: `final_paper/paper_quantfin_review.tex`
+- Final compiled PDF: `final_paper/final_pdf/paper_quantfin_review.pdf`
+- Final paper assets:
+  - `final_paper/assets/figures_journal/`
+  - `final_paper/assets/tables_journal/`
 
-4. **Prime Modulo Classes:**
-   - Uses modular arithmetic with prime numbers to create features that highlight periodic patterns in volatility.
+Build from `final_paper/`:
 
-## **Thought Process**
-- The HAR-RV model captures hierarchical dependencies in volatility, but it might miss complex patterns. 
-- Exhaustive search provides a brute-force way to explore all possible dependencies.
-- Hamming codes offer a compact, systematic way to encode temporal dependencies, inspired by error-correcting codes.
-- Prime modulo classes introduce mathematical structure to identify cyclical trends often present in market data.
-- By combining these diverse approaches, the goal is to maximize predictive accuracy and reveal insights into volatility behavior.
-
-## **Setup Instructions**
-### Prerequisites
-- Python 3.11 environment (using Conda).
-- Dependencies listed in `requirements.txt`.
-
-### Install Dependencies
-1. Create and activate a Conda environment:
-   ```bash
-   conda create -n volatility_env python=3.11
-   conda activate volatility_env
-   ```
-2. Install required packages:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-### Run the Project
-To run the main comparison script:
-```bash
-python script_name.py
+```powershell
+latexmk -pdf -outdir=final_pdf paper_quantfin_review.tex
 ```
-Replace `script_name.py` with the name of your script file.
 
-### Example Output
-The script fetches stock data for Apple (`AAPL`) from January 2020 to January 2024 and compares the performance of all strategies. Results include SMAPE scores for each strategy and plots showing actual vs. predicted volatility.
+## Generated Paper Outputs
 
-## **Directory Structure**
-- `script_name.py`: Main script implementing the project.
-- `requirements.txt`: Contains Python package dependencies.
-- `README.md`: This file.
+- `paper_outputs/alternate_paper.tex` - Alternate manuscript export.
+- `paper_outputs/paper_assets/figures/` - Working figure exports and source-format companions.
+- `paper_outputs/paper_assets/tables/` - Working/generated table exports and source CSV companions.
+- `paper_outputs/paper_assets/figures/previews/` - Preview-only images.
+- `paper_outputs/paper_assets/figures/supplemental_section5_ablation/` - Preserved supplemental Section 5 charts.
+- `paper_outputs/archive/` - Daily probes and old build products kept for traceability.
 
-## **Performance Metrics**
-- **SMAPE**: Used to evaluate prediction accuracy. Lower SMAPE indicates better performance.
-- **Visual Comparison**: Plots help assess temporal alignment of predicted and actual volatility.
+## Empirical Run Results
 
-## **Future Work**
-- Extend feature engineering with Fourier transformations or machine learning-based approaches.
-- Test on additional tickers and asset classes to generalize findings.
-- Experiment with advanced models like LSTMs or Transformer architectures.
+- `run_results/current_intraday/` - Current generated intraday scratch/output area used by scripts.
+- `run_results/paper_runs/section5_cloud_push/` - Final Section 5 cloud run outputs.
+- `run_results/paper_runs/section5_robust_push/` - Robust Section 5 ablation outputs.
+- `run_results/paper_runs/test_1/` through `test_8.../` - Historical tests preserved as historical evidence.
 
-## **Acknowledgments**
-This project leverages open-source tools and libraries such as `yfinance`, `numpy`, `pandas`, `statsmodels`, and `matplotlib`. Special thanks to the financial modeling community for inspiring the exploration of advanced volatility prediction techniques.
+See `run_results/paper_runs/README.md` for run-level notes.
 
----
+## Code And Config
 
-Enjoy exploring innovative ways to predict market volatility!
+- `code/run_interactive_pipeline.py` - Interactive pipeline.
+- `code/intraday_benchmark.py` and `code/daily_benchmark.py` - Benchmark entry points.
+- `code/utils/` - Shared helpers.
+- `code/paper_export/` - Section-specific table/figure renderers.
+- `code/Helpers_for_paper_export_scripts/` - Later-stage paper asset and robustness helpers.
+- `config/requirements.txt` - Python dependencies.
+- `config/result_generation_commands.md` - Command notes for regenerating results.
+
+## Safety Notes
+
+- Treat `data/market_data/` as source data.
+- Treat `final_paper/assets/` as final manuscript inputs.
+- Do not manually edit empirical values in generated tables or figures unless you are intentionally correcting the generation workflow.
+- Do not move `run_results/paper_runs/test_7` or `run_results/paper_runs/section5_robust_push` without updating helper scripts that read those folders.

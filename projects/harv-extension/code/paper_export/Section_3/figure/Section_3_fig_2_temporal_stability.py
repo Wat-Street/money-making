@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Figure: Temporal Stability (Rolling SMAPE)
-- Plots rolling SMAPE (%) over time for 2–3 selected models
+- Plots rolling SMAPE (%) over time for 2â€“3 selected models
 - Professional styling (monochrome by default), clear dashes, thinner grid
 - Optional smoothing, resampling (e.g., weekly mean), and linear trend
 - Optional y-axis clamp via --scale MIN,MAX
@@ -10,7 +10,7 @@ Figure: Temporal Stability (Rolling SMAPE)
 
 Examples:
   python code/paper_export/Section_3_fig_temporal_stability.py \
-    --pred-dir outputs/intraday/predictions \
+    --pred-dir run_results/current_intraday/predictions \
     --asset SPY \
     --models HAR,PM,CP \
     --window 78 \
@@ -18,7 +18,7 @@ Examples:
     --resample W \
     --trend \
     --scale 90,170 \
-    --outdir outputs/intraday/figures
+    --outdir run_results/current_intraday/figures
 
   # color style (instead of monochrome)
   --style color
@@ -130,7 +130,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--pred-dir', required=True)
     ap.add_argument('--asset', required=True)
-    ap.add_argument('--models', required=True, help='Comma-separated; choose 2–3 for readability')
+    ap.add_argument('--models', required=True, help='Comma-separated; choose 2â€“3 for readability')
     ap.add_argument('--window', type=int, default=78)
     ap.add_argument('--smooth', type=str, default='ema', choices=['none','ma','ema'])
     ap.add_argument('--smooth-span', type=int, default=39)
@@ -143,7 +143,7 @@ def main():
 
     models = [m.strip() for m in args.models.split(',') if m.strip()]
     if not (1 <= len(models) <= 3):
-        raise SystemExit("Pick 1–3 models for a clean figure.")
+        raise SystemExit("Pick 1â€“3 models for a clean figure.")
 
     df = load_predictions(args.pred_dir, args.asset)
 

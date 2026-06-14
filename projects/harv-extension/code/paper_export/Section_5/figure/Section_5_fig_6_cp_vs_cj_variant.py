@@ -4,7 +4,7 @@
 Section 5 — CP vs CJ variant (Fig. 6)
 
 Reads feeder (default):
-  code/outputs/intraday/tables/Section_5_table_5b_cp_ablations.csv
+  run_results/current_intraday/tables/Section_5_table_5b_cp_ablations.csv
 
 Expected columns (preferred):
   n_assets,
@@ -102,7 +102,7 @@ def _get_row_value(row, key, prefer_second_if_tuple=False, fallbacks=()):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tables-dir", default="code/outputs/intraday/tables")
+    ap.add_argument("--tables-dir", default="run_results/current_intraday/tables")
     ap.add_argument("--in-csv", default="", help="Optional explicit CSV path")
     ap.add_argument("--outdir", default="code/paper/figures")
     ap.add_argument("--prefix", default="Section_5_fig_6_cp_cj")

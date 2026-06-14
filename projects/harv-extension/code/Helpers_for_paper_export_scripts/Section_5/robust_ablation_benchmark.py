@@ -1,4 +1,4 @@
-import argparse
+﻿import argparse
 import gc
 import os
 import signal
@@ -569,8 +569,8 @@ def main():
     parser = argparse.ArgumentParser(description="Robust Section 5 ablation benchmark")
     parser.add_argument("--ticker", required=True)
     parser.add_argument("--suite", required=True, choices=["core", "capacity", "contiguous", "modulo", "random", "external", "all"])
-    parser.add_argument("--local-dir", default="code/Datasets/clean")
-    parser.add_argument("--outdir", default="code/paper/runs/section5_robust")
+    parser.add_argument("--local-dir", default="data/market_data/clean")
+    parser.add_argument("--outdir", default="run_results/paper_runs/section5_robust")
     parser.add_argument("--n", type=int, default=22)
     parser.add_argument("--warmup", type=int, default=600)
     parser.add_argument("--k-grid", default="3,6,9")

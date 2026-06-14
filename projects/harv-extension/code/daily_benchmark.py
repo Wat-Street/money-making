@@ -112,8 +112,8 @@ def run_for_ticker_daily(ticker: str, models: list, n: int, warmup: int, local_d
 def main():
     p = argparse.ArgumentParser(description="Daily benchmark from local 5m CSVs (derive daily RV; run 12 models).")
     p.add_argument('--tickers', type=str, default='', help='Comma-separated tickers. If empty, auto-discover in --local-dir.')
-    p.add_argument('--local-dir', type=str, default='Datasets/clean', help='Folder with *_5m.csv (relative to code/).')
-    p.add_argument('--outdir', type=str, default='code/outputs/daily')
+    p.add_argument('--local-dir', type=str, default='data/market_data/clean', help='Folder with *_5m.csv.')
+    p.add_argument('--outdir', type=str, default='run_results/current_daily')
     p.add_argument('--models', type=str, default='', help='Comma-separated model codes. If empty, use defaults.')
     p.add_argument('--include-variants', dest='include_variants', action='store_true', default=True,
                    help='Include PM_VW, PM_AD, CP_CJ when --models not specified (default: on).')

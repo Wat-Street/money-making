@@ -4,7 +4,7 @@
 """
 Section 5 — PM modifiers efficacy (Fig. 5)
 Reads feeder:
-  code/outputs/intraday/tables/Section_5_table_5a_pm_ablations.csv
+  run_results/current_intraday/tables/Section_5_table_5a_pm_ablations.csv
 Columns expected:
   model, n_assets, delta_smape_pct_mean, delta_smape_pct_se, winner_frac_smape, fisher_p_dm, sig_mark
 
@@ -37,7 +37,7 @@ def _autorange_y(deltas: np.ndarray, ses: np.ndarray, pad=0.02):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tables-dir", default="code/outputs/intraday/tables")
+    ap.add_argument("--tables-dir", default="run_results/current_intraday/tables")
     ap.add_argument("--in-csv", default="", help="Optional explicit CSV path")
     ap.add_argument("--outdir", default="code/paper/figures")
     ap.add_argument("--prefix", default="Section_5_fig_5_pm_modifiers")

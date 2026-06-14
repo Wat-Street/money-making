@@ -35,7 +35,7 @@ def fetch_data_in_chunks(ticker, start_date, end_date, chunk_size_days=30, delay
     full_df = pd.concat(dfs).drop_duplicates().sort_index()
     return full_df
 
-def load_local_5m_csv(ticker: str, base_dir: str = "Datasets/clean", target_tz: str = "America/New_York"):
+def load_local_5m_csv(ticker: str, base_dir: str = "data/market_data/clean", target_tz: str = "America/New_York"):
     """
     Load 5-minute OHLCV CSV with Datetime index.
     Expected columns: Date/Datetime, Open, High, Low, Close, Volume.
@@ -116,7 +116,7 @@ def handleIntraday(df):
     result['Squared_Return'] = result['Log_Return'] ** 2
     return result.dropna()
 
-def fetch_intraday_data(ticker: str = "AAPL", start_date: str = None, end_date: str = None, use_local: bool = False, local_dir: str = "Datasets/clean"):
+def fetch_intraday_data(ticker: str = "AAPL", start_date: str = None, end_date: str = None, use_local: bool = False, local_dir: str = "data/market_data/clean"):
     if use_local:
         df = load_local_5m_csv(ticker, base_dir=local_dir)
         return handleIntraday(df)

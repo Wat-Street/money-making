@@ -242,8 +242,8 @@ def run_for_ticker(ticker: str, models: list, n: int, warmup: int, local_dir: st
 def main():
     p = argparse.ArgumentParser(description="Intraday benchmark (local 5m CSVs)")
     p.add_argument('--tickers', type=str, default='', help='Comma-separated. If empty, auto-discover in local_dir.')
-    p.add_argument('--local-dir', type=str, default='Datasets/clean')
-    p.add_argument('--outdir', type=str, default='code/outputs/intraday')
+    p.add_argument('--local-dir', type=str, default='data/market_data/clean')
+    p.add_argument('--outdir', type=str, default='run_results/current_intraday')
     p.add_argument('--models', type=str, default='', help='Comma-separated model codes; if empty we choose defaults')
     p.add_argument('--n', type=int, default=22)
     p.add_argument('--warmup', type=int, default=600)

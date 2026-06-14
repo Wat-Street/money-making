@@ -11,10 +11,10 @@ import pandas as pd
 
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / "outputs" / "paper_assets" / "figures_journal"
-TABLES = ROOT / "code" / "paper" / "runs" / "test_7" / "tables"
-PRED = ROOT / "code" / "paper" / "runs" / "test_7" / "predictions"
-ROBUST = ROOT / "code" / "paper" / "runs" / "section5_robust_push" / "robust_summary" / "tables"
+OUT = ROOT / "final_paper" / "assets" / "figures_journal"
+TABLES = ROOT / "run_results" / "paper_runs" / "test_7" / "tables"
+PRED = ROOT / "run_results" / "paper_runs" / "test_7" / "predictions"
+ROBUST = ROOT / "run_results" / "paper_runs" / "section5_robust_push" / "robust_summary" / "tables"
 
 COLOR_HAR = "#222222"
 COLOR_PM = "#5f6f7a"

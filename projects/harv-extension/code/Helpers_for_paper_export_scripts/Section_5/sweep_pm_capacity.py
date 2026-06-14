@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Sweep capacity for Prime Modulo (PM): #primes → SMAPE (mean ± s.e.)
-Writes: code/outputs/intraday/tables/Section_5_fig_4_capacity_curve.csv with columns:
+Writes: run_results/current_intraday/tables/Section_5_fig_4_capacity_curve.csv with columns:
   num_primes, smape_pct_mean, smape_pct_se, family
 
 Assumptions:
@@ -21,8 +21,8 @@ Usage example:
     --k-grid 3,4,5,6,7,8 ^
     --n 390 ^
     --warmup 200 ^
-    --local-dir code/Datasets/clean ^
-    --out-csv code/outputs/intraday/tables/Section_5_fig_4_capacity_curve.csv
+    --local-dir data/market_data/clean ^
+    --out-csv run_results/current_intraday/tables/Section_5_fig_4_capacity_curve.csv
 """
 
 import os

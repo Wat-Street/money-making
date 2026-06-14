@@ -1,4 +1,4 @@
-import os
+﻿import os
 import re
 import sys
 import json
@@ -13,8 +13,8 @@ import shlex
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PROJECT = os.path.dirname(ROOT)
-COMMANDS_MD = os.path.join(ROOT, "result_generation_commands.md")
-RUNS_DIR = os.path.join(ROOT, "paper", "runs")
+COMMANDS_MD = os.path.join(PROJECT, "config", "result_generation_commands.md")
+RUNS_DIR = os.path.join(PROJECT, "run_results", "paper_runs")
 LATEST_META = os.path.join(RUNS_DIR, "latest.json")
 
 DEFAULT_TICKERS_10 = "SPY,AAPL,NVDA,IWM,EEM,GLD,TLT,USO,ARKK,VXX"
@@ -63,7 +63,7 @@ def _run(cmd, cwd=PROJECT):
 
 
 def _run_root(run_name: str) -> str:
-    return os.path.join(ROOT, "paper", "runs", run_name)
+    return os.path.join(RUNS_DIR, run_name)
 
 
 def _ensure_run_dirs(run_root: str):
@@ -73,18 +73,18 @@ def _ensure_run_dirs(run_root: str):
 
 
 def _ensure_scratch_dirs():
-    os.makedirs(os.path.join(ROOT, "outputs", "intraday", "predictions"), exist_ok=True)
-    os.makedirs(os.path.join(ROOT, "outputs", "intraday", "tables"), exist_ok=True)
+    os.makedirs(os.path.join(PROJECT, "run_results", "current_intraday", "predictions"), exist_ok=True)
+    os.makedirs(os.path.join(PROJECT, "run_results", "current_intraday", "tables"), exist_ok=True)
 
 
 def _cleanup_scratch_dirs():
-    scratch_root = os.path.join(ROOT, "outputs")
+    scratch_root = os.path.join(PROJECT, "run_results", "current_intraday")
     if os.path.isdir(scratch_root):
         shutil.rmtree(scratch_root, ignore_errors=True)
 
 
 def _guess_next_run_name():
-    runs_dir = os.path.join(ROOT, "paper", "runs")
+    runs_dir = RUNS_DIR
     if not os.path.isdir(runs_dir):
         return "test_1"
     nums = []
@@ -172,11 +172,11 @@ def _extra_args(msg: str) -> List[str]:
 
 
 def _scratch_pred_dir() -> str:
-    return os.path.join(ROOT, "outputs", "intraday", "predictions")
+    return os.path.join(PROJECT, "run_results", "current_intraday", "predictions")
 
 
 def _scratch_tables_dir() -> str:
-    return os.path.join(ROOT, "outputs", "intraday", "tables")
+    return os.path.join(PROJECT, "run_results", "current_intraday", "tables")
 
 
 def _sync_predictions_to_scratch(pred_dir: str, tickers: List[str]):
@@ -304,7 +304,7 @@ def run_predictions_interactive():
     fig_out = os.path.join(run_root, "figures")
     tex_out = os.path.join(run_root, "latex")
 
-    local_dir = _prompt("Local clean data dir", "code/Datasets/clean")
+    local_dir = _prompt("Local clean data dir", "data/market_data/clean")
     tickers = _prompt("Tickers (comma-separated)", DEFAULT_TICKERS_10)
     models_in = _prompt("Models (comma-separated, Vanilla=HAR)", DEFAULT_MODELS)
     models = _normalize_models(_split_csv(models_in))
@@ -401,7 +401,7 @@ def run_predictions_interactive():
 def run_outputs_interactive():
     print("\n=== Paper Outputs ===")
     _print_commands_summary()
-    print("Note: Section 2 + Section 4 helpers use a temporary scratch dir under code/outputs.")
+    print("Note: Section 2 + Section 4 helpers use the current generated-output scratch area under run_results/current_intraday.")
 
     sections = _prompt("Sections to run (e.g., 1,2,3,4,6 or all)", "1,2,3,4,6")
     if sections.strip().lower() == "all":
@@ -607,7 +607,7 @@ def run_outputs_interactive():
         print("[note] Section 5 requires PM/CP variants and random controls to be present in predictions.")
         if not section5_prereq:
             if _prompt_bool("Prerequisites not present. Re-run intraday with Section 5 prerequisites now?", False):
-                meta_local = run_meta.get("local_dir") or _prompt("Local clean data dir", "code/Datasets/clean")
+                meta_local = run_meta.get("local_dir") or _prompt("Local clean data dir", "data/market_data/clean")
                 meta_n = run_meta.get("n") or int(_prompt("Lookback n", "22"))
                 meta_warmup = run_meta.get("warmup") or int(_prompt("Warmup", "600"))
                 needed = ["PM_VW", "PM_AD", "CP_CJ", "RAND", "CRS"]
@@ -664,7 +664,7 @@ def run_outputs_interactive():
                 "--k-grid", "3,4,5,6,7,8",
                 "--n", "390",
                 "--warmup", "200",
-                "--local-dir", "code/Datasets/clean",
+                "--local-dir", "data/market_data/clean",
                 "--out-csv", os.path.join(tables_dir, "Section_5_fig_4_capacity_curve.csv"),
             ])
             _run([

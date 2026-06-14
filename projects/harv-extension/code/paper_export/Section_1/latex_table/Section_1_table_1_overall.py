@@ -7,7 +7,7 @@
 #
 # Usage:
 #   python code/paper_export/table_1_overall.py \
-#     --csv outputs/intraday/tables/table_1a_overall.csv \
+#     --csv run_results/current_intraday/tables/table_1a_overall.csv \
 #     --out paper/latex/table_1a_overall.tex \
 #     --context intraday \
 #     --include-variants            # default on

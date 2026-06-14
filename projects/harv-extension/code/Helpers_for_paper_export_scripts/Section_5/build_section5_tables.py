@@ -4,7 +4,7 @@
 Build Section 5 tables from intraday predictions.
 
 Inputs (discovered):
-  code/outputs/intraday/predictions/{TICKER}.csv
+  run_results/current_intraday/predictions/{TICKER}.csv
     columns: Date, Actual, Predicted_<MODEL> (for each model)
 
 Outputs (under --tables-dir):

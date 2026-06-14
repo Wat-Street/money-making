@@ -2,9 +2,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / "outputs"
-PAPER = OUT / "paper.tex"
-QUANTFIN = OUT / "paper_quantfin_review.tex"
+PAPER_OUTPUTS = ROOT / "paper_outputs"
+FINAL_PAPER = ROOT / "final_paper"
+PAPER = PAPER_OUTPUTS / "alternate_paper.tex"
+QUANTFIN = FINAL_PAPER / "paper_quantfin_review.tex"
 
 
 def replace_between(text: str, start: str, end: str, replacement: str) -> str:
@@ -32,7 +33,7 @@ def update_original_tables(text: str) -> str:
 \small
 \renewcommand{\arraystretch}{1.15}
 \setlength{\tabcolsep}{6pt}
-\resizebox{0.98\textwidth}{!}{\input{paper_assets/tables_journal/table_overall_intraday.tex}}
+\resizebox{0.98\textwidth}{!}{\input{../final_paper/assets/tables_journal/table_overall_intraday.tex}}
 
 \vspace{0.1cm}
 \footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Lower values are better except for Directional Accuracy. Entries report the cross-sectional mean with standard errors across assets. Error columns are rescaled for readability. Each asset contributes roughly 36,747 aligned 5-minute evaluation observations. Bold marks the best value in each column.}
@@ -51,7 +52,7 @@ def update_original_tables(text: str) -> str:
 \small
 \renewcommand{\arraystretch}{1.15}
 \setlength{\tabcolsep}{10pt}
-\input{paper_assets/tables_journal/table_regimes_intraday.tex}
+\input{../final_paper/assets/tables_journal/table_regimes_intraday.tex}
 
 \vspace{0.1cm}
 \footnotesize \parbox{0.84\textwidth}{\textit{Notes:} Lower values are better. Regimes are defined by within-asset terciles of realized volatility. Entries are cross-sectional mean SMAPE with standard errors across assets.}
@@ -65,11 +66,11 @@ def update_original_tables(text: str) -> str:
 
     text = text.replace(
         "\\resizebox{0.98\\textwidth}{!}{\\input{paper_assets/tables/Section_5_table_3_robust_summary.tex}}",
-        "\\resizebox{0.98\\textwidth}{!}{\\input{paper_assets/tables_journal/table_section5_summary.tex}}",
+        "\\resizebox{0.98\\textwidth}{!}{\\input{../final_paper/assets/tables_journal/table_section5_summary.tex}}",
     )
     text = text.replace(
         "\\resizebox{0.98\\textwidth}{!}{\\input{paper_assets/tables/Section_5_table_4_driver_checks.tex}}",
-        "\\resizebox{0.98\\textwidth}{!}{\\input{paper_assets/tables_journal/table_section5_drivers.tex}}",
+        "\\resizebox{0.98\\textwidth}{!}{\\input{../final_paper/assets/tables_journal/table_section5_drivers.tex}}",
     )
     text = text.replace(
         "rather than merely benefiting from arbitrary feature enrichment.\n\n{\\renewcommand{\\thetable}{4}",
@@ -87,7 +88,7 @@ def update_original_tables(text: str) -> str:
 \small
 \renewcommand{\arraystretch}{1.15}
 \setlength{\tabcolsep}{8pt}
-\resizebox{0.88\textwidth}{!}{\input{paper_assets/tables_journal/table_asset_groups.tex}}
+\resizebox{0.88\textwidth}{!}{\input{../final_paper/assets/tables_journal/table_asset_groups.tex}}
 
 \vspace{0.1cm}
 \footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Positive $\Delta \mathrm{SMAPE}$ indicates lower SMAPE than HAR-RV. Asset Win Rate is the share of assets in each group with positive $\Delta \mathrm{SMAPE}$ relative to HAR-RV. Fisher combined $p$-values aggregate per-asset Diebold--Mariano tests based on absolute-error loss. Values below machine precision are reported as $< 10^{-300}$. Standard errors are unavailable for single-asset groups.}
@@ -120,7 +121,7 @@ def update_original_tables(text: str) -> str:
 \small
 \renewcommand{\arraystretch}{1.15}
 \setlength{\tabcolsep}{6pt}
-\resizebox{0.98\textwidth}{!}{\input{paper_assets/tables_journal/table_overall_daily.tex}}
+\resizebox{0.98\textwidth}{!}{\input{../final_paper/assets/tables_journal/table_overall_daily.tex}}
 
 \vspace{0.1cm}
 \footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Lower values are better except for Directional Accuracy. Entries report the cross-sectional mean with standard errors across assets. Error columns are rescaled for readability. Each asset contributes roughly 396 aligned daily observations. Bold marks the best value in each column.}
@@ -142,7 +143,7 @@ def update_original_tables(text: str) -> str:
     for old, new in appendix_inputs.items():
         text = text.replace(
             f"\\input{{paper_assets/tables/{old}}}",
-            f"\\input{{paper_assets/tables_journal/{new}}}",
+            f"\\input{{../final_paper/assets/tables_journal/{new}}}",
         )
     text = text.replace(
         "Positive $\\Delta$SMAPE means that the candidate model has lower SMAPE than HAR-RV on the aligned evaluation timestamps.\n\n{\\renewcommand{\\thetable}{C1}",
@@ -185,9 +186,10 @@ def build_quantfin_from_original(original_text: str) -> str:
     body_start = original_text.index("\\begin{multicols}{2}")
     body_end = original_text.index("\\end{document}")
     body = original_text[body_start:body_end].strip()
+    body = body.replace("../final_paper/assets/tables_journal/", "assets/tables_journal/")
     body = body.replace("\\begin{multicols}{2}\n\\setlength{\\columnsep}{0.5cm}\n\n", "")
     body = body.replace("\n\\end{multicols}\n\n\n\\section{Results and Analysis}", "\n\n\\section{Results and Analysis}")
-    body = body.replace("paper_assets/figures/", "paper_assets/figures_journal/")
+    body = body.replace("paper_assets/figures/", "assets/figures_journal/")
     body = body.replace(
         "while equal-window and prefix-window controls remain close to CP.\n\n{\\renewcommand{\\thetable}{C2}",
         "while equal-window and prefix-window controls remain close to CP.\n\n\\clearpage\n\n{\\renewcommand{\\thetable}{C2}",

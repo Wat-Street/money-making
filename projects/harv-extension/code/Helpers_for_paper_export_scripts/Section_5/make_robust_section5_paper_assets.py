@@ -7,8 +7,8 @@ import pandas as pd
 
 
 ROOT = Path(__file__).resolve().parents[3]
-RUN_DIR = ROOT / "code" / "paper" / "runs" / "section5_robust_push" / "robust_summary" / "tables"
-OUT_DIR = ROOT / "outputs"
+RUN_DIR = ROOT / "run_results" / "paper_runs" / "section5_robust_push" / "robust_summary" / "tables"
+OUT_DIR = ROOT / "paper_outputs"
 FIG_DIR = OUT_DIR / "paper_assets" / "figures"
 TABLE_DIR = OUT_DIR / "paper_assets" / "tables"
 

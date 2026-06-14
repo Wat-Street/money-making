@@ -17,7 +17,7 @@ Optional --dm-summary CSV columns:
 
 Usage:
   python code/paper_export/table_3_param_eff_latex.py \
-    --csv code/outputs/intraday/tables/Section_5_table_3_param_eff_joined.csv \
+    --csv run_results/current_intraday/tables/Section_5_table_3_param_eff_joined.csv \
     --out code/paper/latex/Section_5_table_3_param_eff.tex
 """
 

@@ -1,4 +1,4 @@
-\documentclass[11pt,a4paper]{article}
+﻿\documentclass[11pt,a4paper]{article}
 
 \usepackage[margin=1in]{geometry}
 \usepackage{setspace}
@@ -151,7 +151,7 @@ The empirical analysis proceeds in three steps. First, we compare overall foreca
 \small
 \renewcommand{\arraystretch}{1.15}
 \setlength{\tabcolsep}{6pt}
-\resizebox{0.98\textwidth}{!}{\input{paper_assets/tables_journal/table_overall_intraday.tex}}
+\resizebox{0.98\textwidth}{!}{\input{assets/tables_journal/table_overall_intraday.tex}}
 
 \vspace{0.1cm}
 \footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Lower values are better except for Directional Accuracy. Entries report cross-sectional means with standard errors across assets. Metrics are computed at the asset level before averaging. Error columns are rescaled for readability. Each asset contributes roughly 36,747 aligned 5-minute evaluation observations. Bold marks the best value in each column.}
@@ -175,7 +175,7 @@ These results provide the first evidence that adding order-aware information to 
 \small
 \renewcommand{\arraystretch}{1.15}
 \setlength{\tabcolsep}{10pt}
-\input{paper_assets/tables_journal/table_regimes_intraday.tex}
+\input{assets/tables_journal/table_regimes_intraday.tex}
 
 \vspace{0.1cm}
 \footnotesize \parbox{0.84\textwidth}{\textit{Notes:} Lower values are better. Regimes are defined by within-asset terciles of realized volatility. Entries are cross-sectional mean SMAPE with standard errors across assets.}
@@ -185,13 +185,13 @@ These results provide the first evidence that adding order-aware information to 
 \begin{center}
 \begin{minipage}{0.48\textwidth}
 \centering
-\includegraphics[width=\linewidth]{paper_assets/figures_journal/Section_2_fig_1_regimes_absolute.pdf}\\[-0.05cm]
+\includegraphics[width=\linewidth]{assets/figures_journal/Section_2_fig_1_regimes_absolute.pdf}\\[-0.05cm]
 \footnotesize (a) Absolute SMAPE.
 \end{minipage}
 \hfill
 \begin{minipage}{0.48\textwidth}
 \centering
-\includegraphics[width=\linewidth]{paper_assets/figures_journal/Section_2_fig_1_regimes_relative.pdf}\\[-0.05cm]
+\includegraphics[width=\linewidth]{assets/figures_journal/Section_2_fig_1_regimes_relative.pdf}\\[-0.05cm]
 \footnotesize (b) Relative improvement against HAR-RV.
 \end{minipage}
 
@@ -212,7 +212,7 @@ The magnitude of the regime-level gains is still modest. Once the sample is divi
 
 {\renewcommand{\thefigure}{2}
 \begin{center}
-\includegraphics[width=0.94\textwidth]{paper_assets/figures_journal/Section_3_fig_2_temporal_stability_ALL_MEAN.pdf}
+\includegraphics[width=0.94\textwidth]{assets/figures_journal/Section_3_fig_2_temporal_stability_ALL_MEAN.pdf}
 \captionof{figure}{Rolling SMAPE for the cross-sectional average series using a 78-interval window and weekly resampling for display. Rolling SMAPE is used as a visual time-series diagnostic; headline metrics are computed asset by asset before cross-sectional averaging.}
 \label{fig:temporal_stability}
 \end{center}}
@@ -230,7 +230,7 @@ The figure also shows that all three models deteriorate together during periods 
 
 {\renewcommand{\thefigure}{3}
 \begin{center}
-\includegraphics[width=0.94\textwidth]{paper_assets/figures_journal/Section_4_fig_3_error_advantage_ALL_MEAN.pdf}
+\includegraphics[width=0.94\textwidth]{assets/figures_journal/Section_4_fig_3_error_advantage_ALL_MEAN.pdf}
 \captionof{figure}{SMAPE advantage relative to HAR-RV for the cross-sectional average series. The plotted quantity is $\delta_t^m = \mathrm{SMAPE}_{\mathrm{HAR},t} - \mathrm{SMAPE}_{m,t}$, so positive values indicate lower SMAPE for PM or CP. Shaded regions are weekly medians for visual clarity, while reported summary statistics are computed from the full-resolution series.}
 \label{fig:error_advantage}
 \end{center}}
@@ -259,7 +259,7 @@ The ablations are organized around five questions. First, do the gains remain wh
 \small
 \renewcommand{\arraystretch}{1.12}
 \setlength{\tabcolsep}{5pt}
-\resizebox{0.98\textwidth}{!}{\input{paper_assets/tables_journal/table_section5_summary.tex}}
+\resizebox{0.98\textwidth}{!}{\input{assets/tables_journal/table_section5_summary.tex}}
 
 \vspace{0.1cm}
 \footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Entries report cross-sectional means with standard errors across assets. Timestamp Win Rate is the average share of evaluation timestamps where the model has lower SMAPE than HAR-RV. A model can have a win rate below 50\% and positive mean improvement if its gains are larger than its losses.}
@@ -270,7 +270,7 @@ Table~\ref{tab:param_efficiency} gives the compact summary. PM improves on HAR-R
 
 {\renewcommand{\thefigure}{4}
 \begin{center}
-\includegraphics[width=0.82\textwidth]{paper_assets/figures_journal/Section_5_fig_4_feature_count_curve.pdf}
+\includegraphics[width=0.82\textwidth]{assets/figures_journal/Section_5_fig_4_feature_count_curve.pdf}
 \captionof{figure}{Feature-count curve for ordered and non-ordered lag constructions. Positive values indicate lower SMAPE than HAR-RV. Error bars show cross-sectional standard errors across assets.}
 \label{fig:feature_count_curve}
 \end{center}}
@@ -280,7 +280,7 @@ Figure~\ref{fig:feature_count_curve} studies the role of feature count more dire
 
 {\renewcommand{\thefigure}{5}
 \begin{center}
-\includegraphics[width=0.82\textwidth]{paper_assets/figures_journal/Section_5_fig_5_random_controls.pdf}
+\includegraphics[width=0.82\textwidth]{assets/figures_journal/Section_5_fig_5_random_controls.pdf}
 \captionof{figure}{Matched random controls by feature count. RAND denotes random feature sets, CRS denotes random contiguous/local feature sets, and random points show the three tested seeds. Positive values indicate lower SMAPE than HAR-RV.}
 \label{fig:random_controls}
 \end{center}}
@@ -339,7 +339,7 @@ The final robustness check examines where the gains are largest across asset cla
 
 {\renewcommand{\thefigure}{6}
 \begin{center}
-\includegraphics[width=0.88\textwidth]{paper_assets/figures_journal/Section_6_fig_7_asset_groups.pdf}
+\includegraphics[width=0.88\textwidth]{assets/figures_journal/Section_6_fig_7_asset_groups.pdf}
 \captionof{figure}{Average SMAPE improvement relative to HAR-RV by asset group. Positive values indicate lower SMAPE than HAR-RV.}
 \label{fig:asset_groups}
 \end{center}}
@@ -522,7 +522,7 @@ where $F_{\chi^2_{2N_g}}$ is the chi-squared cumulative distribution function wi
 \small
 \renewcommand{\arraystretch}{1.15}
 \setlength{\tabcolsep}{6pt}
-\resizebox{0.98\textwidth}{!}{\input{paper_assets/tables_journal/table_overall_daily.tex}}
+\resizebox{0.98\textwidth}{!}{\input{assets/tables_journal/table_overall_daily.tex}}
 
 \vspace{0.1cm}
 \footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Lower values are better except for Directional Accuracy. Entries report the cross-sectional mean with standard errors across assets. Error columns are rescaled for readability. Each asset contributes roughly 396 aligned daily observations. Bold marks the best value in each column.}
@@ -547,7 +547,7 @@ Model families are defined as follows. CP denotes contiguous ordered windows usi
 \label{tab:appendix_feature_count}
 \scriptsize
 \renewcommand{\arraystretch}{1.08}
-\resizebox{0.86\textwidth}{!}{\input{paper_assets/tables_journal/table_appendix_c1_feature_count.tex}}
+\resizebox{0.86\textwidth}{!}{\input{assets/tables_journal/table_appendix_c1_feature_count.tex}}
 \end{center}}
 
 \noindent
@@ -559,7 +559,7 @@ Table~\ref{tab:appendix_feature_count} shows that PM is nearly unchanged as addi
 \label{tab:appendix_contiguous}
 \scriptsize
 \renewcommand{\arraystretch}{1.08}
-\resizebox{0.90\textwidth}{!}{\input{paper_assets/tables_journal/table_appendix_c2_contiguous.tex}}
+\resizebox{0.90\textwidth}{!}{\input{assets/tables_journal/table_appendix_c2_contiguous.tex}}
 \end{center}}
 
 \noindent
@@ -571,7 +571,7 @@ Table~\ref{tab:appendix_contiguous} shows positive but weaker shifted-window con
 \label{tab:appendix_prime_nonprime}
 \scriptsize
 \renewcommand{\arraystretch}{1.08}
-\resizebox{0.84\textwidth}{!}{\input{paper_assets/tables_journal/table_appendix_c3_prime_nonprime.tex}}
+\resizebox{0.84\textwidth}{!}{\input{assets/tables_journal/table_appendix_c3_prime_nonprime.tex}}
 \end{center}}
 
 \noindent
@@ -585,7 +585,7 @@ Table~\ref{tab:appendix_prime_nonprime} shows that prime, composite, and non-cop
 \label{tab:appendix_random}
 \scriptsize
 \renewcommand{\arraystretch}{1.08}
-\resizebox{0.88\textwidth}{!}{\input{paper_assets/tables_journal/table_appendix_c4_random.tex}}
+\resizebox{0.88\textwidth}{!}{\input{assets/tables_journal/table_appendix_c4_random.tex}}
 \end{center}}
 
 \noindent
@@ -597,7 +597,7 @@ Table~\ref{tab:appendix_random} reports the individual random-control seeds. CP 
 \label{tab:appendix_external}
 \scriptsize
 \renewcommand{\arraystretch}{1.08}
-\resizebox{0.62\textwidth}{!}{\input{paper_assets/tables_journal/table_appendix_c5_external.tex}}
+\resizebox{0.62\textwidth}{!}{\input{assets/tables_journal/table_appendix_c5_external.tex}}
 \end{center}}
 
 \noindent
@@ -618,7 +618,7 @@ This appendix reports the full group-level table underlying the shortened main-t
 \small
 \renewcommand{\arraystretch}{1.15}
 \setlength{\tabcolsep}{8pt}
-\resizebox{0.88\textwidth}{!}{\input{paper_assets/tables_journal/table_asset_groups.tex}}
+\resizebox{0.88\textwidth}{!}{\input{assets/tables_journal/table_asset_groups.tex}}
 
 \vspace{0.1cm}
 \footnotesize \parbox{0.92\textwidth}{\textit{Notes:} Positive $\Delta \mathrm{SMAPE}$ indicates lower SMAPE than HAR-RV. Asset Win Rate is the share of assets in each group with positive $\Delta \mathrm{SMAPE}$ relative to HAR-RV. Fisher combined $p$-values aggregate per-asset Diebold--Mariano tests based on absolute-error loss. Values below machine precision are reported as $< 10^{-300}$. Standard errors are unavailable for single-asset groups.}

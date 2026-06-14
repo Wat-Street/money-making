@@ -5,7 +5,7 @@ Figure 3A: #Primes vs SMAPE (capacity vs performance)
 
 Default behavior:
 - Reads a prepared CSV:
-    outputs/intraday/tables/table_5a_pm_num_primes.csv
+    run_results/current_intraday/tables/table_5a_pm_num_primes.csv
 - Renders a journal-style line with error bars (mean Â± s.e.)
 - Writes PDF + SVG + a LaTeX snippet.
 
@@ -20,8 +20,8 @@ CSV expected schema:
 
 Usage (plot only):
   python code/paper_export/fig_3a_pm_capacity.py \
-    --csv outputs/intraday/tables/table_5a_pm_num_primes.csv \
-    --outdir outputs/intraday/figures
+    --csv run_results/current_intraday/tables/table_5a_pm_num_primes.csv \
+    --outdir run_results/current_intraday/figures
 
 Usage (auto-sweep + plot):
   python code/paper_export/fig_3a_pm_capacity.py \
@@ -29,9 +29,9 @@ Usage (auto-sweep + plot):
     --assets SPY,QQQ \
     --k-grid 3,4,5,6,7,8 \
     --n 390 --warmup 200 \
-    --local-dir code/Datasets/clean \
-    --csv outputs/intraday/tables/table_5a_pm_num_primes.csv \
-    --outdir outputs/intraday/figures
+    --local-dir data/market_data/clean \
+    --csv run_results/current_intraday/tables/table_5a_pm_num_primes.csv \
+    --outdir run_results/current_intraday/figures
 """
 
 import os
