@@ -1,0 +1,58 @@
+name: CP + PM Incremental Value Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      verbose:
+        description: 'Enable verbose output'
+        required: false
+        default: 'false'
+
+jobs:
+  cp_pm_incremental_test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        working-directory: ./projects/harv-extension
+        run: |
+          python -m pip install --upgrade pip
+          # Try to use requirements.txt if available
+          if [ -f config/requirements.txt ]; then
+            pip install -r config/requirements.txt
+          else
+            # Minimal dependencies
+            pip install pandas numpy matplotlib scipy scikit-learn statsmodels
+          fi
+
+      - name: Run CP + PM incremental test
+        working-directory: ./projects/harv-extension
+        run: |
+          python outputs/cp_pm_incremental_tests/scripts/run_cp_pm_incremental_tests.py
+
+      - name: Upload test outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cp_pm_incremental_tests_outputs
+          path: projects/harv-extension/outputs/cp_pm_incremental_tests/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Display test summary
+        if: always()
+        working-directory: ./projects/harv-extension
+        run: |
+          if [ -f outputs/cp_pm_incremental_tests/README.md ]; then
+            echo "=== Test Summary ==="
+            head -50 outputs/cp_pm_incremental_tests/README.md
+          fi
