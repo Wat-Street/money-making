@@ -36,11 +36,7 @@ jobs:
         working-directory: ./projects/harv-extension
         run: |
           python -m pip install --upgrade pip
-          if [ -f config/requirements.txt ]; then
-            pip install -r config/requirements.txt
-          else
-            pip install pandas numpy matplotlib scipy scikit-learn statsmodels
-          fi
+          pip install numpy pandas matplotlib scipy scikit-learn statsmodels yfinance
 
       - name: Run CP + PM incremental test
         working-directory: ./projects/harv-extension
