@@ -573,19 +573,39 @@ def make_plots(pooled: pd.DataFrame):
 
 
 def write_latex_table(pooled: pd.DataFrame):
+    """Write LaTeX manually so CI does not depend on pandas' optional Jinja stack."""
+    output_path = LATEX_DIR / "fresh_conditional_hybrid_summary_pooled.tex"
     if pooled.empty:
-        (LATEX_DIR / "fresh_conditional_hybrid_summary_pooled.tex").write_text("% empty\n", encoding="utf-8")
+        output_path.write_text("% empty\n", encoding="utf-8")
         return
-    cols = ["condition", "total_n_obs", "equal_weight_asset_mean_advantage", "equal_weight_asset_hybrid_win_rate", "asset_win_rate"]
-    table = pooled[cols].copy().rename(columns={
-        "condition": "Condition",
-        "total_n_obs": "N",
-        "equal_weight_asset_mean_advantage": "Adv.",
-        "equal_weight_asset_hybrid_win_rate": "Win Rate",
-        "asset_win_rate": "Asset Win Rate",
-    })
-    (LATEX_DIR / "fresh_conditional_hybrid_summary_pooled.tex").write_text(table.to_latex(index=False, float_format="%.4f"), encoding="utf-8")
 
+    cols = [
+        "condition",
+        "total_n_obs",
+        "equal_weight_asset_mean_advantage",
+        "equal_weight_asset_hybrid_win_rate",
+        "asset_win_rate",
+    ]
+    rows = pooled[cols].copy()
+
+    def esc(value) -> str:
+        return str(value).replace("_", r"\_")
+
+    lines = [
+        r"\begin{tabular}{lrrrr}",
+        r"\toprule",
+        "Condition & N & Adv. & Win Rate & Asset Win Rate \\\\",
+        r"\midrule",
+    ]
+    for _, row in rows.iterrows():
+        lines.append(
+            f"{esc(row['condition'])} & "
+            f"{int(row['total_n_obs'])} & "
+            f"{float(row['equal_weight_asset_mean_advantage']):.4f} & "
+            f"{float(row['equal_weight_asset_hybrid_win_rate']):.4f} & "
+            f"{float(row['asset_win_rate']):.4f} \\\\")
+    lines.extend([r"\bottomrule", r"\end{tabular}", ""])
+    output_path.write_text("\n".join(lines), encoding="utf-8")
 
 def dataframe_to_text(frame: pd.DataFrame, max_rows: int = 20) -> str:
     if frame is None or frame.empty:
@@ -766,7 +786,8 @@ def main():
     shift_df.to_csv(RESULTS_DIR / "cp_alignment_shift_diagnostics.csv", index=False)
 
     pd.DataFrame(runtime_meta).to_csv(RESULTS_DIR / "fresh_run_metadata.csv", index=False)
-    pd.DataFrame(failures).to_csv(RESULTS_DIR / "fresh_run_failures.csv", index=False)
+    failure_cols = ["ticker", "stage", "message"]
+    pd.DataFrame(failures, columns=failure_cols).to_csv(RESULTS_DIR / "fresh_run_failures.csv", index=False)
 
     if not fresh_frames:
         mode = "failed_no_fresh_frames"
@@ -790,10 +811,32 @@ def main():
     pooled_df.to_csv(RESULTS_DIR / "fresh_conditional_hybrid_summary_pooled.csv", index=False)
     top_df.to_csv(RESULTS_DIR / "top_fresh_hybrid_conditions.csv", index=False)
 
-    make_plots(pooled_df)
-    write_latex_table(pooled_df)
     write_readme(validation_df, shift_df, pooled_df, mode, sorted(fresh_frames.keys()), runtime_meta)
     write_manifest(sorted(fresh_frames.keys()), validation_df, mode, started_at, runtime_meta)
+
+    # Plot/LaTeX outputs are useful but should not invalidate the completed statistical run.
+    noncritical_failures = []
+    try:
+        make_plots(pooled_df)
+    except Exception as exc:
+        noncritical_failures.append({"ticker": "ALL", "stage": "plots", "message": str(exc)})
+        print(f"Warning: plot generation failed: {exc}")
+    try:
+        write_latex_table(pooled_df)
+    except Exception as exc:
+        noncritical_failures.append({"ticker": "ALL", "stage": "latex", "message": str(exc)})
+        print(f"Warning: LaTeX table generation failed: {exc}")
+
+    if noncritical_failures:
+        pd.concat([
+            pd.read_csv(RESULTS_DIR / "fresh_run_failures.csv"),
+            pd.DataFrame(noncritical_failures, columns=failure_cols),
+        ], ignore_index=True).to_csv(RESULTS_DIR / "fresh_run_failures.csv", index=False)
+
+    (OUTPUT_DIR / "SUCCESS.txt").write_text(
+        f"CP+PM incremental test completed successfully at {datetime.utcnow().isoformat()}Z\n",
+        encoding="utf-8",
+    )
 
     print("\n=== Fresh CP vs Fresh CP+PM Summary ===")
     print(pooled_df.to_string(index=False))

@@ -1,4 +1,4 @@
-name: CP + PM Incremental Value Test
+﻿name: CP + PM Incremental Value Test
 
 on:
   workflow_dispatch:
@@ -36,6 +36,14 @@ jobs:
           N_LAGS: "22"
         run: |
           python outputs/cp_pm_incremental_tests/scripts/run_cp_pm_incremental_tests.py
+
+      - name: Verify primary outputs
+        working-directory: ./projects/harv-extension
+        run: |
+          test -f outputs/cp_pm_incremental_tests/results/fresh_conditional_hybrid_summary_pooled.csv
+          test -f outputs/cp_pm_incremental_tests/results/fresh_cp_vs_hybrid_predictions_summary.csv
+          test -f outputs/cp_pm_incremental_tests/results/fresh_conditional_hybrid_summary_by_asset.csv
+          test -f outputs/cp_pm_incremental_tests/SUCCESS.txt
 
       - name: Upload test outputs
         if: always()
