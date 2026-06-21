@@ -1,0 +1,42 @@
+{
+  "timestamp": "2026-06-20T17:21:44.456191",
+  "python_version": "3.11.0",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "input_directory": "C:\\Users\\HP\\money-making\\projects\\harv-extension\\run_results\\current_intraday\\predictions",
+  "output_directory": "C:\\Users\\HP\\money-making\\projects\\harv-extension\\outputs\\conditional_pm_cp_tests",
+  "script_path": "C:\\Users\\HP\\money-making\\projects\\harv-extension\\outputs\\conditional_pm_cp_tests\\scripts\\run_conditional_pm_cp_tests.py",
+  "tickers_used": [
+    "AAPL",
+    "AMZN",
+    "EEM",
+    "FXI",
+    "GLD",
+    "GOOGL",
+    "HYG",
+    "QQQ",
+    "SPY",
+    "TLT"
+  ],
+  "n_tickers": 10,
+  "conditions_tested": [
+    "all_observations",
+    "cluster_entry_loose",
+    "cluster_entry_strict",
+    "cluster_exit_loose",
+    "cluster_exit_strict",
+    "inflection_points",
+    "high_within_block_dispersion",
+    "recent_spike_position",
+    "older_spike_position",
+    "same_average_different_path"
+  ],
+  "n_conditions": 10,
+  "total_rows_processed": 100,
+  "packages": {
+    "numpy": "2.1.3",
+    "pandas": "2.2.3",
+    "matplotlib": "3.10.1",
+    "scipy": "available"
+  },
+  "anti_lookahead": "All condition flags constructed using lagged Actual RV values only (Actual.shift(k))"
+}
