@@ -1,16 +1,6 @@
 name: CP + PM Incremental Value Test
 
 on:
-  push:
-    branches:
-      - cp-pm-incremental-actions
-    paths:
-      - ".github/workflows/cp_pm_incremental_tests.yml"
-      - "projects/harv-extension/outputs/cp_pm_incremental_tests/scripts/run_cp_pm_incremental_tests.py"
-      - "projects/harv-extension/code/**"
-      - "projects/harv-extension/run_results/current_intraday/predictions/**"
-      - "projects/harv-extension/data/market_data/clean/**"
-      - "projects/harv-extension/config/requirements.txt"
   workflow_dispatch:
     inputs:
       verbose:
@@ -21,7 +11,7 @@ on:
 jobs:
   cp_pm_incremental_test:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -40,6 +30,10 @@ jobs:
 
       - name: Run CP + PM incremental test
         working-directory: ./projects/harv-extension
+        env:
+          BOOTSTRAP_RESAMPLES: "300"
+          WARMUP: "600"
+          N_LAGS: "22"
         run: |
           python outputs/cp_pm_incremental_tests/scripts/run_cp_pm_incremental_tests.py
 
@@ -56,7 +50,11 @@ jobs:
         if: always()
         working-directory: ./projects/harv-extension
         run: |
+          if [ -f outputs/cp_pm_incremental_tests/SUCCESS.txt ]; then
+            echo "=== Success Marker ==="
+            cat outputs/cp_pm_incremental_tests/SUCCESS.txt
+          fi
           if [ -f outputs/cp_pm_incremental_tests/README.md ]; then
             echo "=== Test Summary ==="
-            head -80 outputs/cp_pm_incremental_tests/README.md
+            head -120 outputs/cp_pm_incremental_tests/README.md
           fi
