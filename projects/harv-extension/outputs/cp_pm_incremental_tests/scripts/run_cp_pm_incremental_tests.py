@@ -1,717 +1,735 @@
 """
 CP + PM Incremental Value Test
-================================
-Validate recomputed CP against existing saved CP,
-then test whether CP + PM beats CP on conditional states.
+==============================
 
-This script:
-1. Loads existing CP predictions
-2. Recomputes CP and validates against existing
-3. Recomputes CP+PM
-4. Compares hybrid performance on conditional states
-5. Generates comparison metrics
+This script runs two related checks:
 
-Anti-lookahead rule: All conditions use Actual.shift(k) for k >= 1.
+1. Diagnostic validation: recompute CP and compare it with the saved
+   current_intraday Predicted_CP series. This is diagnostic only.
+2. Fresh apples-to-apples incremental test: compare freshly recomputed CP
+   against freshly recomputed CP+PM on the exact same timestamps.
+
+Why this structure matters:
+- If saved CP predictions cannot be reproduced exactly, we should not compare
+  a new CP+PM model against stale/unknown saved CP predictions.
+- A fresh CP baseline and fresh CP+PM model are still a valid incremental test,
+  because they use identical data, target alignment, warmup, and expanding-window
+  logic.
+
+Anti-lookahead rule: all conditional state labels are built only from lagged
+Actual values, i.e. Actual.shift(k) for k >= 1.
 """
 
-import os
-import sys
 import json
-import warnings
 import platform
+import sys
+import warnings
 from datetime import datetime
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from scipy import stats
-from statsmodels.api import OLS, add_constant
 
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
 
-# Add repo code to path
-REPO_ROOT = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(REPO_ROOT / 'code'))
+# Add project code to path. This file lives in:
+# projects/harv-extension/outputs/cp_pm_incremental_tests/scripts/
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(PROJECT_ROOT / "code"))
 
-# Import utilities from repo
-from utils.data_utils import (
-    fetch_intraday_data, 
-    calculate_intraday_realized_volatility, 
-    fit_and_predict_extended
+from utils.data_utils import (  # noqa: E402
+    calculate_intraday_realized_volatility,
+    fetch_intraday_data,
+    fit_and_predict_extended,
 )
-from utils.models_utils import contig_prime_modulo, add_prime_modulo_terms
-from utils.harvey_utils import add_harv_terms
+from utils.models_utils import add_prime_modulo_terms, contig_prime_modulo  # noqa: E402
 
-# Paths
-PRED_DIR = REPO_ROOT / 'run_results' / 'current_intraday' / 'predictions'
-DATA_DIR = REPO_ROOT / 'data' / 'market_data' / 'clean'
-OUTPUT_DIR = REPO_ROOT / 'outputs' / 'cp_pm_incremental_tests'
-RESULTS_DIR = OUTPUT_DIR / 'results'
-FIGURES_DIR = OUTPUT_DIR / 'figures'
-LATEX_DIR = OUTPUT_DIR / 'latex'
-CP_VALIDATION_WARMUP = 600
-CP_VALIDATION_FEATURE_PREFIXES = ('RV', 'CP')
-HYBRID_FEATURE_PREFIXES = ('RV', 'CP', 'PM')
+PRED_DIR = PROJECT_ROOT / "run_results" / "current_intraday" / "predictions"
+DATA_DIR = PROJECT_ROOT / "data" / "market_data" / "clean"
+OUTPUT_DIR = PROJECT_ROOT / "outputs" / "cp_pm_incremental_tests"
+RESULTS_DIR = OUTPUT_DIR / "results"
+FIGURES_DIR = OUTPUT_DIR / "figures"
+LATEX_DIR = OUTPUT_DIR / "latex"
+
+N_LAGS = 22
+WARMUP = 600
+BOOTSTRAP_RESAMPLES = 1000
+BOOTSTRAP_SEED = 42
 SHIFT_OFFSETS = [-2, -1, 0, 1, 2]
+CP_FEATURE_PREFIXES = ("RV", "CP")
+HYBRID_FEATURE_PREFIXES = ("RV", "CP", "PM")
 
-RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-LATEX_DIR.mkdir(parents=True, exist_ok=True)
+CONDITION_ORDER = [
+    "all_observations",
+    "cluster_entry_loose",
+    "cluster_entry_strict",
+    "cluster_exit_loose",
+    "cluster_exit_strict",
+    "inflection_points",
+    "high_within_block_dispersion",
+    "recent_spike_position",
+    "older_spike_position",
+    "same_average_different_path",
+]
+
+for directory in [RESULTS_DIR, FIGURES_DIR, LATEX_DIR]:
+    directory.mkdir(parents=True, exist_ok=True)
 
 
-def select_feature_columns(frame, prefixes):
-    return [c for c in frame.columns if c.startswith(prefixes)]
+def select_feature_columns(frame: pd.DataFrame, prefixes) -> list[str]:
+    return [column for column in frame.columns if column.startswith(prefixes)]
 
-def load_existing_predictions():
-    """Load existing predictions with Predicted_CP."""
+
+def safe_float(value):
+    if pd.isna(value):
+        return None
+    try:
+        return float(value)
+    except Exception:
+        return None
+
+
+def safe_date(value):
+    if pd.isna(value):
+        return None
+    try:
+        return pd.to_datetime(value).isoformat()
+    except Exception:
+        return str(value)
+
+
+def load_existing_predictions() -> dict[str, pd.DataFrame]:
     predictions = {}
     if not PRED_DIR.exists():
-        raise FileNotFoundError(f"Predictions directory not found: {PRED_DIR}")
-    
-    for csv_file in sorted(PRED_DIR.glob('*.csv')):
+        raise FileNotFoundError(f"Missing predictions directory: {PRED_DIR}")
+
+    for csv_file in sorted(PRED_DIR.glob("*.csv")):
         ticker = csv_file.stem
         try:
-            df = pd.read_csv(csv_file, parse_dates=['Date'])
-            if 'Actual' not in df.columns or 'Predicted_CP' not in df.columns:
-                print(f"⚠ Skipping {ticker}: missing Actual or Predicted_CP")
+            frame = pd.read_csv(csv_file, parse_dates=["Date"])
+            required = {"Date", "Actual", "Predicted_CP"}
+            if not required.issubset(frame.columns):
+                print(f"Skipping {ticker}: missing required columns {required - set(frame.columns)}")
                 continue
-            
-            df = df.sort_values('Date').reset_index(drop=True)
-            predictions[ticker] = df
-            print(f"✓ Loaded {ticker}: {len(df)} rows")
-        except Exception as e:
-            print(f"✗ Error loading {ticker}: {e}")
-    
+            frame = frame.sort_values("Date").reset_index(drop=True)
+            predictions[ticker] = frame
+            print(f"Loaded existing predictions for {ticker}: {len(frame):,} rows")
+        except Exception as exc:
+            print(f"Could not load {csv_file}: {exc}")
+
     return predictions
 
-def recompute_cp_forecasts(ticker, data_dir=None):
-    """Recompute CP forecasts from raw data."""
-    if data_dir is None:
-        data_dir = DATA_DIR
-    
-    # Load raw intraday data
+
+def normalize_prediction_frame(preds: pd.DataFrame, model_name: str) -> pd.DataFrame:
+    """Return Date, Actual, Predicted_<model_name> from a prediction DataFrame."""
+    if preds is None or preds.empty:
+        return pd.DataFrame()
+
+    frame = preds.reset_index().copy()
+    if "Date" not in frame.columns:
+        first_col = frame.columns[0]
+        frame = frame.rename(columns={first_col: "Date"})
+
+    pred_col = f"Predicted_{model_name}"
+    if pred_col not in frame.columns:
+        candidates = [column for column in frame.columns if column.startswith("Predicted_")]
+        if len(candidates) == 1:
+            frame = frame.rename(columns={candidates[0]: pred_col})
+        else:
+            raise ValueError(f"Could not find prediction column {pred_col}; candidates={candidates}")
+
+    if "Actual" not in frame.columns:
+        raise ValueError("Prediction frame missing Actual column")
+
+    frame["Date"] = pd.to_datetime(frame["Date"])
+    return frame[["Date", "Actual", pred_col]].sort_values("Date").reset_index(drop=True)
+
+
+def build_forecasts(ticker: str, include_pm: bool, model_name: str) -> pd.DataFrame | None:
+    """Build fresh forecasts for CP or CP+PM from raw data."""
     try:
-        raw = fetch_intraday_data(ticker, use_local=True, local_dir=str(data_dir))
-    except Exception as e:
-        print(f"  ⚠ Could not load raw data for {ticker}: {e}")
-        return None
-    
-    # Calculate RV
-    try:
+        raw = fetch_intraday_data(ticker, use_local=True, local_dir=str(DATA_DIR))
         vol = calculate_intraday_realized_volatility(raw)
-    except Exception as e:
-        print(f"  ⚠ Could not compute RV for {ticker}: {e}")
-        return None
-    
-    # Apply CP feature engineering
-    try:
-        extended = contig_prime_modulo(vol.copy(), n=22, per_day_normalize=False)
-    except Exception as e:
-        print(f"  ⚠ Could not apply CP to {ticker}: {e}")
-        return None
-    
-    # Extract features and predict
-    try:
-        features = select_feature_columns(extended, CP_VALIDATION_FEATURE_PREFIXES)
-        if len(features) == 0:
-            print(f"  ⚠ No CP features found for {ticker}")
+        extended = contig_prime_modulo(vol.copy(), n=N_LAGS, per_day_normalize=False)
+        if include_pm:
+            extended = add_prime_modulo_terms(extended.copy(), n=N_LAGS)
+
+        prefixes = HYBRID_FEATURE_PREFIXES if include_pm else CP_FEATURE_PREFIXES
+        features = select_feature_columns(extended, prefixes)
+        if not features:
+            print(f"{ticker}: no features selected for {model_name}")
             return None
-        
+
         preds = fit_and_predict_extended(
-            extended, features, n=22, warmup=CP_VALIDATION_WARMUP, model_name='CP'
+            extended,
+            features,
+            n=N_LAGS,
+            warmup=WARMUP,
+            model_name=model_name,
         )
-        
         if preds is None or preds.empty:
-            print(f"  ⚠ No predictions for {ticker}")
+            print(f"{ticker}: empty predictions for {model_name}")
             return None
-        
-        return preds
-    except Exception as e:
-        print(f"  ⚠ Could not fit/predict for {ticker}: {e}")
+        return normalize_prediction_frame(preds, model_name)
+    except Exception as exc:
+        print(f"{ticker}: failed to build {model_name}: {exc}")
         return None
 
 
-def build_cp_alignment_shift_diagnostics(existing_df, recomputed_df, ticker):
-    """Check whether a simple row shift explains CP mismatches."""
-    diagnostics = []
-    existing_vals = existing_df[['Date', 'Predicted_CP']].copy()
-    recomputed_vals = recomputed_df.reset_index().rename(columns={'index': 'Date'})[['Date', 'Predicted_CP']].copy()
-
-    for shift in SHIFT_OFFSETS:
-        shifted = recomputed_vals.copy()
-        shifted['Predicted_CP'] = shifted['Predicted_CP'].shift(shift)
-        merged = existing_vals.merge(shifted, on='Date', how='inner', suffixes=('_existing', '_shifted'))
-        merged = merged.sort_values('Date').reset_index(drop=True)
-
-        if merged.empty:
-            diagnostics.append({
-                'ticker': ticker,
-                'shift': shift,
-                'n_aligned': 0,
-                'mean_abs_diff': np.nan,
-                'median_abs_diff': np.nan,
-                'max_abs_diff': np.nan,
-                'correlation': np.nan,
-                'first_aligned_date': None,
-                'last_aligned_date': None,
-            })
-            continue
-
-        existing_series = merged['Predicted_CP_existing'].astype(float)
-        shifted_series = merged['Predicted_CP_shifted'].astype(float)
-        abs_diff = (existing_series - shifted_series).abs()
-
-        diagnostics.append({
-            'ticker': ticker,
-            'shift': shift,
-            'n_aligned': len(merged),
-            'mean_abs_diff': float(abs_diff.mean()),
-            'median_abs_diff': float(abs_diff.median()),
-            'max_abs_diff': float(abs_diff.max()),
-            'correlation': float(existing_series.corr(shifted_series)),
-            'first_aligned_date': merged['Date'].iloc[0],
-            'last_aligned_date': merged['Date'].iloc[-1],
-        })
-
-    return pd.DataFrame(diagnostics)
-
-def validate_cp_recomputation(existing_df, recomputed_df):
-    """Compare existing Predicted_CP with recomputed CP."""
-    # Align on Date index
-    try:
-        merged = existing_df[['Date', 'Predicted_CP']].merge(
-            recomputed_df.reset_index().rename(columns={'index': 'Date'})[['Date', 'Predicted_CP']],
-            on='Date',
-            suffixes=('_existing', '_recomputed'),
-            how='inner'
-        )
-    except Exception as e:
+def validate_cp_recomputation(existing_df: pd.DataFrame, fresh_cp_df: pd.DataFrame, ticker: str) -> dict:
+    if fresh_cp_df is None or fresh_cp_df.empty:
         return {
-            'status': 'error',
-            'message': str(e),
-            'n_aligned': 0,
+            "ticker": ticker,
+            "status": "failed",
+            "message": "Fresh CP forecast missing or empty",
+            "n_existing": len(existing_df),
+            "n_recomputed": 0,
+            "n_aligned": 0,
+            "passes": False,
         }
-    
+
+    merged = existing_df[["Date", "Predicted_CP"]].merge(
+        fresh_cp_df[["Date", "Predicted_CP"]],
+        on="Date",
+        how="inner",
+        suffixes=("_existing", "_recomputed"),
+    ).sort_values("Date")
+
     if merged.empty:
         return {
-            'status': 'failed',
-            'message': 'No aligned dates between existing and recomputed',
-            'n_aligned': 0,
+            "ticker": ticker,
+            "status": "failed",
+            "message": "No aligned dates",
+            "n_existing": len(existing_df),
+            "n_recomputed": len(fresh_cp_df),
+            "n_aligned": 0,
+            "passes": False,
         }
-    
-    existing_vals = merged['Predicted_CP_existing'].values
-    recomputed_vals = merged['Predicted_CP_recomputed'].values
-    
-    # Compute validation metrics
-    abs_diff = np.abs(existing_vals - recomputed_vals)
-    mean_abs_diff = np.mean(abs_diff)
-    median_abs_diff = np.median(abs_diff)
-    max_abs_diff = np.max(abs_diff)
-    
-    # Correlation
-    try:
-        corr = np.corrcoef(existing_vals, recomputed_vals)[0, 1]
-    except:
-        corr = np.nan
 
-    first_aligned_date = merged['Date'].min()
-    last_aligned_date = merged['Date'].max()
-    
-    # Threshold for pass/fail
-    passes = corr > 0.95 and mean_abs_diff < 1.0
-    
+    existing = merged["Predicted_CP_existing"].astype(float)
+    recomputed = merged["Predicted_CP_recomputed"].astype(float)
+    abs_diff = (existing - recomputed).abs()
+    corr = existing.corr(recomputed) if len(merged) > 1 else np.nan
+
+    # Diagnostic threshold only. Do not use this to decide whether fresh CP vs fresh hybrid is valid.
+    passes = bool((corr is not None) and (not pd.isna(corr)) and corr > 0.995 and abs_diff.mean() < 1e-8)
+
     return {
-        'status': 'passed' if passes else 'failed',
-        'n_aligned': len(merged),
-        'n_existing': len(existing_df),
-        'n_recomputed': len(recomputed_df),
-        'mean_existing_CP': float(np.mean(existing_vals)),
-        'mean_recomputed_CP': float(np.mean(recomputed_vals)),
-        'std_existing_CP': float(np.std(existing_vals, ddof=1)) if len(existing_vals) > 1 else np.nan,
-        'std_recomputed_CP': float(np.std(recomputed_vals, ddof=1)) if len(recomputed_vals) > 1 else np.nan,
-        'mean_abs_diff': mean_abs_diff,
-        'median_abs_diff': median_abs_diff,
-        'max_abs_diff': max_abs_diff,
-        'correlation': corr,
-        'first_aligned_date': first_aligned_date,
-        'last_aligned_date': last_aligned_date,
-        'passes': passes,
+        "ticker": ticker,
+        "status": "passed" if passes else "failed",
+        "message": "diagnostic exact-saved-CP validation",
+        "n_existing": int(len(existing_df)),
+        "n_recomputed": int(len(fresh_cp_df)),
+        "n_aligned": int(len(merged)),
+        "mean_existing_CP": safe_float(existing.mean()),
+        "mean_recomputed_CP": safe_float(recomputed.mean()),
+        "std_existing_CP": safe_float(existing.std(ddof=1)),
+        "std_recomputed_CP": safe_float(recomputed.std(ddof=1)),
+        "mean_abs_diff": safe_float(abs_diff.mean()),
+        "median_abs_diff": safe_float(abs_diff.median()),
+        "max_abs_diff": safe_float(abs_diff.max()),
+        "correlation": safe_float(corr),
+        "first_aligned_date": safe_date(merged["Date"].min()),
+        "last_aligned_date": safe_date(merged["Date"].max()),
+        "passes": passes,
     }
 
-def recompute_cp_pm_forecasts(ticker, data_dir=None):
-    """Recompute CP+PM (hybrid) forecasts from raw data."""
-    if data_dir is None:
-        data_dir = DATA_DIR
-    
-    # Load raw intraday data
-    try:
-        raw = fetch_intraday_data(ticker, use_local=True, local_dir=str(data_dir))
-    except Exception as e:
-        return None
-    
-    # Calculate RV
-    try:
-        vol = calculate_intraday_realized_volatility(raw)
-    except Exception as e:
-        return None
-    
-    # Apply CP + PM feature engineering
-    try:
-        extended = contig_prime_modulo(vol.copy(), n=22, per_day_normalize=False)
-        extended = add_prime_modulo_terms(extended.copy(), n=22)
-    except Exception as e:
-        return None
-    
-    # Extract all CP and PM features (not HAR for now)
-    try:
-        features = select_feature_columns(extended, HYBRID_FEATURE_PREFIXES)
-        if len(features) == 0:
-            return None
-        
-        preds = fit_and_predict_extended(
-            extended, features, n=22, warmup=CP_VALIDATION_WARMUP, model_name='CP_PLUS_PM'
-        )
-        
-        if preds is None or preds.empty:
-            return None
-        
-        return preds
-    except Exception as e:
-        return None
 
-def add_lagged_features(df, max_lag=22):
-    """Add lagged Actual RV values (anti-lookahead)."""
-    for lag in range(1, max_lag + 1):
-        df[f'lag{lag}'] = df['Actual'].shift(lag)
-    return df.dropna(subset=[f'lag{max_lag}'])
+def build_shift_diagnostics(existing_df: pd.DataFrame, fresh_cp_df: pd.DataFrame, ticker: str) -> pd.DataFrame:
+    rows = []
+    if fresh_cp_df is None or fresh_cp_df.empty:
+        return pd.DataFrame(rows)
 
-def define_conditions(df):
-    """Define 10 condition flags (anti-lookahead)."""
-    conditions = {}
-    
-    # Condition 1: all_observations
-    conditions['all_observations'] = np.ones(len(df), dtype=bool)
-    
-    # Prepare aggregates
-    recent_mean_1_5 = df[['lag1', 'lag2', 'lag3', 'lag4', 'lag5']].mean(axis=1)
-    older_mean_6_10 = df[['lag6', 'lag7', 'lag8', 'lag9', 'lag10']].mean(axis=1)
-    recent_mean_1_3 = df[['lag1', 'lag2', 'lag3']].mean(axis=1)
-    prior_mean_4_6 = df[['lag4', 'lag5', 'lag6']].mean(axis=1)
-    prior_mean_7_10 = df[['lag7', 'lag8', 'lag9', 'lag10']].mean(axis=1)
-    local_mean_1_10 = df[['lag1', 'lag2', 'lag3', 'lag4', 'lag5', 'lag6', 'lag7', 'lag8', 'lag9', 'lag10']].mean(axis=1)
-    local_std_1_10 = df[['lag1', 'lag2', 'lag3', 'lag4', 'lag5', 'lag6', 'lag7', 'lag8', 'lag9', 'lag10']].std(axis=1)
-    
-    # Condition 2 & 3: cluster entry
-    entry_score = recent_mean_1_5 - older_mean_6_10
-    entry_threshold = entry_score.quantile(0.80)
-    entry_loose = entry_score >= entry_threshold
-    conditions['cluster_entry_loose'] = entry_loose
-    
-    median_lagged_rv = df[['lag1', 'lag2', 'lag3', 'lag4', 'lag5', 'lag6', 'lag7', 'lag8', 'lag9', 'lag10']].values.flatten()
-    median_lagged_rv = np.nanmedian(median_lagged_rv)
-    entry_strict = (recent_mean_1_5 >= median_lagged_rv) & entry_loose
-    conditions['cluster_entry_strict'] = entry_strict
-    
-    # Condition 4 & 5: cluster exit
-    exit_score = older_mean_6_10 - recent_mean_1_5
-    exit_threshold = exit_score.quantile(0.80)
-    exit_loose = exit_score >= exit_threshold
-    conditions['cluster_exit_loose'] = exit_loose
-    
-    exit_strict = (older_mean_6_10 >= median_lagged_rv) & exit_loose
-    conditions['cluster_exit_strict'] = exit_strict
-    
-    # Condition 6: inflection points
-    slope_recent = recent_mean_1_3 - prior_mean_4_6
-    slope_prior = prior_mean_4_6 - prior_mean_7_10
-    inflection_sign_change = (slope_recent * slope_prior) < 0
-    slope_movement = np.abs(slope_recent - slope_prior)
-    median_slope_movement = slope_movement.median()
-    inflection = inflection_sign_change & (slope_movement >= median_slope_movement)
-    conditions['inflection_points'] = inflection
-    
-    # Condition 7: high within-block dispersion
-    dispersion_1_10 = local_std_1_10 / (local_mean_1_10 + 1e-12)
-    dispersion_threshold = dispersion_1_10.quantile(0.80)
-    conditions['high_within_block_dispersion'] = dispersion_1_10 >= dispersion_threshold
-    
-    # Condition 8: recent spike
-    max_lag_idx = df[['lag1', 'lag2', 'lag3', 'lag4', 'lag5', 'lag6', 'lag7', 'lag8', 'lag9', 'lag10']].values.argmax(axis=1)
-    recent_spike = max_lag_idx <= 2
-    conditions['recent_spike_position'] = recent_spike
-    
-    # Condition 9: older spike
-    older_spike = max_lag_idx >= 7
-    conditions['older_spike_position'] = older_spike
-    
-    # Condition 10: same average, different path
-    path_score = np.abs(recent_mean_1_5 - older_mean_6_10)
-    path_threshold = path_score.quantile(0.80)
-    local_mean_low = (local_mean_1_10 >= local_mean_1_10.quantile(0.40)) & (local_mean_1_10 <= local_mean_1_10.quantile(0.60))
-    conditions['same_average_different_path'] = local_mean_low & (path_score >= path_threshold)
-    
-    return conditions
+    existing = existing_df[["Date", "Predicted_CP"]].copy()
+    fresh = fresh_cp_df[["Date", "Predicted_CP"]].copy()
 
-def bootstrap_ci(values, n_resamples=1000, seed=42):
-    """Compute 95% CI via bootstrap."""
-    rng = np.random.default_rng(seed)
-    bootstrap_means = []
-    for _ in range(n_resamples):
-        resample = rng.choice(values, size=len(values), replace=True)
-        bootstrap_means.append(np.nanmean(resample))
-    return np.nanpercentile(bootstrap_means, [2.5, 97.5])
+    for shift in SHIFT_OFFSETS:
+        shifted = fresh.copy()
+        shifted["Predicted_CP"] = shifted["Predicted_CP"].shift(shift)
+        merged = existing.merge(
+            shifted,
+            on="Date",
+            how="inner",
+            suffixes=("_existing", "_shifted"),
+        ).sort_values("Date")
 
-def compute_asset_metrics(df, asset, conditions):
-    """Compute asset-level metrics for each condition."""
-    asset_metrics = []
-    
-    for cond_name, cond_mask in conditions.items():
-        subset = df[cond_mask].copy()
-        if len(subset) == 0:
-            continue
-        
-        n_obs = len(subset)
-        
-        # CP vs Hybrid comparison
-        cp_smape = subset['SMAPE_CP_pct'].mean()
-        hybrid_smape = subset['SMAPE_Hybrid_pct'].mean()
-        hybrid_advantage = cp_smape - hybrid_smape  # positive = hybrid beats CP
-        hybrid_advantage_median = (subset['SMAPE_CP_pct'] - subset['SMAPE_Hybrid_pct']).median()
-        hybrid_win_rate = (subset['SMAPE_CP_pct'] > subset['SMAPE_Hybrid_pct']).mean()
-        
-        cp_abserr = subset['AbsErr_CP'].mean()
-        hybrid_abserr = subset['AbsErr_Hybrid'].mean()
-        abserr_advantage = cp_abserr - hybrid_abserr
-        
-        # Paired t-test
-        loss_diff = subset['SMAPE_CP_pct'].values - subset['SMAPE_Hybrid_pct'].values
-        try:
-            tstat, pval = stats.ttest_1samp(loss_diff, 0)
-            ttest_pval = pval
-        except:
-            ttest_pval = np.nan
-        
-        # Bootstrap CI
-        try:
-            ci_low, ci_high = bootstrap_ci(loss_diff, seed=42)
-        except:
-            ci_low, ci_high = np.nan, np.nan
-        
-        asset_metrics.append({
-            'asset': asset,
-            'condition': cond_name,
-            'n_obs': n_obs,
-            'CP_mean_SMAPE': cp_smape,
-            'Hybrid_mean_SMAPE': hybrid_smape,
-            'mean_hybrid_advantage_vs_CP': hybrid_advantage,
-            'median_hybrid_advantage_vs_CP': hybrid_advantage_median,
-            'hybrid_win_rate_vs_CP': hybrid_win_rate,
-            'mean_AbsErr_CP': cp_abserr,
-            'mean_AbsErr_Hybrid': hybrid_abserr,
-            'mean_AbsErr_advantage_vs_CP': abserr_advantage,
-            'ttest_pval': ttest_pval,
-            'bootstrap_ci_low': ci_low,
-            'bootstrap_ci_high': ci_high,
-        })
-    
-    return asset_metrics
-
-def compute_pooled_metrics(all_metrics_df):
-    """Compute pooled (cross-asset) metrics for each condition."""
-    conditions = all_metrics_df['condition'].unique()
-    pooled_metrics = []
-    
-    for cond in conditions:
-        subset = all_metrics_df[all_metrics_df['condition'] == cond]
-        
-        total_n_obs = subset['n_obs'].sum()
-        n_assets = subset['asset'].nunique()
-        
-        # Equal-weight asset means
-        eq_weight_mean_advantage = subset['mean_hybrid_advantage_vs_CP'].mean()
-        eq_weight_median_advantage = subset['median_hybrid_advantage_vs_CP'].mean()
-        eq_weight_win_rate = subset['hybrid_win_rate_vs_CP'].mean()
-        
-        # Pooled metrics (weighted by obs)
-        pooled_smape_cp = (subset['n_obs'] * subset['CP_mean_SMAPE']).sum() / total_n_obs
-        pooled_smape_hybrid = (subset['n_obs'] * subset['Hybrid_mean_SMAPE']).sum() / total_n_obs
-        pooled_advantage = pooled_smape_cp - pooled_smape_hybrid
-        
-        n_assets_hybrid_beats = (subset['mean_hybrid_advantage_vs_CP'] > 0).sum()
-        asset_win_rate = n_assets_hybrid_beats / n_assets if n_assets > 0 else 0
-        
-        pooled_metrics.append({
-            'condition': cond,
-            'total_n_obs': total_n_obs,
-            'number_of_assets': n_assets,
-            'equal_weight_asset_mean_advantage': eq_weight_mean_advantage,
-            'equal_weight_asset_median_advantage': eq_weight_median_advantage,
-            'equal_weight_asset_hybrid_win_rate': eq_weight_win_rate,
-            'pooled_CP_mean_SMAPE': pooled_smape_cp,
-            'pooled_Hybrid_mean_SMAPE': pooled_smape_hybrid,
-            'pooled_mean_hybrid_advantage_vs_CP': pooled_advantage,
-            'number_of_assets_where_hybrid_beats_CP': n_assets_hybrid_beats,
-            'asset_win_rate': asset_win_rate,
-        })
-    
-    return pd.DataFrame(pooled_metrics)
-
-def main():
-    print("=" * 90)
-    print("CP + PM INCREMENTAL VALUE TEST")
-    print("=" * 90)
-    
-    # Step 1: Load existing predictions
-    print("\n[1] Loading existing predictions...")
-    existing_predictions = load_existing_predictions()
-    tickers = sorted(existing_predictions.keys())
-    print(f"✓ Loaded {len(tickers)} tickers: {', '.join(tickers)}")
-    
-    # Step 2: Validate CP recomputation
-    print("\n[2] Validating CP recomputation...")
-    validation_results = []
-    shift_diagnostics = []
-    valid_tickers = []
-    
-    for ticker in tickers:
-        print(f"  Recomputing CP for {ticker}...")
-        recomputed_cp = recompute_cp_forecasts(ticker)
-        
-        if recomputed_cp is None:
-            print(f"  ✗ Failed to recompute CP for {ticker}")
-            validation_results.append({
-                'ticker': ticker,
-                'status': 'failed',
-                'n_aligned': 0,
-                'n_existing': len(existing_predictions[ticker]),
-                'n_recomputed': 0,
-                'mean_abs_diff': np.nan,
-                'median_abs_diff': np.nan,
-                'max_abs_diff': np.nan,
-                'correlation': np.nan,
-                'mean_existing_CP': np.nan,
-                'mean_recomputed_CP': np.nan,
-                'std_existing_CP': np.nan,
-                'std_recomputed_CP': np.nan,
-                'first_aligned_date': None,
-                'last_aligned_date': None,
-                'passes': False,
+        if merged.empty:
+            rows.append({
+                "ticker": ticker,
+                "shift": shift,
+                "n_aligned": 0,
+                "mean_abs_diff": np.nan,
+                "median_abs_diff": np.nan,
+                "max_abs_diff": np.nan,
+                "correlation": np.nan,
+                "first_aligned_date": None,
+                "last_aligned_date": None,
             })
             continue
-        
-        existing_df = existing_predictions[ticker].copy()
-        val_result = validate_cp_recomputation(existing_df, recomputed_cp)
-        val_result['ticker'] = ticker
-        validation_results.append(val_result)
-        shift_diagnostics.append(build_cp_alignment_shift_diagnostics(existing_df, recomputed_cp, ticker))
-        
-        if val_result.get('passes', False):
-            valid_tickers.append(ticker)
-            print(f"  ✓ CP validation passed: corr={val_result['correlation']:.4f}, mean_diff={val_result['mean_abs_diff']:.6f}")
-        else:
-            print(f"  ✗ CP validation FAILED: corr={val_result.get('correlation', np.nan):.4f}")
-    
-    df_validation = pd.DataFrame(validation_results)
-    df_validation.to_csv(RESULTS_DIR / 'cp_recompute_validation.csv', index=False)
-    df_shift_diagnostics = pd.concat(shift_diagnostics, ignore_index=True) if shift_diagnostics else pd.DataFrame()
-    df_shift_diagnostics.to_csv(RESULTS_DIR / 'cp_alignment_shift_diagnostics.csv', index=False)
-    print(f"\n✓ Validation results saved")
-    
-    # Check if enough tickers passed validation
-    if len(valid_tickers) < 3:
-        print(f"\n✗ CRITICAL: Only {len(valid_tickers)} tickers passed validation. Stopping.")
-        with open(OUTPUT_DIR / 'README.md', 'w') as f:
-            f.write("# CP + PM Incremental Test - VALIDATION FAILED\n\n")
-            f.write(f"Only {len(valid_tickers)} out of {len(tickers)} tickers passed CP recomputation validation.\n\n")
-            f.write("## Validation Results\n\n")
-            f.write(df_validation.to_string())
-            if not df_shift_diagnostics.empty:
-                f.write("\n\n## Shift Diagnostics\n\n")
-                f.write(df_shift_diagnostics.to_string())
-        return
-    
-    print(f"✓ {len(valid_tickers)}/{len(tickers)} tickers passed validation. Proceeding.")
-    tickers = valid_tickers
-    
-    # Step 3: Recompute CP+PM and compare
-    print("\n[3] Recomputing CP+PM forecasts and comparing...")
-    all_asset_metrics = []
-    
-    for ticker in tickers:
-        print(f"  Processing {ticker}...")
-        
-        # Get existing CP
-        existing_df = existing_predictions[ticker].copy()
-        
-        # Recompute Hybrid (CP+PM)
-        hybrid_df = recompute_cp_pm_forecasts(ticker)
-        if hybrid_df is None or hybrid_df.empty:
-            print(f"    ⚠ Could not recompute hybrid for {ticker}")
-            continue
-        
-        # Merge: existing CP with recomputed hybrid
-        try:
-            merged = existing_df[['Date', 'Actual', 'Predicted_CP']].merge(
-                hybrid_df.reset_index().rename(columns={'index': 'Date'})[['Date', 'Predicted_CP_PLUS_PM']],
-                on='Date',
-                how='inner'
-            )
-        except:
-            print(f"    ⚠ Could not merge forecasts for {ticker}")
-            continue
-        
-        if merged.empty:
-            print(f"    ⚠ No aligned rows for {ticker}")
-            continue
-        
-        merged = merged.rename(columns={'Predicted_CP_PLUS_PM': 'Predicted_Hybrid'})
-        
-        # Compute errors
-        merged['AbsErr_CP'] = np.abs(merged['Actual'] - merged['Predicted_CP'])
-        merged['AbsErr_Hybrid'] = np.abs(merged['Actual'] - merged['Predicted_Hybrid'])
-        merged['SMAPE_CP_pct'] = 200.0 * merged['AbsErr_CP'] / (np.abs(merged['Actual']) + np.abs(merged['Predicted_CP']) + 1e-12)
-        merged['SMAPE_Hybrid_pct'] = 200.0 * merged['AbsErr_Hybrid'] / (np.abs(merged['Actual']) + np.abs(merged['Predicted_Hybrid']) + 1e-12)
-        
-        # Add lagged features and define conditions
-        merged = add_lagged_features(merged, max_lag=22)
-        conditions = define_conditions(merged)
-        
-        # Compute metrics
-        asset_metrics = compute_asset_metrics(merged, ticker, conditions)
-        all_asset_metrics.extend(asset_metrics)
-    
-    if len(all_asset_metrics) == 0:
-        print("✗ No valid metrics computed. Stopping.")
-        return
-    
-    # Step 4: Aggregate and save results
-    print("\n[4] Aggregating results...")
-    df_asset_metrics = pd.DataFrame(all_asset_metrics)
-    df_pooled_metrics = compute_pooled_metrics(df_asset_metrics)
-    df_top_conditions = df_pooled_metrics.sort_values('equal_weight_asset_mean_advantage', ascending=False).copy()
-    
-    df_asset_metrics.to_csv(RESULTS_DIR / 'fresh_conditional_hybrid_summary_by_asset.csv', index=False)
-    df_pooled_metrics.to_csv(RESULTS_DIR / 'fresh_conditional_hybrid_summary_pooled.csv', index=False)
-    df_top_conditions.to_csv(RESULTS_DIR / 'top_fresh_hybrid_conditions.csv', index=False)
-    
-    # Hybrid predictions summary
-    hybrid_summary = df_pooled_metrics[['condition', 'pooled_CP_mean_SMAPE', 'pooled_Hybrid_mean_SMAPE', 'pooled_mean_hybrid_advantage_vs_CP']].copy()
-    hybrid_summary.to_csv(RESULTS_DIR / 'fresh_cp_vs_hybrid_predictions_summary.csv', index=False)
-    
-    print(f"✓ Results saved")
-    
-    # Step 5: Generate plots
-    print("\n[5] Generating visualizations...")
-    
-    # Plot 1: Hybrid advantage by condition
-    fig, ax = plt.subplots(figsize=(12, 6))
-    sorted_df = df_pooled_metrics.sort_values('equal_weight_asset_mean_advantage')
-    conditions_list = sorted_df['condition'].tolist()
-    advantages = sorted_df['equal_weight_asset_mean_advantage'].tolist()
-    colors = ['green' if x > 0 else 'red' for x in advantages]
-    ax.barh(conditions_list, advantages, color=colors, alpha=0.7)
-    ax.axvline(x=0, color='black', linestyle='-', linewidth=0.8)
-    ax.set_xlabel('Equal-Weight Asset Mean Hybrid Advantage vs CP (SMAPE%)')
-    ax.set_title('Hybrid (CP+PM) Advantage by Condition\n(Positive = CP+PM beats CP)')
-    ax.grid(axis='x', alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(FIGURES_DIR / 'fresh_hybrid_advantage_by_condition.png', dpi=100)
-    
-    # Plot 2: Hybrid win rate by condition
-    fig, ax = plt.subplots(figsize=(12, 6))
-    sorted_df = df_pooled_metrics.sort_values('equal_weight_asset_hybrid_win_rate')
-    conditions_list = sorted_df['condition'].tolist()
-    win_rates = sorted_df['equal_weight_asset_hybrid_win_rate'].tolist()
-    colors = ['green' if x > 0.5 else 'red' for x in win_rates]
-    ax.barh(conditions_list, win_rates, color=colors, alpha=0.7)
-    ax.axvline(x=0.5, color='black', linestyle='--', linewidth=0.8, label='50% (neutral)')
-    ax.set_xlabel('Equal-Weight Asset Hybrid Win Rate vs CP')
-    ax.set_title('Hybrid (CP+PM) Win Rate by Condition\n(>50% = Hybrid wins more often)')
-    ax.set_xlim([0, 1])
-    ax.legend()
-    ax.grid(axis='x', alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(FIGURES_DIR / 'fresh_hybrid_win_rate_by_condition.png', dpi=100)
-    
-    print(f"✓ Plots saved")
-    
-    # Step 6: Generate LaTeX table
-    print("\n[6] Generating LaTeX table...")
-    df_latex = df_pooled_metrics[[
-        'condition', 'total_n_obs', 'number_of_assets',
-        'equal_weight_asset_mean_advantage', 'equal_weight_asset_hybrid_win_rate',
-        'asset_win_rate'
-    ]].copy()
-    df_latex.columns = [
-        'Condition', 'Total Obs', 'N Assets',
-        'Mean Adv', 'Hybrid Win Rate', 'Asset Win Rate'
-    ]
-    df_latex = df_latex.round(4)
-    latex_code = df_latex.to_latex(index=False)
-    with open(LATEX_DIR / 'fresh_conditional_hybrid_summary_pooled.tex', 'w') as f:
-        f.write(latex_code)
-    print(f"✓ LaTeX table saved")
-    
-    # Step 7: Generate manifest
-    print("\n[7] Generating manifest...")
-    manifest = {
-        'timestamp': datetime.now().isoformat(),
-        'python_version': f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
-        'platform': platform.platform(),
-        'input_directory': str(PRED_DIR),
-        'data_directory': str(DATA_DIR),
-        'output_directory': str(OUTPUT_DIR),
-        'script_path': __file__,
-        'tickers_used': tickers,
-        'n_tickers': len(tickers),
-        'validation_passed': True,
-        'cp_validation_warmup': CP_VALIDATION_WARMUP,
-        'cp_validation_feature_prefixes': list(CP_VALIDATION_FEATURE_PREFIXES),
-        'hybrid_feature_prefixes': list(HYBRID_FEATURE_PREFIXES),
-        'conditions_tested': df_pooled_metrics['condition'].tolist(),
-        'n_conditions': len(df_pooled_metrics),
-        'anti_lookahead': 'All condition flags constructed using lagged Actual RV values only',
-    }
-    with open(OUTPUT_DIR / 'manifest.json', 'w') as f:
-        json.dump(manifest, f, indent=2)
-    
-    # Step 8: Generate README
-    print("\n[8] Generating README...")
-    with open(OUTPUT_DIR / 'README.md', 'w') as f:
-        f.write("# CP + PM Incremental Value Test\n\n")
-        f.write(f"**Status**: ✅ SUCCESS\n\n")
-        f.write("Saved CP was reproduced by mirroring the original benchmark's warmup and feature selection; the incremental test therefore uses the saved CP baseline.\n\n")
-        f.write(f"## Summary\n\n")
-        f.write(f"- **Tickers tested**: {len(tickers)} ({', '.join(tickers)})\n")
-        f.write(f"- **Total observations analyzed**: {len(df_asset_metrics):,}\n")
-        f.write(f"- **Conditions tested**: {len(df_pooled_metrics)}\n")
-        f.write(f"- **CP validation**: PASSED ({len(valid_tickers)}/{len(existing_predictions)} tickers)\n\n")
-        f.write("## Key Findings\n\n")
-        f.write("### Hybrid (CP+PM) vs CP Performance\n\n")
-        f.write(df_pooled_metrics[['condition', 'equal_weight_asset_mean_advantage', 'equal_weight_asset_hybrid_win_rate', 'asset_win_rate']].to_markdown())
-        f.write("\n\n## Output Files\n\n")
-        f.write("- `cp_recompute_validation.csv` - CP recomputation validation results\n")
-        f.write("- `cp_alignment_shift_diagnostics.csv` - Shift diagnostics for recomputed CP\n")
-        f.write("- `fresh_conditional_hybrid_summary_by_asset.csv` - Per-asset × condition metrics\n")
-        f.write("- `fresh_conditional_hybrid_summary_pooled.csv` - Pooled (cross-asset) metrics\n")
-        f.write("- `fresh_cp_vs_hybrid_predictions_summary.csv` - Summary of SMAPE comparisons\n")
-        f.write("- `top_fresh_hybrid_conditions.csv` - Conditions ranked by advantage\n")
-        f.write("- `manifest.json` - Execution metadata\n")
-        f.write("- `figures/fresh_hybrid_advantage_by_condition.png` - Bar chart of advantages\n")
-        f.write("- `figures/fresh_hybrid_win_rate_by_condition.png` - Bar chart of win rates\n")
-        f.write("- `latex/fresh_conditional_hybrid_summary_pooled.tex` - LaTeX table for paper\n")
-    
-    print(f"✓ README generated")
-    
-    # Final summary
-    print("\n" + "=" * 90)
-    print("✅ TEST COMPLETED SUCCESSFULLY")
-    print("=" * 90)
-    print(f"\nPooled Results (All Conditions):")
-    print(df_pooled_metrics[['condition', 'equal_weight_asset_mean_advantage', 'equal_weight_asset_hybrid_win_rate']].to_string(index=False))
-    print(f"\nOutputs saved to: {OUTPUT_DIR}")
-    print("=" * 90)
 
-if __name__ == '__main__':
+        existing_vals = merged["Predicted_CP_existing"].astype(float)
+        shifted_vals = merged["Predicted_CP_shifted"].astype(float)
+        abs_diff = (existing_vals - shifted_vals).abs()
+        rows.append({
+            "ticker": ticker,
+            "shift": shift,
+            "n_aligned": int(len(merged)),
+            "mean_abs_diff": safe_float(abs_diff.mean()),
+            "median_abs_diff": safe_float(abs_diff.median()),
+            "max_abs_diff": safe_float(abs_diff.max()),
+            "correlation": safe_float(existing_vals.corr(shifted_vals)),
+            "first_aligned_date": safe_date(merged["Date"].min()),
+            "last_aligned_date": safe_date(merged["Date"].max()),
+        })
+
+    return pd.DataFrame(rows)
+
+
+def merge_fresh_cp_and_hybrid(ticker: str, fresh_cp: pd.DataFrame, fresh_hybrid: pd.DataFrame) -> pd.DataFrame:
+    merged = fresh_cp.merge(
+        fresh_hybrid,
+        on="Date",
+        how="inner",
+        suffixes=("_CP", "_HYBRID"),
+    ).sort_values("Date").reset_index(drop=True)
+
+    if merged.empty:
+        return merged
+
+    # Actual values should match across fresh CP and fresh hybrid because both use the same data/target.
+    actual_diff = (merged["Actual_CP"] - merged["Actual_HYBRID"]).abs().max()
+    if pd.notna(actual_diff) and actual_diff > 1e-12:
+        print(f"Warning {ticker}: Actual mismatch between fresh CP and hybrid, max={actual_diff}")
+
+    merged = merged.rename(columns={
+        "Actual_CP": "Actual",
+        "Predicted_CP": "Predicted_CP_FRESH",
+        "Predicted_CP_PLUS_PM_RAW": "Predicted_CP_PLUS_PM_RAW",
+    })
+    if "Actual_HYBRID" in merged.columns:
+        merged = merged.drop(columns=["Actual_HYBRID"])
+
+    denom_cp = merged["Actual"].abs() + merged["Predicted_CP_FRESH"].abs()
+    denom_hybrid = merged["Actual"].abs() + merged["Predicted_CP_PLUS_PM_RAW"].abs()
+    merged["AbsErr_CP_FRESH"] = (merged["Actual"] - merged["Predicted_CP_FRESH"]).abs()
+    merged["AbsErr_CP_PLUS_PM_RAW"] = (merged["Actual"] - merged["Predicted_CP_PLUS_PM_RAW"]).abs()
+    merged["SMAPE_CP_FRESH_pct"] = np.where(denom_cp > 0, 200 * merged["AbsErr_CP_FRESH"] / denom_cp, np.nan)
+    merged["SMAPE_CP_PLUS_PM_RAW_pct"] = np.where(denom_hybrid > 0, 200 * merged["AbsErr_CP_PLUS_PM_RAW"] / denom_hybrid, np.nan)
+    merged["Hybrid_advantage_vs_CP"] = merged["SMAPE_CP_FRESH_pct"] - merged["SMAPE_CP_PLUS_PM_RAW_pct"]
+    merged["AbsErr_advantage_vs_CP"] = merged["AbsErr_CP_FRESH"] - merged["AbsErr_CP_PLUS_PM_RAW"]
+    merged["asset"] = ticker
+    return merged
+
+
+def add_lagged_actuals(frame: pd.DataFrame, max_lag: int = N_LAGS) -> pd.DataFrame:
+    out = frame.sort_values("Date").reset_index(drop=True).copy()
+    for lag in range(1, max_lag + 1):
+        out[f"lag{lag}"] = out["Actual"].shift(lag)
+    return out.dropna(subset=[f"lag{max_lag}"]).reset_index(drop=True)
+
+
+def define_conditions(frame: pd.DataFrame) -> dict[str, pd.Series]:
+    conditions = {}
+    conditions["all_observations"] = pd.Series(True, index=frame.index)
+
+    lag_cols_1_3 = [f"lag{i}" for i in range(1, 4)]
+    lag_cols_1_5 = [f"lag{i}" for i in range(1, 6)]
+    lag_cols_4_6 = [f"lag{i}" for i in range(4, 7)]
+    lag_cols_6_10 = [f"lag{i}" for i in range(6, 11)]
+    lag_cols_7_10 = [f"lag{i}" for i in range(7, 11)]
+    lag_cols_1_10 = [f"lag{i}" for i in range(1, 11)]
+
+    recent_mean_1_5 = frame[lag_cols_1_5].mean(axis=1)
+    older_mean_6_10 = frame[lag_cols_6_10].mean(axis=1)
+    recent_mean_1_3 = frame[lag_cols_1_3].mean(axis=1)
+    prior_mean_4_6 = frame[lag_cols_4_6].mean(axis=1)
+    prior_mean_7_10 = frame[lag_cols_7_10].mean(axis=1)
+    local_mean_1_10 = frame[lag_cols_1_10].mean(axis=1)
+    local_std_1_10 = frame[lag_cols_1_10].std(axis=1)
+
+    lagged_median = np.nanmedian(frame[lag_cols_1_10].to_numpy().ravel())
+
+    entry_score = recent_mean_1_5 - older_mean_6_10
+    entry_loose = entry_score >= entry_score.quantile(0.80)
+    conditions["cluster_entry_loose"] = entry_loose
+    conditions["cluster_entry_strict"] = entry_loose & (recent_mean_1_5 >= lagged_median)
+
+    exit_score = older_mean_6_10 - recent_mean_1_5
+    exit_loose = exit_score >= exit_score.quantile(0.80)
+    conditions["cluster_exit_loose"] = exit_loose
+    conditions["cluster_exit_strict"] = exit_loose & (older_mean_6_10 >= lagged_median)
+
+    slope_recent = recent_mean_1_3 - prior_mean_4_6
+    slope_prior = prior_mean_4_6 - prior_mean_7_10
+    movement = (slope_recent - slope_prior).abs()
+    conditions["inflection_points"] = (slope_recent * slope_prior < 0) & (movement >= movement.quantile(0.50))
+
+    dispersion = local_std_1_10 / local_mean_1_10.replace(0, np.nan)
+    conditions["high_within_block_dispersion"] = dispersion >= dispersion.quantile(0.80)
+
+    lag_matrix = frame[lag_cols_1_10].to_numpy()
+    max_positions = np.nanargmax(lag_matrix, axis=1) + 1
+    conditions["recent_spike_position"] = pd.Series(np.isin(max_positions, [1, 2, 3]), index=frame.index)
+    conditions["older_spike_position"] = pd.Series(np.isin(max_positions, [8, 9, 10]), index=frame.index)
+
+    path_score = (recent_mean_1_5 - older_mean_6_10).abs()
+    mean_low = local_mean_1_10.quantile(0.40)
+    mean_high = local_mean_1_10.quantile(0.60)
+    conditions["same_average_different_path"] = (
+        local_mean_1_10.between(mean_low, mean_high)
+        & (path_score >= path_score.quantile(0.80))
+    )
+
+    return {name: mask.fillna(False).astype(bool) for name, mask in conditions.items()}
+
+
+def bootstrap_ci(values: np.ndarray, n_resamples: int = BOOTSTRAP_RESAMPLES, seed: int = BOOTSTRAP_SEED):
+    values = np.asarray(values, dtype=float)
+    values = values[~np.isnan(values)]
+    if len(values) == 0:
+        return np.nan, np.nan
+    rng = np.random.default_rng(seed)
+    means = []
+    for _ in range(n_resamples):
+        sample = rng.choice(values, size=len(values), replace=True)
+        means.append(np.mean(sample))
+    return float(np.percentile(means, 2.5)), float(np.percentile(means, 97.5))
+
+
+def paired_ttest(values: np.ndarray):
+    values = np.asarray(values, dtype=float)
+    values = values[~np.isnan(values)]
+    if len(values) < 2:
+        return np.nan
+    try:
+        return float(stats.ttest_1samp(values, popmean=0.0, nan_policy="omit").pvalue)
+    except Exception:
+        return np.nan
+
+
+def compute_asset_condition_metrics(asset: str, frame: pd.DataFrame, condition_name: str, mask: pd.Series) -> dict:
+    subset = frame.loc[mask].copy()
+    if subset.empty:
+        return {
+            "asset": asset,
+            "condition": condition_name,
+            "n_obs": 0,
+            "share_of_asset_obs": 0.0,
+        }
+
+    advantage = subset["Hybrid_advantage_vs_CP"].astype(float)
+    abs_advantage = subset["AbsErr_advantage_vs_CP"].astype(float)
+    ci_low, ci_high = bootstrap_ci(advantage.to_numpy())
+
+    return {
+        "asset": asset,
+        "condition": condition_name,
+        "n_obs": int(len(subset)),
+        "share_of_asset_obs": float(len(subset) / len(frame)) if len(frame) else np.nan,
+        "CP_mean_SMAPE": safe_float(subset["SMAPE_CP_FRESH_pct"].mean()),
+        "HYBRID_mean_SMAPE": safe_float(subset["SMAPE_CP_PLUS_PM_RAW_pct"].mean()),
+        "mean_Hybrid_advantage_vs_CP": safe_float(advantage.mean()),
+        "median_Hybrid_advantage_vs_CP": safe_float(advantage.median()),
+        "hybrid_win_rate_vs_CP": safe_float((advantage > 0).mean()),
+        "mean_AbsErr_CP": safe_float(subset["AbsErr_CP_FRESH"].mean()),
+        "mean_AbsErr_HYBRID": safe_float(subset["AbsErr_CP_PLUS_PM_RAW"].mean()),
+        "mean_AbsErr_advantage_vs_CP": safe_float(abs_advantage.mean()),
+        "ttest_pval": paired_ttest(advantage.to_numpy()),
+        "bootstrap_ci_low": ci_low,
+        "bootstrap_ci_high": ci_high,
+    }
+
+
+def compute_pooled_metrics(asset_results: pd.DataFrame, all_frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    rows = []
+    for condition in CONDITION_ORDER:
+        asset_subset = asset_results[(asset_results["condition"] == condition) & (asset_results["n_obs"] > 0)].copy()
+        pooled_parts = []
+        for asset, frame in all_frames.items():
+            frame_lagged = add_lagged_actuals(frame)
+            conditions = define_conditions(frame_lagged)
+            mask = conditions[condition]
+            pooled_parts.append(frame_lagged.loc[mask])
+        pooled = pd.concat(pooled_parts, ignore_index=True) if pooled_parts else pd.DataFrame()
+
+        if asset_subset.empty or pooled.empty:
+            rows.append({
+                "condition": condition,
+                "total_n_obs": 0,
+                "number_of_assets": 0,
+            })
+            continue
+
+        advantage = pooled["Hybrid_advantage_vs_CP"].astype(float)
+        rows.append({
+            "condition": condition,
+            "total_n_obs": int(len(pooled)),
+            "number_of_assets": int(asset_subset["asset"].nunique()),
+            "equal_weight_asset_mean_advantage": safe_float(asset_subset["mean_Hybrid_advantage_vs_CP"].mean()),
+            "equal_weight_asset_median_advantage": safe_float(asset_subset["median_Hybrid_advantage_vs_CP"].mean()),
+            "equal_weight_asset_hybrid_win_rate": safe_float(asset_subset["hybrid_win_rate_vs_CP"].mean()),
+            "pooled_CP_mean_SMAPE": safe_float(pooled["SMAPE_CP_FRESH_pct"].mean()),
+            "pooled_HYBRID_mean_SMAPE": safe_float(pooled["SMAPE_CP_PLUS_PM_RAW_pct"].mean()),
+            "pooled_mean_Hybrid_advantage_vs_CP": safe_float(advantage.mean()),
+            "pooled_hybrid_win_rate_vs_CP": safe_float((advantage > 0).mean()),
+            "number_of_assets_where_hybrid_beats_CP": int((asset_subset["mean_Hybrid_advantage_vs_CP"] > 0).sum()),
+            "asset_win_rate": safe_float((asset_subset["mean_Hybrid_advantage_vs_CP"] > 0).mean()),
+        })
+    return pd.DataFrame(rows)
+
+
+def make_plots(pooled: pd.DataFrame):
+    if pooled.empty:
+        return
+
+    ordered = pooled.copy()
+    ordered["condition"] = pd.Categorical(ordered["condition"], categories=CONDITION_ORDER, ordered=True)
+    ordered = ordered.sort_values("condition")
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.bar(ordered["condition"], ordered["equal_weight_asset_mean_advantage"])
+    ax.axhline(0, linewidth=1)
+    ax.set_title("Fresh CP+PM Advantage over Fresh CP by Condition")
+    ax.set_ylabel("CP SMAPE - Hybrid SMAPE (positive = hybrid better)")
+    ax.set_xlabel("Condition")
+    ax.tick_params(axis="x", rotation=45)
+    fig.tight_layout()
+    fig.savefig(FIGURES_DIR / "fresh_hybrid_advantage_by_condition.png", dpi=200)
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.bar(ordered["condition"], ordered["equal_weight_asset_hybrid_win_rate"])
+    ax.axhline(0.5, linewidth=1)
+    ax.set_title("Fresh CP+PM Win Rate over Fresh CP by Condition")
+    ax.set_ylabel("Hybrid win rate")
+    ax.set_xlabel("Condition")
+    ax.tick_params(axis="x", rotation=45)
+    fig.tight_layout()
+    fig.savefig(FIGURES_DIR / "fresh_hybrid_win_rate_by_condition.png", dpi=200)
+    plt.close(fig)
+
+
+def write_latex_table(pooled: pd.DataFrame):
+    if pooled.empty:
+        return
+    cols = [
+        "condition",
+        "total_n_obs",
+        "equal_weight_asset_mean_advantage",
+        "equal_weight_asset_hybrid_win_rate",
+        "asset_win_rate",
+    ]
+    table = pooled[cols].copy()
+    table = table.rename(columns={
+        "condition": "Condition",
+        "total_n_obs": "N",
+        "equal_weight_asset_mean_advantage": "Adv.",
+        "equal_weight_asset_hybrid_win_rate": "Win Rate",
+        "asset_win_rate": "Asset Win Rate",
+    })
+    latex = table.to_latex(index=False, float_format="%.4f")
+    (LATEX_DIR / "fresh_conditional_hybrid_summary_pooled.tex").write_text(latex, encoding="utf-8")
+
+
+def dataframe_to_text(frame: pd.DataFrame, max_rows: int = 20) -> str:
+    if frame is None or frame.empty:
+        return "[empty]"
+    return frame.head(max_rows).to_string(index=False)
+
+
+def write_readme(validation: pd.DataFrame, shift_diag: pd.DataFrame, pooled: pd.DataFrame, mode: str, tickers: list[str]):
+    validation_passes = int(validation["passes"].sum()) if not validation.empty and "passes" in validation else 0
+    total_validation = len(validation)
+    readme = f"""# CP + PM Incremental Value Test
+
+Generated: {datetime.utcnow().isoformat()}Z
+
+## Purpose
+
+This run tests whether adding Prime-Modulo (PM) temporal-granularity features improves a Contiguous-Prime (CP) local-volatility baseline.
+
+## Important Methodological Choice
+
+Saved CP validation passed for {validation_passes}/{total_validation} assets.
+
+Because saved `Predicted_CP` could not be treated as perfectly reproducible for every asset, the interpretable incremental test uses a **fresh apples-to-apples baseline**:
+
+- Fresh CP: recomputed from raw data with current code/settings.
+- Fresh CP+PM raw: recomputed from the same data with the same target, same warmup, same row alignment, and same expanding-window logic.
+
+Mode used: `{mode}`
+
+This means the hybrid comparison answers:
+
+> Holding the current pipeline fixed, does adding PM features improve CP?
+
+It does **not** claim to compare CP+PM against the exact historical saved CP predictions from the paper.
+
+## Anti-Lookahead Rule
+
+All conditional states are built using lagged `Actual.shift(k)` values only, with k >= 1.
+
+## Tickers Included
+
+{', '.join(tickers)}
+
+## Validation Summary
+
+{dataframe_to_text(validation)}
+
+## Shift Diagnostic Preview
+
+{dataframe_to_text(shift_diag)}
+
+## Fresh Conditional Hybrid Summary
+
+Positive advantage means fresh CP+PM raw beats fresh CP.
+
+{dataframe_to_text(pooled)}
+
+## Key Files
+
+- `results/cp_recompute_validation.csv`
+- `results/cp_alignment_shift_diagnostics.csv`
+- `results/fresh_cp_vs_hybrid_predictions_summary.csv`
+- `results/fresh_conditional_hybrid_summary_by_asset.csv`
+- `results/fresh_conditional_hybrid_summary_pooled.csv`
+- `results/top_fresh_hybrid_conditions.csv`
+- `figures/fresh_hybrid_advantage_by_condition.png`
+- `figures/fresh_hybrid_win_rate_by_condition.png`
+- `latex/fresh_conditional_hybrid_summary_pooled.tex`
+"""
+    (OUTPUT_DIR / "README.md").write_text(readme, encoding="utf-8")
+
+
+def write_manifest(tickers: list[str], validation: pd.DataFrame, mode: str):
+    manifest = {
+        "generated_at_utc": datetime.utcnow().isoformat() + "Z",
+        "python_version": platform.python_version(),
+        "platform": platform.platform(),
+        "project_root": str(PROJECT_ROOT),
+        "input_predictions_dir": str(PRED_DIR),
+        "input_data_dir": str(DATA_DIR),
+        "output_dir": str(OUTPUT_DIR),
+        "n_lags": N_LAGS,
+        "warmup": WARMUP,
+        "tickers": tickers,
+        "mode": mode,
+        "saved_cp_validation_passes": int(validation["passes"].sum()) if not validation.empty and "passes" in validation else 0,
+        "saved_cp_validation_total": int(len(validation)),
+        "notes": "Fresh CP vs fresh CP+PM is the primary apples-to-apples incremental test.",
+    }
+    (OUTPUT_DIR / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+
+def main():
+    print("Starting CP + PM incremental test")
+    print(f"Project root: {PROJECT_ROOT}")
+    print(f"Predictions dir: {PRED_DIR}")
+    print(f"Data dir: {DATA_DIR}")
+    print(f"Output dir: {OUTPUT_DIR}")
+
+    existing_predictions = load_existing_predictions()
+    if not existing_predictions:
+        raise RuntimeError("No existing prediction CSVs with Predicted_CP were found")
+
+    validation_rows = []
+    shift_rows = []
+    fresh_frames = {}
+    overall_rows = []
+    condition_rows = []
+    failures = []
+
+    for ticker, existing_df in existing_predictions.items():
+        print(f"\n=== {ticker} ===")
+        fresh_cp = build_forecasts(ticker, include_pm=False, model_name="CP")
+        validation = validate_cp_recomputation(existing_df, fresh_cp, ticker)
+        validation_rows.append(validation)
+        if fresh_cp is not None and not fresh_cp.empty:
+            shift_rows.append(build_shift_diagnostics(existing_df, fresh_cp, ticker))
+        else:
+            failures.append({"ticker": ticker, "stage": "fresh_cp", "message": validation.get("message", "fresh CP missing")})
+            continue
+
+        print(
+            f"Saved CP diagnostic for {ticker}: status={validation.get('status')} "
+            f"corr={validation.get('correlation')} mean_abs_diff={validation.get('mean_abs_diff')}"
+        )
+
+        fresh_hybrid = build_forecasts(ticker, include_pm=True, model_name="CP_PLUS_PM_RAW")
+        if fresh_hybrid is None or fresh_hybrid.empty:
+            failures.append({"ticker": ticker, "stage": "fresh_hybrid", "message": "fresh CP+PM missing"})
+            continue
+
+        merged = merge_fresh_cp_and_hybrid(ticker, fresh_cp, fresh_hybrid)
+        if merged.empty:
+            failures.append({"ticker": ticker, "stage": "merge", "message": "fresh CP and hybrid had no overlapping rows"})
+            continue
+
+        fresh_frames[ticker] = merged
+
+        overall_rows.append({
+            "asset": ticker,
+            "n_obs": int(len(merged)),
+            "CP_mean_SMAPE": safe_float(merged["SMAPE_CP_FRESH_pct"].mean()),
+            "HYBRID_mean_SMAPE": safe_float(merged["SMAPE_CP_PLUS_PM_RAW_pct"].mean()),
+            "mean_Hybrid_advantage_vs_CP": safe_float(merged["Hybrid_advantage_vs_CP"].mean()),
+            "median_Hybrid_advantage_vs_CP": safe_float(merged["Hybrid_advantage_vs_CP"].median()),
+            "hybrid_win_rate_vs_CP": safe_float((merged["Hybrid_advantage_vs_CP"] > 0).mean()),
+            "mean_AbsErr_CP": safe_float(merged["AbsErr_CP_FRESH"].mean()),
+            "mean_AbsErr_HYBRID": safe_float(merged["AbsErr_CP_PLUS_PM_RAW"].mean()),
+            "mean_AbsErr_advantage_vs_CP": safe_float(merged["AbsErr_advantage_vs_CP"].mean()),
+        })
+
+        lagged = add_lagged_actuals(merged)
+        conditions = define_conditions(lagged)
+        for condition in CONDITION_ORDER:
+            condition_rows.append(compute_asset_condition_metrics(ticker, lagged, condition, conditions[condition]))
+
+    validation_df = pd.DataFrame(validation_rows)
+    validation_df.to_csv(RESULTS_DIR / "cp_recompute_validation.csv", index=False)
+
+    shift_df = pd.concat(shift_rows, ignore_index=True) if shift_rows else pd.DataFrame()
+    shift_df.to_csv(RESULTS_DIR / "cp_alignment_shift_diagnostics.csv", index=False)
+
+    failures_df = pd.DataFrame(failures)
+    failures_df.to_csv(RESULTS_DIR / "fresh_run_failures.csv", index=False)
+
+    if not fresh_frames:
+        mode = "failed_no_fresh_frames"
+        empty = pd.DataFrame()
+        empty.to_csv(RESULTS_DIR / "fresh_cp_vs_hybrid_predictions_summary.csv", index=False)
+        empty.to_csv(RESULTS_DIR / "fresh_conditional_hybrid_summary_by_asset.csv", index=False)
+        empty.to_csv(RESULTS_DIR / "fresh_conditional_hybrid_summary_pooled.csv", index=False)
+        empty.to_csv(RESULTS_DIR / "top_fresh_hybrid_conditions.csv", index=False)
+        write_readme(validation_df, shift_df, empty, mode, [])
+        write_manifest([], validation_df, mode)
+        raise RuntimeError("No fresh CP vs hybrid comparisons could be built")
+
+    mode = "fresh_cp_vs_fresh_cp_plus_pm_raw"
+    overall_df = pd.DataFrame(overall_rows).sort_values("asset")
+    by_asset_df = pd.DataFrame(condition_rows)
+    pooled_df = compute_pooled_metrics(by_asset_df, fresh_frames)
+    top_df = pooled_df.sort_values("equal_weight_asset_mean_advantage", ascending=False).reset_index(drop=True)
+
+    overall_df.to_csv(RESULTS_DIR / "fresh_cp_vs_hybrid_predictions_summary.csv", index=False)
+    by_asset_df.to_csv(RESULTS_DIR / "fresh_conditional_hybrid_summary_by_asset.csv", index=False)
+    pooled_df.to_csv(RESULTS_DIR / "fresh_conditional_hybrid_summary_pooled.csv", index=False)
+    top_df.to_csv(RESULTS_DIR / "top_fresh_hybrid_conditions.csv", index=False)
+
+    make_plots(pooled_df)
+    write_latex_table(pooled_df)
+    write_readme(validation_df, shift_df, pooled_df, mode, sorted(fresh_frames.keys()))
+    write_manifest(sorted(fresh_frames.keys()), validation_df, mode)
+
+    print("\n=== Fresh CP vs Fresh CP+PM Summary ===")
+    print(pooled_df.to_string(index=False))
+    print("\n=== Top Hybrid Conditions ===")
+    print(top_df[["condition", "equal_weight_asset_mean_advantage", "asset_win_rate"]].head(10).to_string(index=False))
+    print(f"\nOutputs written to: {OUTPUT_DIR}")
+
+
+if __name__ == "__main__":
     main()
