@@ -2087,6 +2087,8 @@ def full_success_gates_pass(
 ) -> bool:
     if args.mode != "full" or args.phase != "all":
         return False
+    if sorted(args.assets_resolved) != sorted(DEFAULT_ASSETS):
+        return False
     if args.models_resolved != unique_in_order(["CP_FRESH"] + PHASE_MODELS["all"]):
         return False
     if failures is not None and not failures.empty:
