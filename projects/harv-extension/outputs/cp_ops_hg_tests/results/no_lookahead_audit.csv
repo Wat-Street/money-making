@@ -1,0 +1,5 @@
+check_name,passed,details
+online_standardization_uses_prior_rows,True,Changing rows >=80 leaves z-scores before row 80 unchanged.
+gate_uses_lagged_and_prior_scaled_inputs,True,Changing future RV values leaves earlier gates unchanged.
+expanding_forecast_excludes_current_target,True,Perturbing the first forecast target changes Actual but not the fitted prediction.
+inner_validation_precedes_first_oos_target,True,Validation targets end at index 622; first OOS target is 623.

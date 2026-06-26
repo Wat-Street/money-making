@@ -1,0 +1,4 @@
+diagnostic,passed,seed,details_json,asset,run_type
+random_residue_group_sizes,True,143,"{""construction"": ""random residue groups use the true PM group-size vector for each prime"", ""random_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}, ""true_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}}",AAPL,smoke
+shuffled_pm_not_identical,True,244,"{""identical_after_projection"": false, ""shuffled_weight_columns"": 10, ""true_weight_columns"": 10}",AAPL,smoke
+random_gate_shuffled_real_distribution,True,345,"{""max_abs_sorted_difference"": 0.0, ""n_gate_values"": 37362, ""sorted_value_equality"": true}",AAPL,smoke

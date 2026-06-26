@@ -1,0 +1,295 @@
+{
+  "cp_block_columns": [
+    "CPB_B1",
+    "CPB_B2",
+    "CPB_B3",
+    "CPB_B4"
+  ],
+  "cp_blocks": {
+    "B1": [
+      1,
+      2,
+      3
+    ],
+    "B2": [
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "B3": [
+      9,
+      10,
+      11,
+      12,
+      13,
+      14
+    ],
+    "B4": [
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22
+    ]
+  },
+  "models": {
+    "CP_FRESH": {
+      "expected_interpretation": "Fresh explicit disjoint CP-block benchmark and denominator for all advantages.",
+      "feature_families": [
+        "CP_BLOCK"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": false,
+      "uses_gate": false,
+      "uses_ridge": false
+    },
+    "CP_GATED_RIDGE_OPS_C": {
+      "expected_interpretation": "Registered CP plus gated ridge OPS-C model.",
+      "feature_families": [
+        "CP_BLOCK",
+        "GATED_OPS_C"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": true,
+      "uses_gate": true,
+      "uses_ridge": true
+    },
+    "CP_HAAR_SHAPE": {
+      "expected_interpretation": "Generic zero-sum Haar path shape benchmark.",
+      "feature_families": [
+        "CP_BLOCK",
+        "HAAR"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": true,
+      "uses_gate": false,
+      "uses_ridge": false
+    },
+    "CP_LRPM": {
+      "expected_interpretation": "Local residue bridge ablation inside CP blocks.",
+      "feature_families": [
+        "CP_BLOCK",
+        "LRPM"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": true,
+      "uses_gate": false,
+      "uses_ridge": false
+    },
+    "CP_OPS_C": {
+      "expected_interpretation": "CP plus contiguous zero-sum prime-radix path shape.",
+      "feature_families": [
+        "CP_BLOCK",
+        "OPS_C"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": true,
+      "uses_gate": false,
+      "uses_ridge": false
+    },
+    "CP_OPS_HG": {
+      "expected_interpretation": "Final hybrid with gated OPS-C plus heavily shrunk gated OPS-R.",
+      "feature_families": [
+        "CP_BLOCK",
+        "GATED_OPS_C",
+        "GATED_OPS_R"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": true,
+      "uses_gate": true,
+      "uses_ridge": true
+    },
+    "CP_OPS_K": {
+      "expected_interpretation": "Optional kernel challenger using CP-orthogonal prime-signature eigenvectors.",
+      "feature_families": [
+        "CP_BLOCK",
+        "GATED_OPS_K"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": true,
+      "uses_gate": true,
+      "uses_ridge": true
+    },
+    "CP_OPS_R": {
+      "expected_interpretation": "CP plus CP-orthogonalized PM residue shape.",
+      "feature_families": [
+        "CP_BLOCK",
+        "OPS_R"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": true,
+      "uses_gate": false,
+      "uses_ridge": false
+    },
+    "CP_RECENT_SLOPE": {
+      "expected_interpretation": "Simple local recent-vs-older zero-sum slope ablation.",
+      "feature_families": [
+        "CP_BLOCK",
+        "RECENT_SLOPE"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": true,
+      "uses_gate": false,
+      "uses_ridge": false
+    },
+    "CP_RIDGE_OPS_C": {
+      "expected_interpretation": "OPS-C with ridge shrinkage on shape coefficients only.",
+      "feature_families": [
+        "CP_BLOCK",
+        "OPS_C"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": true,
+      "uses_gate": false,
+      "uses_ridge": true
+    },
+    "CP_RIDGE_OPS_R": {
+      "expected_interpretation": "OPS-R with ridge shrinkage on shape coefficients only.",
+      "feature_families": [
+        "CP_BLOCK",
+        "OPS_R"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": true,
+      "uses_gate": false,
+      "uses_ridge": true
+    },
+    "HAR_RV": {
+      "expected_interpretation": "HAR-only volatility benchmark using RV_d, RV_w, and RV_m.",
+      "feature_families": [
+        "HAR_RV"
+      ],
+      "includes_cp": false,
+      "includes_raw_pm": false,
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": false,
+      "uses_gate": false,
+      "uses_ridge": false
+    },
+    "RANDOM_GATE_PLACEBO": {
+      "expected_interpretation": "Gated OPS-C placebo using a shuffled real gate.",
+      "feature_families": [
+        "CP_BLOCK",
+        "RANDOM_GATE_OPS_C"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "is_placebo": true,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": true,
+      "uses_gate": true,
+      "uses_ridge": true
+    },
+    "RANDOM_RESIDUES_PLACEBO": {
+      "expected_interpretation": "OPS-R placebo preserving residue group sizes with random lag groups.",
+      "feature_families": [
+        "CP_BLOCK",
+        "RANDOM_RESIDUES"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "is_placebo": true,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": true,
+      "uses_gate": false,
+      "uses_ridge": true
+    },
+    "RAW_CP_PLUS_PM": {
+      "expected_interpretation": "Naive CP plus raw PM hybrid benchmark.",
+      "feature_families": [
+        "CP_BLOCK",
+        "RAW_PM"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": true,
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": false,
+      "uses_gate": false,
+      "uses_ridge": false
+    },
+    "RAW_PM": {
+      "expected_interpretation": "Raw prime-modulo residue averages without HAR or CP controls.",
+      "feature_families": [
+        "RAW_PM"
+      ],
+      "includes_cp": false,
+      "includes_raw_pm": true,
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": false,
+      "uses_gate": false,
+      "uses_ridge": false
+    },
+    "RIDGE_AR22": {
+      "expected_interpretation": "Flexible AR(22) lag benchmark, not CP-OPS evidence.",
+      "feature_families": [
+        "AR_LAG"
+      ],
+      "includes_cp": false,
+      "includes_raw_pm": false,
+      "is_placebo": true,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": false,
+      "uses_gate": false,
+      "uses_ridge": true
+    },
+    "SHUFFLED_LAG_PM_PLACEBO": {
+      "expected_interpretation": "OPS-R placebo that shuffles lag labels before PM grouping.",
+      "feature_families": [
+        "CP_BLOCK",
+        "SHUFFLED_PM"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "is_placebo": true,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": true,
+      "uses_gate": false,
+      "uses_ridge": true
+    }
+  },
+  "n_lags": 22,
+  "registry_schema_version": 1,
+  "spec": "CP-OPS-HG locked ladder",
+  "zero_sum_tolerance": 1e-10
+}
