@@ -1,0 +1,2 @@
+asset,n_existing,n_recomputed,n_aligned,mean_existing_CP,mean_recomputed_CP,mean_abs_diff,median_abs_diff,max_abs_diff,correlation,actual_target_match,passes,message
+AAPL,36739,120,120,0.0007410183558117275,0.0007410183466053463,1.7588379686151393e-11,1.1667290777169631e-11,1.2172860852990852e-10,0.9999999999999956,True,True,

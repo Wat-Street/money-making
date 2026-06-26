@@ -1,0 +1,497 @@
+name: CP Repo OPS-HG Full Paper Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: "Deterministic seed"
+        required: true
+        default: "42"
+      max_parallel:
+        description: "Maximum concurrent asset jobs"
+        required: true
+        default: "10"
+      lambda_grid:
+        description: "Shape ridge lambda grid"
+        required: true
+        default: "0.0001,0.001,0.01"
+      lambda_r_ratio_grid:
+        description: "Hierarchical OPS-R lambda ratio grid"
+        required: true
+        default: "2,5,10,20"
+      run_audits:
+        description: "Run mandatory repo-CP, no-lookahead, and fast-vs-slow audits"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  asset-full-run:
+    name: CP Repo OPS-HG ${{ matrix.asset }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.max_parallel) }}
+      matrix:
+        asset: [AAPL, AMZN, EEM, FXI, GLD, GOOGL, HYG, QQQ, SPY, TLT]
+    env:
+      ASSET: ${{ matrix.asset }}
+      RUN_AUDITS: ${{ inputs.run_audits }}
+      OUTDIR: outputs/cp_repo_ops_hg_actions/${{ github.run_id }}/${{ matrix.asset }}
+      MODELS: HAR_RV,CP_REPO_FRESH,RAW_PM,RAW_CP_REPO_PLUS_PM,CP_REPO_OPS_R,CP_REPO_RIDGE_OPS_R,CP_REPO_LRPM,CP_REPO_RECENT_SLOPE,CP_REPO_HAAR_SHAPE,CP_REPO_OPS_C,CP_REPO_RIDGE_OPS_C,CP_REPO_GATED_RIDGE_OPS_C,CP_REPO_OPS_HG,RANDOM_RESIDUES_PLACEBO_REPO,SHUFFLED_LAG_PM_PLACEBO_REPO,RANDOM_GATE_PLACEBO_REPO,RIDGE_AR22,CP_REPO_OPS_K
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: cp-pm-incremental-actions
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: projects/harv-extension
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==1.26.4 pandas==2.2.2 scipy==1.13.1 statsmodels==0.14.4 scikit-learn==1.5.0 matplotlib==3.9.0 yfinance==0.2.40 joblib==1.4.2
+
+      - name: Run full ladder for asset
+        working-directory: projects/harv-extension
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p "${OUTDIR}/logs"
+          AUDIT_ARGS=""
+          if [ "${RUN_AUDITS}" = "true" ]; then
+            AUDIT_ARGS="--audit-no-lookahead --audit-repo-cp-reproduction --audit-fast-slow-equivalence"
+          fi
+          python outputs/cp_repo_ops_hg_tests/scripts/run_cp_repo_ops_hg_tests.py \
+            --mode full \
+            --phase all \
+            --assets "${ASSET}" \
+            --models "${MODELS}" \
+            --seed "${{ inputs.seed }}" \
+            --outdir "${OUTDIR}" \
+            --force \
+            ${AUDIT_ARGS} \
+            --cv-mode inner \
+            --lambda-grid "${{ inputs.lambda_grid }}" \
+            --lambda-r-ratio-grid "${{ inputs.lambda_r_ratio_grid }}" \
+            2>&1 | tee "${OUTDIR}/logs/full_${ASSET}.log"
+
+      - name: Validate asset output
+        if: always()
+        working-directory: projects/harv-extension
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          from pathlib import Path
+
+          import pandas as pd
+
+          asset = os.environ["ASSET"]
+          run_audits = os.environ.get("RUN_AUDITS", "true") == "true"
+          outdir = Path(os.environ["OUTDIR"])
+          models = os.environ["MODELS"].split(",")
+          failures = []
+
+          def fail(message):
+              failures.append(message)
+
+          pred_path = outdir / "predictions" / "full" / f"{asset}.csv"
+          if not pred_path.exists():
+              fail(f"missing prediction file: {pred_path}")
+          else:
+              pred = pd.read_csv(pred_path)
+              for model in models:
+                  col = f"Predicted_{model}"
+                  if col not in pred.columns or pred[col].dropna().empty:
+                      fail(f"{asset}: missing/nonempty prediction column {col}")
+
+          metadata_path = outdir / "results" / "run_metadata.csv"
+          if not metadata_path.exists():
+              fail("missing run_metadata.csv")
+          else:
+              metadata = pd.read_csv(metadata_path)
+              completed = set(metadata.loc[metadata["status"] == "complete", "model_name"].astype(str))
+              missing = sorted(set(models) - completed)
+              if missing:
+                  fail(f"models not complete: {missing}")
+              kops = metadata[metadata["model_name"] == "CP_REPO_OPS_K"]
+              if kops.empty or not (kops["status"] == "complete").all() or int(kops["feature_count"].fillna(0).max()) <= 0:
+                  fail("CP_REPO_OPS_K did not complete with generated features")
+
+          manifest_path = outdir / "results" / "model_feature_manifest.csv"
+          if not manifest_path.exists():
+              fail("missing model_feature_manifest.csv")
+          else:
+              manifest = pd.read_csv(manifest_path)
+              if "global_level_sum_pass" not in manifest.columns:
+                  fail("manifest missing global_level_sum_pass")
+              elif int((~manifest["global_level_sum_pass"].astype(bool)).sum()) != 0:
+                  fail("global level-removal failures are nonzero")
+              if "feature_name" in manifest.columns and "model_name" in manifest.columns:
+                  bad = manifest[
+                      manifest["feature_name"].astype(str).str.startswith("CPB_B")
+                      & manifest["model_name"].astype(str).isin(models)
+                  ]
+                  if not bad.empty:
+                      fail("diagnostic CPB_B features entered a paper model")
+
+          alignment_path = outdir / "results" / "alignment_audit.csv"
+          if not alignment_path.exists():
+              fail("missing alignment_audit.csv")
+          else:
+              alignment = pd.read_csv(alignment_path)
+              if not bool(alignment["timestamps_exactly_match_CP"].astype(bool).all()):
+                  fail("alignment timestamp check failed")
+              if not bool(alignment["actual_target_values_match_CP"].astype(bool).all()):
+                  fail("alignment actual-target check failed")
+
+          no_lookahead_path = outdir / "results" / "no_lookahead_audit.csv"
+          if not no_lookahead_path.exists():
+              fail("missing no_lookahead_audit.csv")
+          else:
+              audit = pd.read_csv(no_lookahead_path)
+              if audit.empty or not bool(audit["passed"].astype(bool).all()):
+                  fail("no-lookahead audit failed")
+
+          if run_audits:
+              repo_path = outdir / "results" / "repo_cp_reproduction_audit.csv"
+              if not repo_path.exists():
+                  fail("missing repo_cp_reproduction_audit.csv")
+              else:
+                  repo = pd.read_csv(repo_path)
+                  if repo.empty or "passes" not in repo.columns or not bool(repo["passes"].astype(bool).all()):
+                      fail("repo CP reproduction audit failed")
+
+              fast_path = outdir / "results" / "fast_slow_equivalence_audit.csv"
+              if not fast_path.exists():
+                  fail("missing fast_slow_equivalence_audit.csv")
+              else:
+                  fast = pd.read_csv(fast_path)
+                  if fast.empty or "passes" not in fast.columns or not bool(fast["passes"].astype(bool).all()):
+                      fail("fast-vs-slow audit failed")
+
+          raw_path = outdir / "results" / "raw_cp_pm_reproduction_audit.csv"
+          if not raw_path.exists():
+              fail("missing raw_cp_pm_reproduction_audit.csv")
+
+          for table_name in ["main_model_summary.csv", "conditional_summary.csv", "placebo_summary.csv"]:
+              table_path = outdir / "paper_tables" / table_name
+              if table_path.exists():
+                  table = pd.read_csv(table_path)
+                  if not table.empty:
+                      bad_source = table.get("source", pd.Series(dtype=str)).astype(str).isin(["reused_prior", "existing_output", "scaffolded"]).any()
+                      bad_run_type = (table.get("run_type", pd.Series(["full"] * len(table))).astype(str) != "full").any()
+                      if bad_source or bad_run_type:
+                          fail(f"{table_name} contains non-paper source rows")
+
+          if (outdir / "SUCCESS.txt").exists():
+              fail("per-asset job wrote SUCCESS.txt; only the final combined output may do that")
+
+          prior_status = os.popen("git status --short -- outputs/cp_pm_incremental_tests outputs/cp_ops_hg_tests run_results/current_intraday/predictions").read().strip()
+          if prior_status:
+              fail(f"protected prior output folder was modified: {prior_status}")
+
+          summary = outdir / "logs" / f"validation_{asset}.txt"
+          summary.parent.mkdir(parents=True, exist_ok=True)
+          if failures:
+              summary.write_text("\n".join(failures) + "\n", encoding="utf-8")
+              for item in failures:
+                  print(f"VALIDATION FAILURE: {item}")
+              sys.exit(1)
+
+          summary.write_text(f"{asset} validation passed\n", encoding="utf-8")
+          print(f"{asset} validation passed")
+          PY
+
+      - name: Upload asset artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cp-repo-ops-hg-${{ matrix.asset }}-${{ github.run_id }}
+          path: projects/harv-extension/outputs/cp_repo_ops_hg_actions/${{ github.run_id }}/${{ matrix.asset }}/
+          if-no-files-found: warn
+          retention-days: 30
+
+  aggregate:
+    name: CP Repo OPS-HG aggregate artifacts
+    needs: asset-full-run
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      RUN_ID: ${{ github.run_id }}
+      RUN_AUDITS: ${{ inputs.run_audits }}
+      ASSETS: AAPL,AMZN,EEM,FXI,GLD,GOOGL,HYG,QQQ,SPY,TLT
+      MODELS: HAR_RV,CP_REPO_FRESH,RAW_PM,RAW_CP_REPO_PLUS_PM,CP_REPO_OPS_R,CP_REPO_RIDGE_OPS_R,CP_REPO_LRPM,CP_REPO_RECENT_SLOPE,CP_REPO_HAAR_SHAPE,CP_REPO_OPS_C,CP_REPO_RIDGE_OPS_C,CP_REPO_GATED_RIDGE_OPS_C,CP_REPO_OPS_HG,RANDOM_RESIDUES_PLACEBO_REPO,SHUFFLED_LAG_PM_PLACEBO_REPO,RANDOM_GATE_PLACEBO_REPO,RIDGE_AR22,CP_REPO_OPS_K
+      COMBINED_OUTDIR: outputs/cp_repo_ops_hg_actions/${{ github.run_id }}/combined
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: cp-pm-incremental-actions
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: projects/harv-extension
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==1.26.4 pandas==2.2.2 scipy==1.13.1 statsmodels==0.14.4 scikit-learn==1.5.0 matplotlib==3.9.0 yfinance==0.2.40 joblib==1.4.2
+
+      - name: Download per-asset artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cp-repo-ops-hg-*-${{ github.run_id }}
+          path: projects/harv-extension/_cp_repo_ops_hg_artifacts
+          merge-multiple: false
+
+      - name: Combine per-asset outputs
+        working-directory: projects/harv-extension
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import shutil
+          from pathlib import Path
+
+          import pandas as pd
+
+          artifacts = Path("_cp_repo_ops_hg_artifacts")
+          combined = Path(os.environ["COMBINED_OUTDIR"])
+          assets = os.environ["ASSETS"].split(",")
+          combined.mkdir(parents=True, exist_ok=True)
+          (combined / "predictions" / "full").mkdir(parents=True, exist_ok=True)
+          (combined / "results").mkdir(parents=True, exist_ok=True)
+          (combined / "logs").mkdir(parents=True, exist_ok=True)
+
+          found_assets = set()
+          csv_groups = {
+              "run_metadata.csv": [],
+              "run_failures.csv": [],
+              "model_feature_manifest.csv": [],
+              "placebo_diagnostics.csv": [],
+              "no_lookahead_audit.csv": [],
+              "repo_cp_reproduction_audit.csv": [],
+              "fast_slow_equivalence_audit.csv": [],
+              "raw_cp_pm_reproduction_audit.csv": [],
+          }
+          registry_source = None
+
+          for pred_path in sorted(artifacts.rglob("predictions/full/*.csv")):
+              asset = pred_path.stem
+              if asset not in assets:
+                  continue
+              found_assets.add(asset)
+              shutil.copy2(pred_path, combined / "predictions" / "full" / pred_path.name)
+              asset_root = pred_path.parents[2]
+              for name in csv_groups:
+                  path = asset_root / "results" / name
+                  if path.exists():
+                      frame = pd.read_csv(path)
+                      if "asset" not in frame.columns:
+                          frame["asset"] = asset
+                      csv_groups[name].append(frame)
+              for log_path in sorted((asset_root / "logs").glob("*")) if (asset_root / "logs").exists() else []:
+                  if log_path.is_file():
+                      dest = combined / "logs" / asset
+                      dest.mkdir(parents=True, exist_ok=True)
+                      shutil.copy2(log_path, dest / log_path.name)
+              if registry_source is None and (asset_root / "model_registry.json").exists():
+                  registry_source = asset_root / "model_registry.json"
+
+          missing_assets = sorted(set(assets) - found_assets)
+          if missing_assets:
+              (combined / "logs" / "combine_missing_assets.txt").write_text("\n".join(missing_assets) + "\n", encoding="utf-8")
+
+          for name, frames in csv_groups.items():
+              out = combined / "results" / name
+              if frames:
+                  pd.concat(frames, ignore_index=True).to_csv(out, index=False)
+              else:
+                  pd.DataFrame().to_csv(out, index=False)
+
+          if registry_source is not None:
+              shutil.copy2(registry_source, combined / "model_registry.json")
+          print(f"Combined assets: {sorted(found_assets)}")
+          if missing_assets:
+              print(f"Missing assets: {missing_assets}")
+          PY
+
+      - name: Regenerate combined tables
+        working-directory: projects/harv-extension
+        shell: bash
+        run: |
+          python outputs/cp_repo_ops_hg_tests/scripts/run_cp_repo_ops_hg_tests.py \
+            --mode tables-only \
+            --phase all \
+            --assets "${ASSETS}" \
+            --models "${MODELS}" \
+            --seed "${{ inputs.seed }}" \
+            --outdir "${COMBINED_OUTDIR}"
+
+      - name: Validate combined output
+        working-directory: projects/harv-extension
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          from pathlib import Path
+
+          import pandas as pd
+
+          combined = Path(os.environ["COMBINED_OUTDIR"])
+          assets = os.environ["ASSETS"].split(",")
+          models = os.environ["MODELS"].split(",")
+          run_audits = os.environ.get("RUN_AUDITS", "true") == "true"
+          failures = []
+
+          def fail(message):
+              failures.append(message)
+
+          for asset in assets:
+              pred_path = combined / "predictions" / "full" / f"{asset}.csv"
+              if not pred_path.exists():
+                  fail(f"missing prediction file for {asset}")
+                  continue
+              pred = pd.read_csv(pred_path)
+              for model in models:
+                  col = f"Predicted_{model}"
+                  if col not in pred.columns or pred[col].dropna().empty:
+                      fail(f"{asset}: missing/nonempty prediction column {col}")
+
+          metadata_path = combined / "results" / "run_metadata.csv"
+          if not metadata_path.exists():
+              fail("missing combined run_metadata.csv")
+          else:
+              metadata = pd.read_csv(metadata_path)
+              for asset in assets:
+                  subset = metadata[metadata["asset"].astype(str) == asset]
+                  completed = set(subset.loc[subset["status"] == "complete", "model_name"].astype(str))
+                  missing = sorted(set(models) - completed)
+                  if missing:
+                      fail(f"{asset}: models not complete: {missing}")
+              kops = metadata[metadata["model_name"] == "CP_REPO_OPS_K"]
+              if len(kops) != len(assets) or not (kops["status"] == "complete").all() or int(kops["feature_count"].fillna(0).min()) <= 0:
+                  fail("CP_REPO_OPS_K did not complete with generated features for every asset")
+
+          manifest_path = combined / "results" / "model_feature_manifest.csv"
+          if not manifest_path.exists():
+              fail("missing combined model_feature_manifest.csv")
+          else:
+              manifest = pd.read_csv(manifest_path)
+              if "global_level_sum_pass" not in manifest.columns:
+                  fail("manifest missing global_level_sum_pass")
+              elif int((~manifest["global_level_sum_pass"].astype(bool)).sum()) != 0:
+                  fail("global level-removal failures are nonzero")
+
+          alignment_path = combined / "results" / "alignment_audit.csv"
+          if not alignment_path.exists():
+              fail("missing combined alignment_audit.csv")
+          else:
+              alignment = pd.read_csv(alignment_path)
+              if not bool(alignment["timestamps_exactly_match_CP"].astype(bool).all()):
+                  fail("combined timestamp alignment failed")
+              if not bool(alignment["actual_target_values_match_CP"].astype(bool).all()):
+                  fail("combined actual-target alignment failed")
+
+          no_lookahead_path = combined / "results" / "no_lookahead_audit.csv"
+          if not no_lookahead_path.exists():
+              fail("missing combined no_lookahead_audit.csv")
+          else:
+              audit = pd.read_csv(no_lookahead_path)
+              if audit.empty or not bool(audit["passed"].astype(bool).all()):
+                  fail("combined no-lookahead audit failed")
+
+          if run_audits:
+              repo_path = combined / "results" / "repo_cp_reproduction_audit.csv"
+              if not repo_path.exists():
+                  fail("missing combined repo_cp_reproduction_audit.csv")
+              else:
+                  repo = pd.read_csv(repo_path)
+                  if repo.empty or "passes" not in repo.columns or not bool(repo["passes"].astype(bool).all()):
+                      fail("combined repo CP reproduction audit failed")
+                  if set(repo.get("asset", pd.Series(dtype=str)).astype(str)) != set(assets):
+                      fail("repo CP reproduction audit does not cover every asset")
+
+              fast_path = combined / "results" / "fast_slow_equivalence_audit.csv"
+              if not fast_path.exists():
+                  fail("missing combined fast_slow_equivalence_audit.csv")
+              else:
+                  fast = pd.read_csv(fast_path)
+                  if fast.empty or "passes" not in fast.columns or not bool(fast["passes"].astype(bool).all()):
+                      fail("combined fast-vs-slow audit failed")
+
+          raw_path = combined / "results" / "raw_cp_pm_reproduction_audit.csv"
+          if not raw_path.exists():
+              fail("missing raw_cp_pm_reproduction_audit.csv")
+          elif pd.read_csv(raw_path).empty:
+              fail("raw_cp_pm_reproduction_audit.csv is empty")
+
+          for table_name in ["main_model_summary.csv", "conditional_summary.csv", "placebo_summary.csv"]:
+              table_path = combined / "paper_tables" / table_name
+              if not table_path.exists():
+                  fail(f"missing {table_name}")
+                  continue
+              table = pd.read_csv(table_path)
+              if table.empty:
+                  fail(f"{table_name} is empty")
+                  continue
+              if "run_type" in table.columns and (table["run_type"].astype(str) != "full").any():
+                  fail(f"{table_name} contains non-full rows")
+              if "source" in table.columns and table["source"].astype(str).isin(["reused_prior", "existing_output", "scaffolded"]).any():
+                  fail(f"{table_name} contains non-paper source rows")
+              if "is_paper_eligible" in table.columns and not bool(table["is_paper_eligible"].astype(bool).all()):
+                  fail(f"{table_name} contains non-paper-eligible rows")
+
+          prior_status = os.popen("git status --short -- outputs/cp_pm_incremental_tests outputs/cp_ops_hg_tests run_results/current_intraday/predictions").read().strip()
+          if prior_status:
+              fail(f"protected prior output folder was modified: {prior_status}")
+
+          summary = combined / "logs" / "combined_validation.txt"
+          summary.parent.mkdir(parents=True, exist_ok=True)
+          if failures:
+              summary.write_text("\n".join(failures) + "\n", encoding="utf-8")
+              for item in failures:
+                  print(f"VALIDATION FAILURE: {item}")
+              sys.exit(1)
+
+          if run_audits:
+              (combined / "SUCCESS.txt").write_text(
+                  "CP-REPO-OPS-HG full combined paper-ready run completed successfully\n",
+                  encoding="utf-8",
+              )
+          else:
+              (combined / "FULL_RUN_NO_AUDITS.txt").write_text(
+                  "CP-REPO-OPS-HG full combined run completed without mandatory audit gating\n",
+                  encoding="utf-8",
+              )
+          summary.write_text("combined validation passed\n", encoding="utf-8")
+          print("combined validation passed")
+          PY
+
+      - name: Upload combined artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cp-repo-ops-hg-full-combined-${{ github.run_id }}
+          path: projects/harv-extension/outputs/cp_repo_ops_hg_actions/${{ github.run_id }}/combined/
+          if-no-files-found: warn
+          retention-days: 30

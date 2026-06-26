@@ -1,0 +1,10 @@
+asset,model_name,n_compared,max_abs_prediction_diff,mean_abs_prediction_diff,timestamp_alignment_exact,actual_target_match,selected_lambda_shape,selected_lambda_r_ratio,design_rank,feature_count,rank_deficient,threshold,first_failing_timestamp,passes,message
+AAPL,CP_REPO_FRESH,8,1.25507243486922e-15,5.7167270049729435e-16,True,True,0.0,0.0,13,13,False,1e-08,,True,
+AAPL,RAW_CP_REPO_PLUS_PM,8,6.9024647109117154e-15,2.2611578408271438e-15,True,True,0.0,0.0,23,23,False,1e-08,,True,
+AAPL,CP_REPO_RIDGE_OPS_R,8,1.3875619403469486e-15,6.338245900350259e-16,True,True,0.01,2.0,22,23,True,1e-06,,True,
+AAPL,CP_REPO_RIDGE_OPS_C,8,1.895402237939159e-15,9.772591806969655e-16,True,True,0.01,2.0,35,37,True,1e-06,,True,
+AAPL,CP_REPO_GATED_RIDGE_OPS_C,8,1.4040418133687282e-15,7.829837039147192e-16,True,True,0.01,2.0,35,37,True,1e-06,,True,
+AAPL,CP_REPO_OPS_HG,8,2.104436416794364e-15,1.0024533286800974e-15,True,True,0.01,2.0,44,47,True,1e-06,,True,
+AAPL,RANDOM_GATE_PLACEBO_REPO,8,4.209740195326717e-15,1.3103531931388246e-15,True,True,0.01,2.0,35,37,True,1e-06,,True,
+AAPL,RIDGE_AR22,8,4.553649124439119e-18,1.9786689647860456e-18,True,True,0.0001,2.0,22,22,False,1e-08,,True,
+AAPL,CP_REPO_OPS_K,8,1.2156074757907476e-15,4.559612236387789e-16,True,True,0.01,2.0,21,21,False,1e-08,,True,
