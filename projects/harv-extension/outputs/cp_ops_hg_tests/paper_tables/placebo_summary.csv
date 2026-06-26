@@ -1,0 +1,1 @@
+model_name,benchmark_model,asset,condition,n_obs,model_mean_SMAPE,CP_mean_SMAPE,mean_advantage_vs_CP,median_advantage_vs_CP,win_rate_vs_CP,mean_abs_error_model,mean_abs_error_CP,mean_abs_error_advantage_vs_CP,run_type,model_status,source,benchmark_source,source_path,seed,phase,is_paper_eligible,ladder_order
