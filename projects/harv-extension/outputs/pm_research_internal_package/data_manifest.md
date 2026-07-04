@@ -1,0 +1,40 @@
+# Data Manifest
+
+The source universe is the same 10 assets used in the existing CP+PM incremental tests.
+
+| asset | prediction_file | exists | n_rows | n_models |
+| --- | --- | --- | --- | --- |
+| AAPL | outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\AAPL.csv | True | 36739 | 18 |
+| AMZN | outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\AMZN.csv | True | 36739 | 18 |
+| EEM | outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\EEM.csv | True | 36739 | 18 |
+| FXI | outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\FXI.csv | True | 36817 | 18 |
+| GLD | outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\GLD.csv | True | 36739 | 18 |
+| GOOGL | outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\GOOGL.csv | True | 36739 | 18 |
+| HYG | outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\HYG.csv | True | 36739 | 18 |
+| QQQ | outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\QQQ.csv | True | 36739 | 18 |
+| SPY | outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\SPY.csv | True | 36739 | 18 |
+| TLT | outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\TLT.csv | True | 36739 | 18 |
+
+Large prediction panels remain in the source run folder and are not duplicated here.
+
+Source-run inventory:
+
+| group | description | source_path | exists |
+| --- | --- | --- | --- |
+| prop3_raw_pm | Older CP+PM incremental README | outputs\cp_pm_incremental_tests\README.md | True |
+| prop3_raw_pm | Old CP recomputation validation | outputs\cp_pm_incremental_tests\results\cp_recompute_validation.csv | True |
+| prop3_raw_pm | Raw CP+PM conditional summary | outputs\cp_pm_incremental_tests\results\fresh_conditional_hybrid_summary_pooled.csv | True |
+| prop3_raw_pm | Top raw CP+PM conditions | outputs\cp_pm_incremental_tests\results\top_fresh_hybrid_conditions.csv | True |
+| prop4_ladder | Manual post-run audit report | outputs\cp_repo_ops_hg_actions\28269511971\audit_report.md | True |
+| prop4_ladder | Corrected 18-model overall SMAPE summary | outputs\cp_repo_ops_hg_actions\28269511971\audit_recomputed\recomputed_model_overall_summary.csv | True |
+| prop4_ladder | Corrected 18-model conditional summary | outputs\cp_repo_ops_hg_actions\28269511971\audit_recomputed\recomputed_model_conditional_summary.csv | True |
+| prop4_ladder | Alternative loss summary | outputs\cp_repo_ops_hg_actions\28269511971\audit_recomputed\alternative_loss_summary.csv | True |
+| prop5_overlay | Selective overlay summary | outputs\cp_repo_ops_hg_actions\28269511971\audit_recomputed\switching_overlay_summary.csv | True |
+| prop5_overlay | Selective overlay by asset | outputs\cp_repo_ops_hg_actions\28269511971\audit_recomputed\switching_overlay_summary_by_asset.csv | True |
+| audit | Strong fast/slow audit | outputs\cp_repo_ops_hg_actions\28269511971\audit_recomputed\strong_fast_slow_equivalence_audit.csv | True |
+| audit | Feature purity audit | outputs\cp_repo_ops_hg_actions\28269511971\audit_recomputed\feature_purity_audit.csv | True |
+| audit | Ridge penalty audit | outputs\cp_repo_ops_hg_actions\28269511971\audit_recomputed\ridge_penalty_audit.csv | True |
+| audit | Audit summary JSON | outputs\cp_repo_ops_hg_actions\28269511971\audit_recomputed\audit_summary.json | True |
+| prop5_overlay_suite | Reproducible overlay suite regenerated from saved prediction panels | outputs\pm_selective_overlay_tests\results\overlay_pooled_summary.csv | True |
+| prop5_overlay_suite | Overlay threshold provenance and validation choices | outputs\pm_selective_overlay_tests\results\overlay_threshold_selection.csv | True |
+| prop5_overlay_suite | Overlay random-gate/placebo comparison | outputs\pm_selective_overlay_tests\results\overlay_placebo_summary.csv | True |

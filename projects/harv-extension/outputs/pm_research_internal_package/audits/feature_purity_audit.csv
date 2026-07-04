@@ -1,0 +1,181 @@
+asset,model_name,feature_count_rebuilt,family_counts_json,has_cpb_b_columns,has_raw_pm_columns,has_cp_controls,has_rv_controls,has_ungated_shape_in_gated_model,has_true_ops_in_placebo
+AAPL,CP_REPO_FRESH,13,"{""CP_REPO"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+AAPL,HAR_RV,3,"{""RV_REPO"": 3}",False,False,False,True,False,False
+AAPL,RAW_PM,10,"{""RAW_PM"": 10}",False,True,False,False,False,False
+AAPL,RAW_CP_REPO_PLUS_PM,23,"{""CP_REPO"": 10, ""RAW_PM"": 10, ""RV_REPO"": 3}",False,True,True,True,False,False
+AAPL,CP_REPO_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+AAPL,CP_REPO_RIDGE_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+AAPL,CP_REPO_LRPM,38,"{""CP_REPO"": 10, ""LRPM"": 25, ""RV_REPO"": 3}",False,False,True,True,False,False
+AAPL,CP_REPO_RECENT_SLOPE,18,"{""CP_REPO"": 10, ""RECENT_SLOPE"": 5, ""RV_REPO"": 3}",False,False,True,True,False,False
+AAPL,CP_REPO_HAAR_SHAPE,31,"{""CP_REPO"": 10, ""HAAR"": 18, ""RV_REPO"": 3}",False,False,True,True,False,False
+AAPL,CP_REPO_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+AAPL,CP_REPO_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+AAPL,CP_REPO_GATED_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+AAPL,CP_REPO_OPS_HG,47,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""GATED_OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+AAPL,RANDOM_RESIDUES_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RANDOM_RESIDUES"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+AAPL,SHUFFLED_LAG_PM_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RV_REPO"": 3, ""SHUFFLED_PM"": 10}",False,False,True,True,False,False
+AAPL,RANDOM_GATE_PLACEBO_REPO,37,"{""CP_REPO"": 10, ""RANDOM_GATE_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+AAPL,RIDGE_AR22,22,"{""AR_LAG"": 22}",False,False,False,False,False,False
+AAPL,CP_REPO_OPS_K,21,"{""CP_REPO"": 10, ""GATED_OPS_K"": 8, ""RV_REPO"": 3}",False,False,True,True,False,False
+AMZN,CP_REPO_FRESH,13,"{""CP_REPO"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+AMZN,HAR_RV,3,"{""RV_REPO"": 3}",False,False,False,True,False,False
+AMZN,RAW_PM,10,"{""RAW_PM"": 10}",False,True,False,False,False,False
+AMZN,RAW_CP_REPO_PLUS_PM,23,"{""CP_REPO"": 10, ""RAW_PM"": 10, ""RV_REPO"": 3}",False,True,True,True,False,False
+AMZN,CP_REPO_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+AMZN,CP_REPO_RIDGE_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+AMZN,CP_REPO_LRPM,38,"{""CP_REPO"": 10, ""LRPM"": 25, ""RV_REPO"": 3}",False,False,True,True,False,False
+AMZN,CP_REPO_RECENT_SLOPE,18,"{""CP_REPO"": 10, ""RECENT_SLOPE"": 5, ""RV_REPO"": 3}",False,False,True,True,False,False
+AMZN,CP_REPO_HAAR_SHAPE,31,"{""CP_REPO"": 10, ""HAAR"": 18, ""RV_REPO"": 3}",False,False,True,True,False,False
+AMZN,CP_REPO_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+AMZN,CP_REPO_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+AMZN,CP_REPO_GATED_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+AMZN,CP_REPO_OPS_HG,47,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""GATED_OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+AMZN,RANDOM_RESIDUES_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RANDOM_RESIDUES"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+AMZN,SHUFFLED_LAG_PM_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RV_REPO"": 3, ""SHUFFLED_PM"": 10}",False,False,True,True,False,False
+AMZN,RANDOM_GATE_PLACEBO_REPO,37,"{""CP_REPO"": 10, ""RANDOM_GATE_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+AMZN,RIDGE_AR22,22,"{""AR_LAG"": 22}",False,False,False,False,False,False
+AMZN,CP_REPO_OPS_K,21,"{""CP_REPO"": 10, ""GATED_OPS_K"": 8, ""RV_REPO"": 3}",False,False,True,True,False,False
+EEM,CP_REPO_FRESH,13,"{""CP_REPO"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+EEM,HAR_RV,3,"{""RV_REPO"": 3}",False,False,False,True,False,False
+EEM,RAW_PM,10,"{""RAW_PM"": 10}",False,True,False,False,False,False
+EEM,RAW_CP_REPO_PLUS_PM,23,"{""CP_REPO"": 10, ""RAW_PM"": 10, ""RV_REPO"": 3}",False,True,True,True,False,False
+EEM,CP_REPO_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+EEM,CP_REPO_RIDGE_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+EEM,CP_REPO_LRPM,38,"{""CP_REPO"": 10, ""LRPM"": 25, ""RV_REPO"": 3}",False,False,True,True,False,False
+EEM,CP_REPO_RECENT_SLOPE,18,"{""CP_REPO"": 10, ""RECENT_SLOPE"": 5, ""RV_REPO"": 3}",False,False,True,True,False,False
+EEM,CP_REPO_HAAR_SHAPE,31,"{""CP_REPO"": 10, ""HAAR"": 18, ""RV_REPO"": 3}",False,False,True,True,False,False
+EEM,CP_REPO_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+EEM,CP_REPO_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+EEM,CP_REPO_GATED_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+EEM,CP_REPO_OPS_HG,47,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""GATED_OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+EEM,RANDOM_RESIDUES_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RANDOM_RESIDUES"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+EEM,SHUFFLED_LAG_PM_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RV_REPO"": 3, ""SHUFFLED_PM"": 10}",False,False,True,True,False,False
+EEM,RANDOM_GATE_PLACEBO_REPO,37,"{""CP_REPO"": 10, ""RANDOM_GATE_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+EEM,RIDGE_AR22,22,"{""AR_LAG"": 22}",False,False,False,False,False,False
+EEM,CP_REPO_OPS_K,21,"{""CP_REPO"": 10, ""GATED_OPS_K"": 8, ""RV_REPO"": 3}",False,False,True,True,False,False
+FXI,CP_REPO_FRESH,13,"{""CP_REPO"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+FXI,HAR_RV,3,"{""RV_REPO"": 3}",False,False,False,True,False,False
+FXI,RAW_PM,10,"{""RAW_PM"": 10}",False,True,False,False,False,False
+FXI,RAW_CP_REPO_PLUS_PM,23,"{""CP_REPO"": 10, ""RAW_PM"": 10, ""RV_REPO"": 3}",False,True,True,True,False,False
+FXI,CP_REPO_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+FXI,CP_REPO_RIDGE_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+FXI,CP_REPO_LRPM,38,"{""CP_REPO"": 10, ""LRPM"": 25, ""RV_REPO"": 3}",False,False,True,True,False,False
+FXI,CP_REPO_RECENT_SLOPE,18,"{""CP_REPO"": 10, ""RECENT_SLOPE"": 5, ""RV_REPO"": 3}",False,False,True,True,False,False
+FXI,CP_REPO_HAAR_SHAPE,31,"{""CP_REPO"": 10, ""HAAR"": 18, ""RV_REPO"": 3}",False,False,True,True,False,False
+FXI,CP_REPO_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+FXI,CP_REPO_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+FXI,CP_REPO_GATED_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+FXI,CP_REPO_OPS_HG,47,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""GATED_OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+FXI,RANDOM_RESIDUES_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RANDOM_RESIDUES"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+FXI,SHUFFLED_LAG_PM_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RV_REPO"": 3, ""SHUFFLED_PM"": 10}",False,False,True,True,False,False
+FXI,RANDOM_GATE_PLACEBO_REPO,37,"{""CP_REPO"": 10, ""RANDOM_GATE_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+FXI,RIDGE_AR22,22,"{""AR_LAG"": 22}",False,False,False,False,False,False
+FXI,CP_REPO_OPS_K,21,"{""CP_REPO"": 10, ""GATED_OPS_K"": 8, ""RV_REPO"": 3}",False,False,True,True,False,False
+GLD,CP_REPO_FRESH,13,"{""CP_REPO"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+GLD,HAR_RV,3,"{""RV_REPO"": 3}",False,False,False,True,False,False
+GLD,RAW_PM,10,"{""RAW_PM"": 10}",False,True,False,False,False,False
+GLD,RAW_CP_REPO_PLUS_PM,23,"{""CP_REPO"": 10, ""RAW_PM"": 10, ""RV_REPO"": 3}",False,True,True,True,False,False
+GLD,CP_REPO_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+GLD,CP_REPO_RIDGE_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+GLD,CP_REPO_LRPM,38,"{""CP_REPO"": 10, ""LRPM"": 25, ""RV_REPO"": 3}",False,False,True,True,False,False
+GLD,CP_REPO_RECENT_SLOPE,18,"{""CP_REPO"": 10, ""RECENT_SLOPE"": 5, ""RV_REPO"": 3}",False,False,True,True,False,False
+GLD,CP_REPO_HAAR_SHAPE,31,"{""CP_REPO"": 10, ""HAAR"": 18, ""RV_REPO"": 3}",False,False,True,True,False,False
+GLD,CP_REPO_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+GLD,CP_REPO_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+GLD,CP_REPO_GATED_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+GLD,CP_REPO_OPS_HG,47,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""GATED_OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+GLD,RANDOM_RESIDUES_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RANDOM_RESIDUES"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+GLD,SHUFFLED_LAG_PM_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RV_REPO"": 3, ""SHUFFLED_PM"": 10}",False,False,True,True,False,False
+GLD,RANDOM_GATE_PLACEBO_REPO,37,"{""CP_REPO"": 10, ""RANDOM_GATE_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+GLD,RIDGE_AR22,22,"{""AR_LAG"": 22}",False,False,False,False,False,False
+GLD,CP_REPO_OPS_K,21,"{""CP_REPO"": 10, ""GATED_OPS_K"": 8, ""RV_REPO"": 3}",False,False,True,True,False,False
+GOOGL,CP_REPO_FRESH,13,"{""CP_REPO"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+GOOGL,HAR_RV,3,"{""RV_REPO"": 3}",False,False,False,True,False,False
+GOOGL,RAW_PM,10,"{""RAW_PM"": 10}",False,True,False,False,False,False
+GOOGL,RAW_CP_REPO_PLUS_PM,23,"{""CP_REPO"": 10, ""RAW_PM"": 10, ""RV_REPO"": 3}",False,True,True,True,False,False
+GOOGL,CP_REPO_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+GOOGL,CP_REPO_RIDGE_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+GOOGL,CP_REPO_LRPM,38,"{""CP_REPO"": 10, ""LRPM"": 25, ""RV_REPO"": 3}",False,False,True,True,False,False
+GOOGL,CP_REPO_RECENT_SLOPE,18,"{""CP_REPO"": 10, ""RECENT_SLOPE"": 5, ""RV_REPO"": 3}",False,False,True,True,False,False
+GOOGL,CP_REPO_HAAR_SHAPE,31,"{""CP_REPO"": 10, ""HAAR"": 18, ""RV_REPO"": 3}",False,False,True,True,False,False
+GOOGL,CP_REPO_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+GOOGL,CP_REPO_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+GOOGL,CP_REPO_GATED_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+GOOGL,CP_REPO_OPS_HG,47,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""GATED_OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+GOOGL,RANDOM_RESIDUES_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RANDOM_RESIDUES"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+GOOGL,SHUFFLED_LAG_PM_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RV_REPO"": 3, ""SHUFFLED_PM"": 10}",False,False,True,True,False,False
+GOOGL,RANDOM_GATE_PLACEBO_REPO,37,"{""CP_REPO"": 10, ""RANDOM_GATE_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+GOOGL,RIDGE_AR22,22,"{""AR_LAG"": 22}",False,False,False,False,False,False
+GOOGL,CP_REPO_OPS_K,21,"{""CP_REPO"": 10, ""GATED_OPS_K"": 8, ""RV_REPO"": 3}",False,False,True,True,False,False
+HYG,CP_REPO_FRESH,13,"{""CP_REPO"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+HYG,HAR_RV,3,"{""RV_REPO"": 3}",False,False,False,True,False,False
+HYG,RAW_PM,10,"{""RAW_PM"": 10}",False,True,False,False,False,False
+HYG,RAW_CP_REPO_PLUS_PM,23,"{""CP_REPO"": 10, ""RAW_PM"": 10, ""RV_REPO"": 3}",False,True,True,True,False,False
+HYG,CP_REPO_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+HYG,CP_REPO_RIDGE_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+HYG,CP_REPO_LRPM,38,"{""CP_REPO"": 10, ""LRPM"": 25, ""RV_REPO"": 3}",False,False,True,True,False,False
+HYG,CP_REPO_RECENT_SLOPE,18,"{""CP_REPO"": 10, ""RECENT_SLOPE"": 5, ""RV_REPO"": 3}",False,False,True,True,False,False
+HYG,CP_REPO_HAAR_SHAPE,31,"{""CP_REPO"": 10, ""HAAR"": 18, ""RV_REPO"": 3}",False,False,True,True,False,False
+HYG,CP_REPO_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+HYG,CP_REPO_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+HYG,CP_REPO_GATED_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+HYG,CP_REPO_OPS_HG,47,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""GATED_OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+HYG,RANDOM_RESIDUES_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RANDOM_RESIDUES"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+HYG,SHUFFLED_LAG_PM_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RV_REPO"": 3, ""SHUFFLED_PM"": 10}",False,False,True,True,False,False
+HYG,RANDOM_GATE_PLACEBO_REPO,37,"{""CP_REPO"": 10, ""RANDOM_GATE_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+HYG,RIDGE_AR22,22,"{""AR_LAG"": 22}",False,False,False,False,False,False
+HYG,CP_REPO_OPS_K,21,"{""CP_REPO"": 10, ""GATED_OPS_K"": 8, ""RV_REPO"": 3}",False,False,True,True,False,False
+QQQ,CP_REPO_FRESH,13,"{""CP_REPO"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+QQQ,HAR_RV,3,"{""RV_REPO"": 3}",False,False,False,True,False,False
+QQQ,RAW_PM,10,"{""RAW_PM"": 10}",False,True,False,False,False,False
+QQQ,RAW_CP_REPO_PLUS_PM,23,"{""CP_REPO"": 10, ""RAW_PM"": 10, ""RV_REPO"": 3}",False,True,True,True,False,False
+QQQ,CP_REPO_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+QQQ,CP_REPO_RIDGE_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+QQQ,CP_REPO_LRPM,38,"{""CP_REPO"": 10, ""LRPM"": 25, ""RV_REPO"": 3}",False,False,True,True,False,False
+QQQ,CP_REPO_RECENT_SLOPE,18,"{""CP_REPO"": 10, ""RECENT_SLOPE"": 5, ""RV_REPO"": 3}",False,False,True,True,False,False
+QQQ,CP_REPO_HAAR_SHAPE,31,"{""CP_REPO"": 10, ""HAAR"": 18, ""RV_REPO"": 3}",False,False,True,True,False,False
+QQQ,CP_REPO_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+QQQ,CP_REPO_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+QQQ,CP_REPO_GATED_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+QQQ,CP_REPO_OPS_HG,47,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""GATED_OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+QQQ,RANDOM_RESIDUES_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RANDOM_RESIDUES"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+QQQ,SHUFFLED_LAG_PM_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RV_REPO"": 3, ""SHUFFLED_PM"": 10}",False,False,True,True,False,False
+QQQ,RANDOM_GATE_PLACEBO_REPO,37,"{""CP_REPO"": 10, ""RANDOM_GATE_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+QQQ,RIDGE_AR22,22,"{""AR_LAG"": 22}",False,False,False,False,False,False
+QQQ,CP_REPO_OPS_K,21,"{""CP_REPO"": 10, ""GATED_OPS_K"": 8, ""RV_REPO"": 3}",False,False,True,True,False,False
+SPY,CP_REPO_FRESH,13,"{""CP_REPO"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+SPY,HAR_RV,3,"{""RV_REPO"": 3}",False,False,False,True,False,False
+SPY,RAW_PM,10,"{""RAW_PM"": 10}",False,True,False,False,False,False
+SPY,RAW_CP_REPO_PLUS_PM,23,"{""CP_REPO"": 10, ""RAW_PM"": 10, ""RV_REPO"": 3}",False,True,True,True,False,False
+SPY,CP_REPO_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+SPY,CP_REPO_RIDGE_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+SPY,CP_REPO_LRPM,38,"{""CP_REPO"": 10, ""LRPM"": 25, ""RV_REPO"": 3}",False,False,True,True,False,False
+SPY,CP_REPO_RECENT_SLOPE,18,"{""CP_REPO"": 10, ""RECENT_SLOPE"": 5, ""RV_REPO"": 3}",False,False,True,True,False,False
+SPY,CP_REPO_HAAR_SHAPE,31,"{""CP_REPO"": 10, ""HAAR"": 18, ""RV_REPO"": 3}",False,False,True,True,False,False
+SPY,CP_REPO_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+SPY,CP_REPO_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+SPY,CP_REPO_GATED_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+SPY,CP_REPO_OPS_HG,47,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""GATED_OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+SPY,RANDOM_RESIDUES_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RANDOM_RESIDUES"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+SPY,SHUFFLED_LAG_PM_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RV_REPO"": 3, ""SHUFFLED_PM"": 10}",False,False,True,True,False,False
+SPY,RANDOM_GATE_PLACEBO_REPO,37,"{""CP_REPO"": 10, ""RANDOM_GATE_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+SPY,RIDGE_AR22,22,"{""AR_LAG"": 22}",False,False,False,False,False,False
+SPY,CP_REPO_OPS_K,21,"{""CP_REPO"": 10, ""GATED_OPS_K"": 8, ""RV_REPO"": 3}",False,False,True,True,False,False
+TLT,CP_REPO_FRESH,13,"{""CP_REPO"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+TLT,HAR_RV,3,"{""RV_REPO"": 3}",False,False,False,True,False,False
+TLT,RAW_PM,10,"{""RAW_PM"": 10}",False,True,False,False,False,False
+TLT,RAW_CP_REPO_PLUS_PM,23,"{""CP_REPO"": 10, ""RAW_PM"": 10, ""RV_REPO"": 3}",False,True,True,True,False,False
+TLT,CP_REPO_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+TLT,CP_REPO_RIDGE_OPS_R,23,"{""CP_REPO"": 10, ""OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+TLT,CP_REPO_LRPM,38,"{""CP_REPO"": 10, ""LRPM"": 25, ""RV_REPO"": 3}",False,False,True,True,False,False
+TLT,CP_REPO_RECENT_SLOPE,18,"{""CP_REPO"": 10, ""RECENT_SLOPE"": 5, ""RV_REPO"": 3}",False,False,True,True,False,False
+TLT,CP_REPO_HAAR_SHAPE,31,"{""CP_REPO"": 10, ""HAAR"": 18, ""RV_REPO"": 3}",False,False,True,True,False,False
+TLT,CP_REPO_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+TLT,CP_REPO_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+TLT,CP_REPO_GATED_RIDGE_OPS_C,37,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+TLT,CP_REPO_OPS_HG,47,"{""CP_REPO"": 10, ""GATED_OPS_C"": 24, ""GATED_OPS_R"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+TLT,RANDOM_RESIDUES_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RANDOM_RESIDUES"": 10, ""RV_REPO"": 3}",False,False,True,True,False,False
+TLT,SHUFFLED_LAG_PM_PLACEBO_REPO,23,"{""CP_REPO"": 10, ""RV_REPO"": 3, ""SHUFFLED_PM"": 10}",False,False,True,True,False,False
+TLT,RANDOM_GATE_PLACEBO_REPO,37,"{""CP_REPO"": 10, ""RANDOM_GATE_OPS_C"": 24, ""RV_REPO"": 3}",False,False,True,True,False,False
+TLT,RIDGE_AR22,22,"{""AR_LAG"": 22}",False,False,False,False,False,False
+TLT,CP_REPO_OPS_K,21,"{""CP_REPO"": 10, ""GATED_OPS_K"": 8, ""RV_REPO"": 3}",False,False,True,True,False,False

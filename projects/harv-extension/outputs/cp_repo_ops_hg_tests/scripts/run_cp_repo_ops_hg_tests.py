@@ -85,6 +85,7 @@ MODEL_ORDER = [
     "CP_REPO_OPS_R",
     "CP_REPO_RIDGE_OPS_R",
     "CP_REPO_LRPM",
+    "CP_REPO_RIDGE_LRPM",
     "CP_REPO_RECENT_SLOPE",
     "CP_REPO_HAAR_SHAPE",
     "CP_REPO_OPS_C",
@@ -102,6 +103,7 @@ SHAPE_MODELS = {
     "CP_REPO_OPS_R",
     "CP_REPO_RIDGE_OPS_R",
     "CP_REPO_LRPM",
+    "CP_REPO_RIDGE_LRPM",
     "CP_REPO_RECENT_SLOPE",
     "CP_REPO_HAAR_SHAPE",
     "CP_REPO_OPS_C",
@@ -128,6 +130,7 @@ PHASE_MODELS = {
     "phase2": [
         "CP_REPO_RIDGE_OPS_R",
         "CP_REPO_LRPM",
+        "CP_REPO_RIDGE_LRPM",
         "CP_REPO_RECENT_SLOPE",
         "CP_REPO_HAAR_SHAPE",
         "CP_REPO_OPS_HG",
@@ -739,8 +742,19 @@ def build_model_registry(n: int) -> dict:
                 "uses_gate": False,
                 "uses_ridge": False,
                 "is_placebo": False,
+                "paper_eligible": False,
+                "expected_interpretation": "Unregularized local residue bridge diagnostic only; rank-deficient and unstable in full runs.",
+            },
+            "CP_REPO_RIDGE_LRPM": {
+                "feature_families": ["RV_REPO", "CP_REPO", "LRPM"],
+                "includes_cp": True,
+                "includes_raw_pm": False,
+                "shape_features_cp_orthogonal": False,
+                "uses_gate": False,
+                "uses_ridge": True,
+                "is_placebo": False,
                 "paper_eligible": True,
-                "expected_interpretation": "Local residue bridge ablation inside lag zones, incremental to repo CP controls.",
+                "expected_interpretation": "Ridge-stabilized LRPM with repo CP controls unpenalized and LRPM shape coefficients shrunk.",
             },
             "CP_REPO_RECENT_SLOPE": {
                 "feature_families": ["RV_REPO", "CP_REPO", "RECENT_SLOPE"],
@@ -873,6 +887,13 @@ def write_model_registry(outdir: Path, args) -> tuple[dict, str]:
     path = outdir / REGISTRY_FILENAME
     path.write_text(json.dumps(registry, indent=2, sort_keys=True), encoding="utf-8")
     return registry, sha256_file(path)
+
+
+def model_is_paper_eligible(model_name: str, registry: dict | None) -> bool:
+    if not registry:
+        return True
+    entry = registry.get("models", {}).get(model_name, {})
+    return bool(entry.get("paper_eligible", True))
 
 
 def feature_family(column: str) -> str:
@@ -1102,6 +1123,7 @@ def build_feature_frame(ticker: str, args) -> tuple[pd.DataFrame, dict[str, list
         "CP_REPO_OPS_R": cp_cols + z_groups["PMCTR"],
         "CP_REPO_RIDGE_OPS_R": cp_cols + z_groups["PMCTR"],
         "CP_REPO_LRPM": cp_cols + z_groups["LRPM"],
+        "CP_REPO_RIDGE_LRPM": cp_cols + z_groups["LRPM"],
         "CP_REPO_RECENT_SLOPE": cp_cols + z_groups["RSLOPE"],
         "CP_REPO_HAAR_SHAPE": cp_cols + z_groups["HAAR"],
         "CP_REPO_OPS_C": cp_cols + z_groups["OPSC"],
@@ -1137,7 +1159,7 @@ def build_feature_frame(ticker: str, args) -> tuple[pd.DataFrame, dict[str, list
 def ridge_penalties(model_name: str, features: list[str], lambda_shape: float, lambda_r_ratio: float) -> dict[str, float]:
     ridge = {}
     unpenalized = {"RV_REPO", "CP_REPO"}
-    if model_name in {"CP_REPO_RIDGE_OPS_R", "RANDOM_RESIDUES_PLACEBO_REPO", "SHUFFLED_LAG_PM_PLACEBO_REPO"}:
+    if model_name in {"CP_REPO_RIDGE_OPS_R", "CP_REPO_RIDGE_LRPM", "RANDOM_RESIDUES_PLACEBO_REPO", "SHUFFLED_LAG_PM_PLACEBO_REPO"}:
         ridge = {col: lambda_shape for col in features if feature_family(col) not in unpenalized}
     elif model_name in {"CP_REPO_RIDGE_OPS_C", "CP_REPO_GATED_RIDGE_OPS_C", "RANDOM_GATE_PLACEBO_REPO", "CP_REPO_OPS_K"}:
         ridge = {col: lambda_shape for col in features if feature_family(col) not in unpenalized}
@@ -1214,6 +1236,7 @@ def validation_score_for_penalties(
 def select_ridge_controls(model_name: str, features: list[str], frame: pd.DataFrame, args) -> tuple[float, float, str, float]:
     if model_name not in {
         "CP_REPO_RIDGE_OPS_R",
+        "CP_REPO_RIDGE_LRPM",
         "CP_REPO_RIDGE_OPS_C",
         "CP_REPO_GATED_RIDGE_OPS_C",
         "CP_REPO_OPS_HG",
@@ -1260,7 +1283,7 @@ def model_spec(model_name: str, features: list[str], frame: pd.DataFrame, args) 
     lambda_shape, lambda_r_ratio, cv_mode_effective, cv_score = select_ridge_controls(model_name, features, frame, args)
     ridge = ridge_penalties(model_name, features, lambda_shape, lambda_r_ratio)
     family = "linear"
-    if model_name in {"CP_REPO_RIDGE_OPS_R", "RANDOM_RESIDUES_PLACEBO_REPO", "SHUFFLED_LAG_PM_PLACEBO_REPO"}:
+    if model_name in {"CP_REPO_RIDGE_OPS_R", "CP_REPO_RIDGE_LRPM", "RANDOM_RESIDUES_PLACEBO_REPO", "SHUFFLED_LAG_PM_PLACEBO_REPO"}:
         family = "ridge_shape"
     elif model_name in {"CP_REPO_RIDGE_OPS_C", "CP_REPO_GATED_RIDGE_OPS_C", "RANDOM_GATE_PLACEBO_REPO", "CP_REPO_OPS_K"}:
         family = "ridge_shape"
@@ -1523,6 +1546,8 @@ def run_fast_slow_equivalence_audit(outdir: Path, args, asset: str = "AAPL") -> 
         "CP_REPO_FRESH",
         "RAW_CP_REPO_PLUS_PM",
         "CP_REPO_RIDGE_OPS_R",
+        "CP_REPO_LRPM",
+        "CP_REPO_RIDGE_LRPM",
         "CP_REPO_RIDGE_OPS_C",
         "CP_REPO_GATED_RIDGE_OPS_C",
         "CP_REPO_OPS_HG",
@@ -1544,6 +1569,12 @@ def run_fast_slow_equivalence_audit(outdir: Path, args, asset: str = "AAPL") -> 
                 suffixes=("_fast", "_slow"),
             )
             diff = (pd.to_numeric(merged[f"{pred_col}_fast"], errors="coerce") - pd.to_numeric(merged[f"{pred_col}_slow"], errors="coerce")).abs()
+            timestamp_alignment_exact = bool(
+                len(fast) == len(slow)
+                and len(merged) == len(fast)
+                and fast["Date"].reset_index(drop=True).equals(slow["Date"].reset_index(drop=True))
+            )
+            no_duplicate_dates = bool(not fast["Date"].duplicated().any() and not slow["Date"].duplicated().any())
             actual_match = bool(
                 not merged.empty
                 and np.allclose(
@@ -1557,7 +1588,7 @@ def run_fast_slow_equivalence_audit(outdir: Path, args, asset: str = "AAPL") -> 
             mean_diff = float(diff.mean()) if not diff.empty else np.inf
             rank = compute_design_rank(frame, spec.features)
             threshold = 1e-6 if rank < len(spec.features) else 1e-8
-            passes = bool(not merged.empty and actual_match and (max_diff <= threshold or mean_diff <= 1e-10))
+            passes = bool(not merged.empty and timestamp_alignment_exact and no_duplicate_dates and actual_match and max_diff <= threshold)
             first_fail = ""
             if not passes and not merged.empty:
                 bad = merged.loc[diff > threshold].head(1)
@@ -1570,7 +1601,8 @@ def run_fast_slow_equivalence_audit(outdir: Path, args, asset: str = "AAPL") -> 
                     "n_compared": int(len(merged)),
                     "max_abs_prediction_diff": safe_float(max_diff),
                     "mean_abs_prediction_diff": safe_float(mean_diff),
-                    "timestamp_alignment_exact": bool(len(merged) == min(len(fast), len(slow))),
+                    "timestamp_alignment_exact": timestamp_alignment_exact,
+                    "no_duplicate_dates": no_duplicate_dates,
                     "actual_target_match": actual_match,
                     "selected_lambda_shape": spec.lambda_shape,
                     "selected_lambda_r_ratio": spec.lambda_r_ratio,
@@ -1592,6 +1624,7 @@ def run_fast_slow_equivalence_audit(outdir: Path, args, asset: str = "AAPL") -> 
                     "max_abs_prediction_diff": np.nan,
                     "mean_abs_prediction_diff": np.nan,
                     "timestamp_alignment_exact": False,
+                    "no_duplicate_dates": False,
                     "actual_target_match": False,
                     "selected_lambda_shape": np.nan,
                     "selected_lambda_r_ratio": np.nan,
@@ -1608,6 +1641,139 @@ def run_fast_slow_equivalence_audit(outdir: Path, args, asset: str = "AAPL") -> 
     write_csv(audit, outdir / "results" / "fast_slow_equivalence_audit.csv")
     if not bool(audit["passes"].astype(bool).all()):
         raise RuntimeError("Fast-vs-slow equivalence audit failed")
+    return audit
+
+
+def run_strong_fast_slow_equivalence_audit(outdir: Path, args) -> pd.DataFrame:
+    selected = unique_in_order(["CP_REPO_FRESH"] + [model for model in MODEL_ORDER if model != "CP_REPO_FRESH"])
+    assets = parse_csv(args.strong_audit_assets, ["AAPL", "SPY", "GLD"])
+    rows = []
+    for asset in assets:
+        frame, feature_groups, _, _, _ = build_feature_frame(asset, args)
+        for model_name in selected:
+            if model_name not in feature_groups:
+                rows.append(
+                    {
+                        "asset": asset,
+                        "model_name": model_name,
+                        "n_compared": 0,
+                        "max_abs_prediction_diff": np.nan,
+                        "mean_abs_prediction_diff": np.nan,
+                        "timestamp_alignment_exact": False,
+                        "no_duplicate_dates": False,
+                        "actual_target_match": False,
+                        "selected_lambda_shape": np.nan,
+                        "selected_lambda_r_ratio": np.nan,
+                        "design_rank": np.nan,
+                        "feature_count": np.nan,
+                        "rank_deficient": np.nan,
+                        "threshold": np.nan,
+                        "passes": False,
+                        "message": "model not present in feature group",
+                    }
+                )
+                continue
+            try:
+                spec = model_spec(model_name, feature_groups[model_name], frame, args)
+                fast = fast_expanding_predict(
+                    frame,
+                    spec,
+                    args.n,
+                    args.warmup,
+                    args.target_transform,
+                    args.log_eps,
+                    max_forecasts=int(args.strong_audit_rows),
+                )
+                slow = slow_expanding_predict(
+                    frame,
+                    spec,
+                    args.n,
+                    args.warmup,
+                    args.target_transform,
+                    args.log_eps,
+                    max_forecasts=int(args.strong_audit_rows),
+                )
+                pred_col = f"Predicted_{model_name}"
+                merged = fast[["Date", "Actual", pred_col]].merge(
+                    slow[["Date", "Actual", pred_col]],
+                    on="Date",
+                    suffixes=("_fast", "_slow"),
+                )
+                diff = (
+                    pd.to_numeric(merged[f"{pred_col}_fast"], errors="coerce")
+                    - pd.to_numeric(merged[f"{pred_col}_slow"], errors="coerce")
+                ).abs()
+                timestamp_alignment_exact = bool(
+                    len(fast) == len(slow)
+                    and len(merged) == len(fast)
+                    and fast["Date"].reset_index(drop=True).equals(slow["Date"].reset_index(drop=True))
+                )
+                no_duplicate_dates = bool(not fast["Date"].duplicated().any() and not slow["Date"].duplicated().any())
+                actual_match = bool(
+                    not merged.empty
+                    and np.allclose(
+                        pd.to_numeric(merged["Actual_fast"], errors="coerce"),
+                        pd.to_numeric(merged["Actual_slow"], errors="coerce"),
+                        atol=1e-12,
+                        rtol=0.0,
+                    )
+                )
+                max_diff = float(diff.max()) if not diff.empty else np.inf
+                mean_diff = float(diff.mean()) if not diff.empty else np.inf
+                rank = compute_design_rank(frame, spec.features)
+                threshold = 1e-6 if rank < len(spec.features) else 1e-8
+                first_fail = ""
+                if not diff.empty:
+                    bad = merged.loc[diff > threshold].head(1)
+                    if not bad.empty:
+                        first_fail = str(bad["Date"].iloc[0])
+                rows.append(
+                    {
+                        "asset": asset,
+                        "model_name": model_name,
+                        "n_compared": int(len(merged)),
+                        "max_abs_prediction_diff": safe_float(max_diff),
+                        "mean_abs_prediction_diff": safe_float(mean_diff),
+                        "timestamp_alignment_exact": timestamp_alignment_exact,
+                        "no_duplicate_dates": no_duplicate_dates,
+                        "actual_target_match": actual_match,
+                        "selected_lambda_shape": spec.lambda_shape,
+                        "selected_lambda_r_ratio": spec.lambda_r_ratio,
+                        "design_rank": rank,
+                        "feature_count": len(spec.features),
+                        "rank_deficient": bool(rank < len(spec.features)),
+                        "threshold": threshold,
+                        "first_failing_timestamp": first_fail,
+                        "passes": bool(not merged.empty and timestamp_alignment_exact and no_duplicate_dates and actual_match and max_diff <= threshold),
+                        "message": "",
+                    }
+                )
+            except Exception as exc:
+                rows.append(
+                    {
+                        "asset": asset,
+                        "model_name": model_name,
+                        "n_compared": 0,
+                        "max_abs_prediction_diff": np.nan,
+                        "mean_abs_prediction_diff": np.nan,
+                        "timestamp_alignment_exact": False,
+                        "no_duplicate_dates": False,
+                        "actual_target_match": False,
+                        "selected_lambda_shape": np.nan,
+                        "selected_lambda_r_ratio": np.nan,
+                        "design_rank": np.nan,
+                        "feature_count": np.nan,
+                        "rank_deficient": np.nan,
+                        "threshold": np.nan,
+                        "first_failing_timestamp": "",
+                        "passes": False,
+                        "message": f"{type(exc).__name__}: {exc}",
+                    }
+                )
+    audit = pd.DataFrame(rows)
+    write_csv(audit, outdir / "results" / "strong_fast_slow_equivalence_audit.csv")
+    if not bool(audit["passes"].astype(bool).all()):
+        raise RuntimeError("Strong fast-vs-slow equivalence audit failed")
     return audit
 
 
@@ -1802,6 +1968,7 @@ def metric_row(
             "benchmark_model": "CP_REPO_FRESH",
             "asset": asset,
             "condition": condition,
+            "condition_label_type": "not_conditioned" if condition == "all_observations" else "ex_post_descriptive",
             "n_obs": 0,
         }
     model_smape_col = f"SMAPE_{model_name}_pct"
@@ -1817,6 +1984,7 @@ def metric_row(
         "benchmark_model": "CP_REPO_FRESH",
         "asset": asset,
         "condition": condition,
+        "condition_label_type": "not_conditioned" if condition == "all_observations" else "ex_post_descriptive",
         "n_obs": int(len(frame)),
         "model_mean_SMAPE": safe_float(frame[model_smape_col].mean()),
         "CP_mean_SMAPE": safe_float(frame[cp_smape_col].mean()),
@@ -1857,12 +2025,14 @@ def provenance_for(meta_map: dict, asset: str, model: str, cp_meta: dict | None 
     source = str(meta.get("source", "unknown"))
     run_type = str(meta.get("run_type", "unknown"))
     cp_source = str(cp_meta.get("source", "unknown"))
+    registry_eligible = bool(meta.get("paper_eligible", True))
     eligible_sources = {"generated_current", "skipped_existing_verified"}
     eligible = bool(
         run_type == "full"
         and source in eligible_sources
         and cp_source in eligible_sources
         and not bool(meta.get("scaffolded", False))
+        and registry_eligible
     )
     return {
         "run_type": run_type,
@@ -1914,6 +2084,111 @@ def compute_inference_summary(pooled_all: pd.DataFrame) -> pd.DataFrame:
     return inference
 
 
+def mean_loss(actual: pd.Series, pred: pd.Series, metric: str) -> float:
+    actual = pd.to_numeric(actual, errors="coerce")
+    pred = pd.to_numeric(pred, errors="coerce")
+    mask = actual.notna() & pred.notna()
+    actual = actual[mask]
+    pred = pred[mask]
+    if actual.empty:
+        return np.nan
+    err = actual - pred
+    if metric == "SMAPE":
+        return safe_float(smape(actual, pred).mean())
+    if metric == "MAE":
+        return safe_float(err.abs().mean())
+    if metric == "MSE":
+        return safe_float(np.square(err).mean())
+    if metric == "RMSE":
+        return safe_float(math.sqrt(float(np.square(err).mean())))
+    if metric == "LOG_RV_MSE":
+        log_actual = np.log(np.clip(actual.to_numpy(dtype=float), 0.0, None) + LOG_EPS_DEFAULT)
+        log_pred = np.log(np.clip(pred.to_numpy(dtype=float), 0.0, None) + LOG_EPS_DEFAULT)
+        return safe_float(np.square(log_actual - log_pred).mean())
+    return np.nan
+
+
+def alternative_loss_rows(frame: pd.DataFrame, model_name: str, asset: str, condition: str) -> list[dict]:
+    if frame.empty:
+        return []
+    model_col = f"Predicted_{model_name}"
+    if model_col not in frame.columns or "Predicted_CP_REPO_FRESH" not in frame.columns:
+        return []
+    actual = pd.to_numeric(frame["Actual"], errors="coerce")
+    variants = {
+        "standard": pd.Series(True, index=frame.index),
+        "high_vol_only": actual >= actual.quantile(0.80),
+        "near_zero_excluded": actual >= actual.quantile(0.05),
+    }
+    rows = []
+    for loss_variant, mask in variants.items():
+        subset = frame.loc[mask.fillna(False)].copy()
+        if subset.empty:
+            continue
+        for metric in ["SMAPE", "MAE", "MSE", "RMSE", "LOG_RV_MSE"]:
+            cp_loss = mean_loss(subset["Actual"], subset["Predicted_CP_REPO_FRESH"], metric)
+            model_loss = mean_loss(subset["Actual"], subset[model_col], metric)
+            rows.append(
+                {
+                    "model_name": model_name,
+                    "benchmark_model": "CP_REPO_FRESH",
+                    "asset": asset,
+                    "condition": condition,
+                    "condition_label_type": "not_conditioned" if condition == "all_observations" else "ex_post_descriptive",
+                    "loss_variant": loss_variant,
+                    "loss_metric": metric,
+                    "n_obs": int(len(subset)),
+                    "CP_loss": cp_loss,
+                    "model_loss": model_loss,
+                    "advantage_CP_minus_model": safe_float(cp_loss - model_loss) if np.isfinite(cp_loss) and np.isfinite(model_loss) else np.nan,
+                }
+            )
+    return rows
+
+
+def aggregate_alternative_loss(alternative_by_asset: pd.DataFrame) -> pd.DataFrame:
+    if alternative_by_asset.empty:
+        return pd.DataFrame(columns=[
+            "model_name",
+            "condition",
+            "condition_label_type",
+            "loss_variant",
+            "loss_metric",
+            "n_obs_total",
+            "n_assets",
+            "pooled_CP_loss",
+            "pooled_model_loss",
+            "pooled_advantage_CP_minus_model",
+            "assets_positive",
+        ])
+    rows = []
+    group_cols = ["model_name", "condition", "condition_label_type", "loss_variant", "loss_metric"]
+    for keys, group in alternative_by_asset.groupby(group_cols, dropna=False):
+        rec = dict(zip(group_cols, keys))
+        weights = pd.to_numeric(group["n_obs"], errors="coerce").fillna(0.0)
+        total = float(weights.sum())
+        if total > 0:
+            cp_loss = float((pd.to_numeric(group["CP_loss"], errors="coerce") * weights).sum() / total)
+            model_loss = float((pd.to_numeric(group["model_loss"], errors="coerce") * weights).sum() / total)
+        else:
+            cp_loss = np.nan
+            model_loss = np.nan
+        adv = pd.to_numeric(group["advantage_CP_minus_model"], errors="coerce")
+        rec.update(
+            {
+                "n_obs_total": int(total),
+                "n_assets": int(group["asset"].nunique()),
+                "pooled_CP_loss": safe_float(cp_loss),
+                "pooled_model_loss": safe_float(model_loss),
+                "pooled_advantage_CP_minus_model": safe_float(cp_loss - model_loss) if np.isfinite(cp_loss) and np.isfinite(model_loss) else np.nan,
+                "equal_weight_asset_advantage": safe_float(adv.mean()),
+                "assets_positive": int((adv > 0).sum()),
+            }
+        )
+        rows.append(rec)
+    return pd.DataFrame(rows)
+
+
 def compute_results(outdir: Path, mode: str, assets: list[str], models: list[str], n: int) -> dict[str, pd.DataFrame]:
     pred_dir = outdir / "predictions" / mode
     metadata_path = outdir / "results" / "run_metadata.csv"
@@ -1921,6 +2196,7 @@ def compute_results(outdir: Path, mode: str, assets: list[str], models: list[str
     overall_rows = []
     conditional_rows = []
     alignment_rows = []
+    alternative_rows = []
     pooled_parts = []
     model_list = unique_in_order(["CP_REPO_FRESH"] + models)
 
@@ -1994,6 +2270,7 @@ def compute_results(outdir: Path, mode: str, assets: list[str], models: list[str
             )
             prov["is_paper_eligible"] = bool(prov["is_paper_eligible"] and timestamps_exact and actual_match)
             overall_rows.append(metric_row(model_frame, model_name, asset, "all_observations", prov))
+            alternative_rows.extend(alternative_loss_rows(model_frame, model_name, asset, "all_observations"))
 
             lagged = add_lagged_actuals(model_frame, n)
             if lagged.empty:
@@ -2002,6 +2279,7 @@ def compute_results(outdir: Path, mode: str, assets: list[str], models: list[str
             for condition in CONDITION_ORDER:
                 subset = lagged.loc[conditions[condition]].copy()
                 conditional_rows.append(metric_row(subset, model_name, asset, condition, prov))
+                alternative_rows.extend(alternative_loss_rows(subset, model_name, asset, condition))
                 if not subset.empty:
                     pooled_piece = subset.copy()
                     pooled_piece["asset"] = asset
@@ -2012,6 +2290,7 @@ def compute_results(outdir: Path, mode: str, assets: list[str], models: list[str
 
     overall = pd.DataFrame(overall_rows)
     conditional = pd.DataFrame(conditional_rows)
+    alternative_by_asset = pd.DataFrame(alternative_rows)
 
     pooled_rows = []
     if pooled_parts:
@@ -2059,6 +2338,8 @@ def compute_results(outdir: Path, mode: str, assets: list[str], models: list[str
         "placebo": placebo,
         "alignment": pd.DataFrame(alignment_rows),
         "inference": compute_inference_summary(pooled_all),
+        "alternative_loss_by_asset": alternative_by_asset,
+        "alternative_loss": aggregate_alternative_loss(alternative_by_asset),
     }
 
 
@@ -2255,6 +2536,8 @@ def write_results(outdir: Path, args, mode_for_tables: str, assets: list[str], m
     write_csv(results["placebo"], result_dir / "placebo_summary.csv")
     write_csv(results["alignment"], result_dir / "alignment_audit.csv")
     write_csv(results["inference"], result_dir / "inference_summary.csv")
+    write_csv(results["alternative_loss_by_asset"], result_dir / "alternative_loss_summary_by_asset.csv")
+    write_csv(results["alternative_loss"], result_dir / "alternative_loss_summary.csv")
     write_raw_cp_pm_reproduction_audit(outdir, results)
 
     paper_main = results["ablation"]
@@ -2289,6 +2572,13 @@ def add_common_metadata(metadata: pd.DataFrame, args, outdir: Path) -> pd.DataFr
     if metadata is None:
         metadata = pd.DataFrame()
     metadata = metadata.copy()
+    registry = getattr(args, "model_registry", None)
+    if "model_name" in metadata.columns:
+        computed_eligibility = metadata["model_name"].astype(str).map(lambda name: model_is_paper_eligible(name, registry))
+        if "paper_eligible" in metadata.columns:
+            metadata["paper_eligible"] = metadata["paper_eligible"].fillna(computed_eligibility)
+        else:
+            metadata["paper_eligible"] = computed_eligibility
     git = getattr(args, "git_info", git_metadata())
     common = {
         "python_version": platform.python_version(),
@@ -2728,6 +3018,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--audit-no-lookahead", action="store_true")
     parser.add_argument("--audit-repo-cp-reproduction", action="store_true")
     parser.add_argument("--audit-fast-slow-equivalence", action="store_true")
+    parser.add_argument("--audit-strong-fast-slow-equivalence", action="store_true")
+    parser.add_argument("--strong-audit-assets", default="AAPL,SPY,GLD")
+    parser.add_argument("--strong-audit-rows", type=int, default=500)
     return parser
 
 
@@ -2767,6 +3060,8 @@ def write_run_files(
         result_dir / "raw_cp_pm_reproduction_audit.csv",
         result_dir / "alignment_audit.csv",
         result_dir / "inference_summary.csv",
+        result_dir / "alternative_loss_summary_by_asset.csv",
+        result_dir / "alternative_loss_summary.csv",
         result_dir / "placebo_diagnostics.csv",
         result_dir / "model_feature_manifest.csv",
         result_dir / "model_construction_proof.md",
@@ -2845,6 +3140,8 @@ def main() -> None:
         run_repo_cp_reproduction_audit(outdir, args, args.assets_resolved)
     if args.audit_fast_slow_equivalence:
         run_fast_slow_equivalence_audit(outdir, args, asset=args.assets_resolved[0])
+    if args.audit_strong_fast_slow_equivalence:
+        run_strong_fast_slow_equivalence_audit(outdir, args)
 
     if args.mode == "tables-only":
         source_mode = "full" if (outdir / "predictions" / "full").exists() else "smoke"

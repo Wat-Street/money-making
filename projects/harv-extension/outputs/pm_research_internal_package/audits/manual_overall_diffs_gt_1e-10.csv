@@ -1,0 +1,2 @@
+model_name,condition,column,manual,recomputed,abs_diff
+CP_REPO_LRPM,all_observations,pooled_mean_abs_error_model,20493131.50975305,20493131.509753052,3.725290298461914e-09

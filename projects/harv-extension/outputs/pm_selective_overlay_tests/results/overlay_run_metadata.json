@@ -1,0 +1,26 @@
+{
+  "generated_at_utc": "2026-07-04T18:51:45Z",
+  "prediction_root": "C:\\Users\\HP\\money-making\\projects\\harv-extension\\outputs\\cp_repo_ops_hg_actions\\28269511971\\combined_manual\\predictions\\full",
+  "baseline_model": "CP_REPO_FRESH",
+  "challenger_models": [
+    "RAW_CP_REPO_PLUS_PM",
+    "CP_REPO_OPS_HG",
+    "CP_REPO_GATED_RIDGE_OPS_C",
+    "CP_REPO_RECENT_SLOPE",
+    "CP_REPO_HAAR_SHAPE",
+    "SHUFFLED_LAG_PM_PLACEBO_REPO",
+    "RANDOM_GATE_PLACEBO_REPO"
+  ],
+  "threshold_modes": [
+    "top_5pct",
+    "top_10pct",
+    "top_20pct",
+    "top_30pct",
+    "validation_selected",
+    "condition_cluster_entry_loose",
+    "condition_entry_with_recent_spike"
+  ],
+  "seed": 42,
+  "validation_fraction": 0.25,
+  "uses_future_outcomes_for_threshold": false
+}

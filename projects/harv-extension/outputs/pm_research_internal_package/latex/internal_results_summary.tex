@@ -1,0 +1,26 @@
+\section{Research Status}
+This internal note summarizes current PM/CP evidence. It is not a final paper draft.
+
+\section{Propositions}
+Prop 1 and Prop 2 are theory-support propositions. Prop 3 is empirically supported. Prop 4 is not proven globally. Prop 5 is the strongest draft-v1 direction.
+
+\section{Model Families Tested}
+The corrected ladder compares repo CP against raw PM, raw CP+PM, OPS-R, LRPM, recent slope, Haar shape, OPS-C, gated OPS-C, OPS-HG, placebos, ridge AR(22), and KOPS.
+
+\section{Prop 3 Evidence: Raw PM Is Noisy}
+Raw CP+PM loses overall but improves cluster-entry and recent-spike regimes in the older incremental tests.
+
+\section{Prop 4 Evidence: Always-On PM Does Not Beat CP}
+Under headline SMAPE, the corrected always-on ladder does not beat repo CP. Some models improve MAE/MSE/RMSE, so loss-function reporting matters.
+
+\section{Prop 5 Evidence: Selective Overlay}
+Selective overlays using CP everywhere and applying a challenger perturbation only in high-score/entry regimes produce the strongest evidence.
+
+\section{Audit Summary}
+CP reproduction, feature purity, ridge placement, no-lookahead markers, and strong fast/slow checks are included in the package audits. Unregularized LRPM is diagnostic only.
+
+\section{Open Issues}
+Rerun the full ladder with CP_REPO_RIDGE_LRPM included, deepen validation-selected overlay tests, and treat condition labels as ex-post descriptive unless thresholds are selected using past-only validation.
+
+\section{Next Tests}
+Run the selective overlay script on the full saved prediction panels, compare real gate versus shuffled gate, and check robustness across SMAPE plus at least one non-SMAPE loss.

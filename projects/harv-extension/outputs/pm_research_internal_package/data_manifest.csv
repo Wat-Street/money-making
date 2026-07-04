@@ -1,0 +1,11 @@
+asset,prediction_file,exists,n_rows,n_models
+AAPL,outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\AAPL.csv,True,36739,18
+AMZN,outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\AMZN.csv,True,36739,18
+EEM,outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\EEM.csv,True,36739,18
+FXI,outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\FXI.csv,True,36817,18
+GLD,outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\GLD.csv,True,36739,18
+GOOGL,outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\GOOGL.csv,True,36739,18
+HYG,outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\HYG.csv,True,36739,18
+QQQ,outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\QQQ.csv,True,36739,18
+SPY,outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\SPY.csv,True,36739,18
+TLT,outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\predictions\full\TLT.csv,True,36739,18

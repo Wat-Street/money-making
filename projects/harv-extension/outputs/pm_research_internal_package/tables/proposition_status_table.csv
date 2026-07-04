@@ -1,0 +1,6 @@
+proposition,statement,status,required_output
+Prop 1,Average-based forecasting models lose temporal order.,theory-ready,Short proof note only.
+Prop 2,PM is an encoding methodology for lag-position information.,theory-ready with nuance,Do not overclaim full additive reconstruction without interactions/joint CRT cells/nonlinear learners.
+Prop 3,Global/raw PM is noisy as a standalone forecasting model.,empirically supported,Use older CP+PM and corrected repo-CP summaries.
+Prop 4,PM adds value inside average-based forecasting models.,not proven globally,Always-on challengers lose under headline SMAPE; some losses/conditions are positive.
+Prop 5,PM/path-order information adds value as a selective overlay.,empirically promising,Make this the internal draft-v1 direction.

@@ -46,7 +46,7 @@ jobs:
       ASSET: ${{ matrix.asset }}
       RUN_AUDITS: ${{ inputs.run_audits }}
       OUTDIR: outputs/cp_repo_ops_hg_actions/${{ github.run_id }}/${{ matrix.asset }}
-      MODELS: HAR_RV,CP_REPO_FRESH,RAW_PM,RAW_CP_REPO_PLUS_PM,CP_REPO_OPS_R,CP_REPO_RIDGE_OPS_R,CP_REPO_LRPM,CP_REPO_RECENT_SLOPE,CP_REPO_HAAR_SHAPE,CP_REPO_OPS_C,CP_REPO_RIDGE_OPS_C,CP_REPO_GATED_RIDGE_OPS_C,CP_REPO_OPS_HG,RANDOM_RESIDUES_PLACEBO_REPO,SHUFFLED_LAG_PM_PLACEBO_REPO,RANDOM_GATE_PLACEBO_REPO,RIDGE_AR22,CP_REPO_OPS_K
+      MODELS: HAR_RV,CP_REPO_FRESH,RAW_PM,RAW_CP_REPO_PLUS_PM,CP_REPO_OPS_R,CP_REPO_RIDGE_OPS_R,CP_REPO_LRPM,CP_REPO_RIDGE_LRPM,CP_REPO_RECENT_SLOPE,CP_REPO_HAAR_SHAPE,CP_REPO_OPS_C,CP_REPO_RIDGE_OPS_C,CP_REPO_GATED_RIDGE_OPS_C,CP_REPO_OPS_HG,RANDOM_RESIDUES_PLACEBO_REPO,SHUFFLED_LAG_PM_PLACEBO_REPO,RANDOM_GATE_PLACEBO_REPO,RIDGE_AR22,CP_REPO_OPS_K
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
@@ -236,7 +236,7 @@ jobs:
       RUN_ID: ${{ github.run_id }}
       RUN_AUDITS: ${{ inputs.run_audits }}
       ASSETS: AAPL,AMZN,EEM,FXI,GLD,GOOGL,HYG,QQQ,SPY,TLT
-      MODELS: HAR_RV,CP_REPO_FRESH,RAW_PM,RAW_CP_REPO_PLUS_PM,CP_REPO_OPS_R,CP_REPO_RIDGE_OPS_R,CP_REPO_LRPM,CP_REPO_RECENT_SLOPE,CP_REPO_HAAR_SHAPE,CP_REPO_OPS_C,CP_REPO_RIDGE_OPS_C,CP_REPO_GATED_RIDGE_OPS_C,CP_REPO_OPS_HG,RANDOM_RESIDUES_PLACEBO_REPO,SHUFFLED_LAG_PM_PLACEBO_REPO,RANDOM_GATE_PLACEBO_REPO,RIDGE_AR22,CP_REPO_OPS_K
+      MODELS: HAR_RV,CP_REPO_FRESH,RAW_PM,RAW_CP_REPO_PLUS_PM,CP_REPO_OPS_R,CP_REPO_RIDGE_OPS_R,CP_REPO_LRPM,CP_REPO_RIDGE_LRPM,CP_REPO_RECENT_SLOPE,CP_REPO_HAAR_SHAPE,CP_REPO_OPS_C,CP_REPO_RIDGE_OPS_C,CP_REPO_GATED_RIDGE_OPS_C,CP_REPO_OPS_HG,RANDOM_RESIDUES_PLACEBO_REPO,SHUFFLED_LAG_PM_PLACEBO_REPO,RANDOM_GATE_PLACEBO_REPO,RIDGE_AR22,CP_REPO_OPS_K
       COMBINED_OUTDIR: outputs/cp_repo_ops_hg_actions/${{ github.run_id }}/combined
     steps:
       - name: Checkout branch
@@ -338,6 +338,13 @@ jobs:
         working-directory: projects/harv-extension
         shell: bash
         run: |
+          python outputs/cp_repo_ops_hg_tests/scripts/aggregate_cp_repo_ops_hg_results.py \
+            --artifacts-dir _cp_repo_ops_hg_artifacts \
+            --outdir "${COMBINED_OUTDIR}" \
+            --assets "${ASSETS}" \
+            --models "${MODELS}" \
+            --copy-predictions \
+            --run-audits "${RUN_AUDITS}"
           python outputs/cp_repo_ops_hg_tests/scripts/run_cp_repo_ops_hg_tests.py \
             --mode tables-only \
             --phase all \
@@ -347,6 +354,7 @@ jobs:
             --outdir "${COMBINED_OUTDIR}"
 
       - name: Validate combined output
+        if: always()
         working-directory: projects/harv-extension
         shell: bash
         run: |
@@ -391,6 +399,17 @@ jobs:
               kops = metadata[metadata["model_name"] == "CP_REPO_OPS_K"]
               if len(kops) != len(assets) or not (kops["status"] == "complete").all() or int(kops["feature_count"].fillna(0).min()) <= 0:
                   fail("CP_REPO_OPS_K did not complete with generated features for every asset")
+
+          aggregate_audit_path = combined / "results" / "aggregate_audit_summary.csv"
+          if not aggregate_audit_path.exists():
+              fail("missing aggregate_audit_summary.csv")
+          else:
+              aggregate_audit = pd.read_csv(aggregate_audit_path)
+              if aggregate_audit.empty or "passed" not in aggregate_audit.columns:
+                  fail("aggregate audit is empty or malformed")
+              elif not bool(aggregate_audit["passed"].astype(bool).all()):
+                  failed = aggregate_audit.loc[~aggregate_audit["passed"].astype(bool), "check"].astype(str).tolist()
+                  fail(f"aggregate audit failed checks: {failed}")
 
           manifest_path = combined / "results" / "model_feature_manifest.csv"
           if not manifest_path.exists():

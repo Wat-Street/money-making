@@ -1,0 +1,10 @@
+{
+  "generated_at_utc": "2026-07-04T18:53:32Z",
+  "outdir": "outputs\\pm_research_internal_package",
+  "prop3_dir": "outputs\\cp_pm_incremental_tests",
+  "prop4_run": "outputs\\cp_repo_ops_hg_actions\\28269511971",
+  "overlay_dir": "outputs\\pm_selective_overlay_tests",
+  "prediction_root": "outputs\\cp_repo_ops_hg_actions\\28269511971\\combined_manual\\predictions\\full",
+  "missing_source_files": [],
+  "all_prediction_files_present": true
+}
