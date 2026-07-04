@@ -1,10 +1,10 @@
 # Model Guide
 
 ## CP_REPO_FRESH
-The corrected benchmark uses the repository `contig_prime_modulo` CP design plus the repo HAR/RV convention from the prior incremental test. It is the denominator for the corrected repo-CP ladder.
+The corrected benchmark is `CP_REPO_FRESH = RV/HAR + contig_prime_modulo(vol.copy(), n=22, per_day_normalize=False)`. It uses repo `RV*` and `CP_*` feature columns and is the denominator for the corrected repo-CP ladder.
 
 ## Raw PM and Raw CP+PM
-`RAW_PM` tests standalone prime-modulo residue averages. `RAW_CP_REPO_PLUS_PM` adds raw PM to the repo CP controls and replicates the older incremental test pattern: noisy overall, useful in some entry/recent-spike regimes.
+`RAW_PM` tests standalone prime-modulo residue averages from `add_prime_modulo_terms(..., n=22)`. `RAW_CP_REPO_PLUS_PM` adds raw PM to the repo CP controls and replicates the older incremental test pattern: noisy overall, useful in some entry/recent-spike regimes.
 
 ## OPS-R
 OPS-R uses centered prime-residue contrasts as an incremental shape layer beyond repo CP. The ridge version is the controlled diagnostic; unregularized residue models are noisy.

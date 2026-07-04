@@ -1,9 +1,9 @@
 # PM/CP Research Internal Package
 
-Generated: 2026-07-04T18:53:32Z
+Generated: 2026-07-04T19:44:14Z
 
 This package consolidates the current internal evidence for PM/path-order tests in the HAR/RV repo.
-It is not a final paper draft. The intended draft-v1 direction is Prop 5: PM/path-order information is useful as a selective gated overlay in regimes where temporal order matters.
+It is not a final paper draft. Prop 5 overlay work is included only as exploratory context for later review.
 
 ## Source Runs
 
@@ -19,11 +19,14 @@ The package deliberately does not copy large full prediction panels. `source_run
 - Prop 1 and Prop 2 are theoretical support statements.
 - Prop 3 is empirically supported: raw/global PM is noisy overall, while entry and recent-spike regimes can be positive.
 - Prop 4 is not proven globally: always-on PM/shape challengers do not beat repo CP under headline SMAPE.
-- Prop 5 is the strongest lead: selective overlays can produce positive equal-weight SMAPE advantage on rare active rows and across most assets.
+- Prop 5 is a promising exploratory lead: selective overlays can produce positive equal-weight SMAPE advantage on rare active rows and across most assets, but threshold validation needs manual review before draft use.
 - `CP_REPO_LRPM` is diagnostic/non-paper-eligible in the current corrected run because the unregularized design is rank deficient and numerically unstable.
 
 ## Key Files
 
+- `prop3_raw_pm_diagnostics/`: cleaned Prop 3 diagnostics.
+- `prop4_corrected_repo_cp_ladder/`: corrected repo-CP 18-model evidence.
+- `prop5_overlay_exploratory/`: exploratory overlay context only.
 - `model_guide.md`: compact model-family guide for teammates.
 - `test_results_guide.md`: what was tested, what passed, and what remains weak.
 - `prop_status_summary.md`: proposition-by-proposition status.

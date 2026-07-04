@@ -29,6 +29,9 @@ Source-run inventory:
 | prop4_ladder | Corrected 18-model overall SMAPE summary | outputs\cp_repo_ops_hg_actions\28269511971\audit_recomputed\recomputed_model_overall_summary.csv | True |
 | prop4_ladder | Corrected 18-model conditional summary | outputs\cp_repo_ops_hg_actions\28269511971\audit_recomputed\recomputed_model_conditional_summary.csv | True |
 | prop4_ladder | Alternative loss summary | outputs\cp_repo_ops_hg_actions\28269511971\audit_recomputed\alternative_loss_summary.csv | True |
+| prop4_ladder | Residual perturbation diagnostics | outputs\cp_repo_ops_hg_actions\28269511971\audit_recomputed\residual_perturbation_diagnostics.csv | True |
+| audit | 10-asset repo CP reproduction audit | outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\results\repo_cp_reproduction_audit.csv | True |
+| audit | 10-asset no-lookahead audit | outputs\cp_repo_ops_hg_actions\28269511971\combined_manual\results\no_lookahead_audit.csv | True |
 | prop5_overlay | Selective overlay summary | outputs\cp_repo_ops_hg_actions\28269511971\audit_recomputed\switching_overlay_summary.csv | True |
 | prop5_overlay | Selective overlay by asset | outputs\cp_repo_ops_hg_actions\28269511971\audit_recomputed\switching_overlay_summary_by_asset.csv | True |
 | audit | Strong fast/slow audit | outputs\cp_repo_ops_hg_actions\28269511971\audit_recomputed\strong_fast_slow_equivalence_audit.csv | True |

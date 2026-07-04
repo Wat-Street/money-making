@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 
@@ -25,6 +26,32 @@ DEFAULT_PROP4_RUN = PROJECT_ROOT / "outputs" / "cp_repo_ops_hg_actions" / "28269
 DEFAULT_PRED_ROOT = DEFAULT_PROP4_RUN / "combined_manual" / "predictions" / "full"
 DEFAULT_OVERLAY_DIR = PROJECT_ROOT / "outputs" / "pm_selective_overlay_tests"
 ASSETS = ["AAPL", "AMZN", "EEM", "FXI", "GLD", "GOOGL", "HYG", "QQQ", "SPY", "TLT"]
+PROP4_RUN_MODELS = [
+    "HAR_RV",
+    "CP_REPO_FRESH",
+    "RAW_PM",
+    "RAW_CP_REPO_PLUS_PM",
+    "CP_REPO_OPS_R",
+    "CP_REPO_RIDGE_OPS_R",
+    "CP_REPO_LRPM",
+    "CP_REPO_RECENT_SLOPE",
+    "CP_REPO_HAAR_SHAPE",
+    "CP_REPO_OPS_C",
+    "CP_REPO_RIDGE_OPS_C",
+    "CP_REPO_GATED_RIDGE_OPS_C",
+    "CP_REPO_OPS_HG",
+    "RANDOM_RESIDUES_PLACEBO_REPO",
+    "SHUFFLED_LAG_PM_PLACEBO_REPO",
+    "RANDOM_GATE_PLACEBO_REPO",
+    "RIDGE_AR22",
+    "CP_REPO_OPS_K",
+]
+PLACEBO_MODELS = [
+    "RANDOM_RESIDUES_PLACEBO_REPO",
+    "SHUFFLED_LAG_PM_PLACEBO_REPO",
+    "RANDOM_GATE_PLACEBO_REPO",
+    "RIDGE_AR22",
+]
 
 
 def utc_now() -> str:
@@ -32,7 +59,20 @@ def utc_now() -> str:
 
 
 def ensure_dirs(outdir: Path) -> None:
-    for name in ["tables", "figures", "audits", "source_runs", "latex"]:
+    for name in [
+        "tables",
+        "figures",
+        "audits",
+        "source_runs",
+        "latex",
+        "prop3_raw_pm_diagnostics/tables",
+        "prop3_raw_pm_diagnostics/figures",
+        "prop4_corrected_repo_cp_ladder/tables",
+        "prop4_corrected_repo_cp_ladder/audits",
+        "prop4_corrected_repo_cp_ladder/figures",
+        "prop5_overlay_exploratory/tables",
+        "prop5_overlay_exploratory/figures",
+    ]:
         (outdir / name).mkdir(parents=True, exist_ok=True)
 
 
@@ -63,6 +103,31 @@ def copy_text_strip_trailing(src: Path, dest: Path) -> bool:
 def write_csv(frame: pd.DataFrame, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     frame.to_csv(path, index=False)
+
+
+def make_prop4_model_status(overall: pd.DataFrame) -> pd.DataFrame:
+    result_models = set(overall["model_name"].astype(str)) if not overall.empty and "model_name" in overall.columns else set()
+    rows = []
+    for model in PROP4_RUN_MODELS:
+        rows.append(
+            {
+                "model_name": model,
+                "status": "full_run_result" if model in result_models else "missing_from_prop4_table",
+                "in_run_28269511971": model in result_models,
+                "paper_result_table": model in result_models and model != "CP_REPO_LRPM",
+                "limitation": "rank_deficient_unregularized_diagnostic" if model == "CP_REPO_LRPM" else "",
+            }
+        )
+    rows.append(
+        {
+            "model_name": "CP_REPO_RIDGE_LRPM",
+            "status": "implemented_after_run_not_in_prop4_table",
+            "in_run_28269511971": False,
+            "paper_result_table": False,
+            "limitation": "implementation-ready in runner; requires new full run before entering result tables",
+        }
+    )
+    return pd.DataFrame(rows)
 
 
 def prediction_row_counts(pred_root: Path) -> pd.DataFrame:
@@ -112,6 +177,21 @@ def source_manifest(prop3_dir: Path, prop4_run: Path, overlay_dir: Path, outdir:
             "prop4_ladder",
             prop4_run / "audit_recomputed" / "alternative_loss_summary.csv",
             "Alternative loss summary",
+        ),
+        (
+            "prop4_ladder",
+            prop4_run / "audit_recomputed" / "residual_perturbation_diagnostics.csv",
+            "Residual perturbation diagnostics",
+        ),
+        (
+            "audit",
+            prop4_run / "combined_manual" / "results" / "repo_cp_reproduction_audit.csv",
+            "10-asset repo CP reproduction audit",
+        ),
+        (
+            "audit",
+            prop4_run / "combined_manual" / "results" / "no_lookahead_audit.csv",
+            "10-asset no-lookahead audit",
         ),
         ("prop5_overlay", prop4_run / "audit_recomputed" / "switching_overlay_summary.csv", "Selective overlay summary"),
         (
@@ -180,6 +260,15 @@ def make_tables(prop3_dir: Path, prop4_run: Path, overlay_dir: Path, outdir: Pat
         copy_if_exists(src, outdir / "tables" / dest_name)
         tables[dest_name] = read_csv(src)
 
+    overall = tables.get("prop4_overall_smape_summary.csv", pd.DataFrame())
+    if not overall.empty:
+        placebo = overall[overall["model_name"].astype(str).isin(PLACEBO_MODELS)].copy()
+        write_csv(placebo, outdir / "tables" / "prop4_placebo_summary.csv")
+        tables["prop4_placebo_summary.csv"] = placebo
+        status = make_prop4_model_status(overall)
+        write_csv(status, outdir / "tables" / "prop4_model_status.csv")
+        tables["prop4_model_status.csv"] = status
+
     overlay_map = {
         "prop5_selective_overlay_recomputed_from_predictions.csv": overlay_dir / "results" / "overlay_pooled_summary.csv",
         "prop5_selective_overlay_threshold_selection.csv": overlay_dir / "results" / "overlay_threshold_selection.csv",
@@ -191,6 +280,8 @@ def make_tables(prop3_dir: Path, prop4_run: Path, overlay_dir: Path, outdir: Pat
         tables[dest_name] = read_csv(src)
 
     audit_map = {
+        "cp_reproduction_audit.csv": prop4_run / "combined_manual" / "results" / "repo_cp_reproduction_audit.csv",
+        "no_lookahead_audit.csv": prop4_run / "combined_manual" / "results" / "no_lookahead_audit.csv",
         "strong_fast_slow_equivalence_audit.csv": audit / "strong_fast_slow_equivalence_audit.csv",
         "feature_purity_audit.csv": audit / "feature_purity_audit.csv",
         "ridge_penalty_audit.csv": audit / "ridge_penalty_audit.csv",
@@ -207,19 +298,126 @@ def make_tables(prop3_dir: Path, prop4_run: Path, overlay_dir: Path, outdir: Pat
 
 
 def make_figures(tables: dict[str, pd.DataFrame], outdir: Path) -> None:
+    prop3 = tables.get("prop3_raw_cp_pm_conditional_summary.csv", pd.DataFrame())
+    if not prop3.empty and "equal_weight_asset_mean_advantage" in prop3.columns:
+        plot = prop3.copy()
+        fig, ax = plt.subplots(figsize=(11, 6))
+        colors = np.where(plot["equal_weight_asset_mean_advantage"] >= 0, "#2F6F73", "#A64B4B")
+        ax.barh(plot["condition"], plot["equal_weight_asset_mean_advantage"], color=colors)
+        ax.axvline(0, color="black", linewidth=0.8)
+        ax.set_title("Prop 3 raw CP+PM advantage by condition")
+        ax.set_xlabel("Equal-weight SMAPE advantage vs CP")
+        fig.tight_layout()
+        fig.savefig(outdir / "figures" / "prop3_conditional_advantages.png", dpi=160)
+        fig.savefig(outdir / "prop3_raw_pm_diagnostics" / "figures" / "prop3_condition_advantages.png", dpi=160)
+        plt.close(fig)
+
     overall = tables.get("prop4_overall_smape_summary.csv", pd.DataFrame())
     if not overall.empty and "equal_weight_asset_mean_advantage_vs_CP" in overall.columns:
         plot = overall.copy()
-        plot = plot[plot["model_name"].astype(str) != "CP_REPO_FRESH"]
-        plot = plot.sort_values("equal_weight_asset_mean_advantage_vs_CP", ascending=True).tail(14)
-        fig, ax = plt.subplots(figsize=(10, 6))
-        ax.barh(plot["model_name"], plot["equal_weight_asset_mean_advantage_vs_CP"], color="#2F6F73")
+        plot["order"] = plot["model_name"].map(lambda name: PROP4_RUN_MODELS.index(name) if name in PROP4_RUN_MODELS else 999)
+        plot = plot.sort_values("equal_weight_asset_mean_advantage_vs_CP", ascending=True)
+        fig, ax = plt.subplots(figsize=(11, 8))
+        colors = np.where(plot["equal_weight_asset_mean_advantage_vs_CP"] >= 0, "#2F6F73", "#A64B4B")
+        ax.barh(plot["model_name"], plot["equal_weight_asset_mean_advantage_vs_CP"], color=colors)
         ax.axvline(0, color="black", linewidth=0.8)
         ax.set_title("Always-on model SMAPE advantage vs repo CP")
         ax.set_xlabel("Equal-weight asset mean SMAPE advantage")
         fig.tight_layout()
         fig.savefig(outdir / "figures" / "prop4_overall_smape_advantage.png", dpi=160)
+        fig.savefig(outdir / "figures" / "prop4_overall_smape_advantages.png", dpi=160)
+        fig.savefig(outdir / "prop4_corrected_repo_cp_ladder" / "figures" / "prop4_overall_smape_bar.png", dpi=160)
         plt.close(fig)
+
+    alt = tables.get("prop4_alternative_loss_summary.csv", pd.DataFrame())
+    if not alt.empty:
+        selected_models = [
+            "CP_REPO_OPS_K",
+            "CP_REPO_RIDGE_OPS_R",
+            "CP_REPO_OPS_HG",
+            "CP_REPO_GATED_RIDGE_OPS_C",
+            "RAW_CP_REPO_PLUS_PM",
+        ]
+        base = alt[
+            (alt["condition"].astype(str) == "all_rows")
+            & (alt["loss_variant"].astype(str) == "standard")
+            & (alt["model_name"].astype(str).isin(selected_models))
+            & (alt["loss_metric"].astype(str).isin(["SMAPE", "MAE", "RMSE"]))
+        ].copy()
+        if not base.empty:
+            pivot = base.pivot_table(
+                index="model_name",
+                columns="loss_metric",
+                values="pooled_advantage_cp_minus_model",
+                aggfunc="first",
+            ).reindex(selected_models)
+            fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+            axes[0].barh(pivot.index, pivot["SMAPE"], color="#A64B4B")
+            axes[0].axvline(0, color="black", linewidth=0.8)
+            axes[0].set_title("SMAPE advantage")
+            axes[0].set_xlabel("SMAPE points")
+            scaled = pivot[["MAE", "RMSE"]].copy()
+            scaled["MAE"] = scaled["MAE"] * 1_000_000.0
+            scaled["RMSE"] = scaled["RMSE"] * 1_000_000.0
+            y = np.arange(len(scaled.index))
+            axes[1].barh(y - 0.18, scaled["MAE"], height=0.35, label="MAE x 1e6", color="#2F6F73")
+            axes[1].barh(y + 0.18, scaled["RMSE"], height=0.35, label="RMSE x 1e6", color="#7A4E9E")
+            axes[1].set_yticks(y)
+            axes[1].set_yticklabels(scaled.index)
+            axes[1].axvline(0, color="black", linewidth=0.8)
+            axes[1].set_title("Non-SMAPE advantages")
+            axes[1].legend()
+            fig.suptitle("Prop 4 alternative losses")
+            fig.tight_layout()
+            fig.savefig(outdir / "figures" / "prop4_alternative_losses.png", dpi=160)
+            fig.savefig(outdir / "prop4_corrected_repo_cp_ladder" / "figures" / "prop4_alt_loss_bar.png", dpi=160)
+            plt.close(fig)
+
+    conditional = tables.get("prop4_conditional_summary.csv", pd.DataFrame())
+    if not conditional.empty and "equal_weight_asset_mean_advantage_vs_CP" in conditional.columns:
+        models = [
+            "RAW_CP_REPO_PLUS_PM",
+            "CP_REPO_RIDGE_OPS_R",
+            "CP_REPO_RECENT_SLOPE",
+            "CP_REPO_HAAR_SHAPE",
+            "CP_REPO_GATED_RIDGE_OPS_C",
+            "CP_REPO_OPS_HG",
+            "CP_REPO_OPS_K",
+        ]
+        conditions = [
+            "all_observations",
+            "cluster_entry_loose",
+            "cluster_exit_loose",
+            "recent_spike_position",
+            "older_spike_position",
+            "high_within_block_dispersion",
+            "entry_with_recent_spike",
+        ]
+        matrix = conditional[
+            conditional["model_name"].astype(str).isin(models)
+            & conditional["condition"].astype(str).isin(conditions)
+        ].pivot_table(
+            index="model_name",
+            columns="condition",
+            values="equal_weight_asset_mean_advantage_vs_CP",
+            aggfunc="first",
+        ).reindex(index=models, columns=conditions)
+        if not matrix.empty:
+            fig, ax = plt.subplots(figsize=(12, 6))
+            data = matrix.to_numpy(dtype=float)
+            vmax = np.nanmax(np.abs(data)) if np.isfinite(data).any() else 1.0
+            vmax = max(vmax, 0.1)
+            im = ax.imshow(data, aspect="auto", cmap="RdBu", vmin=-vmax, vmax=vmax)
+            ax.set_xticks(np.arange(len(matrix.columns)))
+            ax.set_xticklabels(matrix.columns, rotation=35, ha="right")
+            ax.set_yticks(np.arange(len(matrix.index)))
+            ax.set_yticklabels(matrix.index)
+            ax.set_title("Prop 4 conditional SMAPE advantage heatmap")
+            fig.colorbar(im, ax=ax, label="Equal-weight SMAPE advantage")
+            fig.tight_layout()
+            fig.savefig(outdir / "figures" / "prop4_conditional_heatmap.png", dpi=160)
+            fig.savefig(outdir / "prop4_corrected_repo_cp_ladder" / "figures" / "prop4_conditional_heatmap.png", dpi=160)
+            plt.close(fig)
 
     overlay = tables.get("prop5_selective_overlay_summary.csv", pd.DataFrame())
     if not overlay.empty and "mean_advantage_overall_equal_weight" in overlay.columns:
@@ -262,6 +460,204 @@ def markdown_table(frame: pd.DataFrame, max_rows: int | None = None) -> str:
     return "\n".join(lines)
 
 
+def slim(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    if frame.empty:
+        return pd.DataFrame(columns=columns)
+    keep = [col for col in columns if col in frame.columns]
+    return frame[keep].copy()
+
+
+def write_prop_subfolders(outdir: Path, tables: dict[str, pd.DataFrame]) -> None:
+    prop3_dir = outdir / "prop3_raw_pm_diagnostics"
+    prop4_dir = outdir / "prop4_corrected_repo_cp_ladder"
+    prop5_dir = outdir / "prop5_overlay_exploratory"
+
+    prop3 = tables.get("prop3_raw_cp_pm_conditional_summary.csv", pd.DataFrame())
+    prop3_top = tables.get("prop3_top_raw_cp_pm_conditions.csv", pd.DataFrame())
+    write_csv(prop3, prop3_dir / "tables" / "prop3_raw_cp_pm_conditional_summary.csv")
+    write_csv(prop3_top, prop3_dir / "tables" / "prop3_top_conditions.csv")
+    (prop3_dir / "README.md").write_text(
+        "\n".join(
+            [
+                "# Prop 3 Raw PM Diagnostics",
+                "",
+                "Purpose: diagnose whether global/raw PM is useful as a standalone or always-on incremental signal.",
+                "",
+                "Conclusion: raw/global PM is noisy overall but has conditional signal in entry/recent-spike regimes.",
+                "",
+                "This folder is diagnostic background, not a main paper theorem.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (prop3_dir / "model_logic.md").write_text(
+        "\n".join(
+            [
+                "# Prop 3 Model Logic",
+                "",
+                "Correct CP anchor: `CP_REPO_FRESH = RV/HAR + contig_prime_modulo(vol.copy(), n=22, per_day_normalize=False)`.",
+                "",
+                "Correct PM construction: `PM = add_prime_modulo_terms(..., n=22)` using the repo minimal-prime / CRT-style construction. For `n=22`, the relevant minimal primes are expected to include `2, 3, 5`.",
+                "",
+                "Raw CP+PM tests whether adding raw prime-residue averages to the CP/HAR design improves forecasts. It is deliberately not a cleaned OPS model.",
+                "",
+                "The stale `CPB_B*` four-block lag means are diagnostic only and are not the primary CP benchmark.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    prop3_summary_cols = [
+        "condition",
+        "total_n_obs",
+        "number_of_assets",
+        "equal_weight_asset_mean_advantage",
+        "equal_weight_asset_hybrid_win_rate",
+        "number_of_assets_where_hybrid_beats_CP",
+    ]
+    (prop3_dir / "results_summary.md").write_text(
+        "# Prop 3 Results Summary\n\n"
+        "Known result pattern: all observations negative, cluster-entry positive, recent-spike positive, cluster-exit negative, older-spike negative.\n\n"
+        + markdown_table(slim(prop3, prop3_summary_cols))
+        + "\n\nInterpretation: raw/global PM is noisy overall but has conditional signal in entry/recent-spike regimes.\n",
+        encoding="utf-8",
+    )
+
+    prop4_table_map = {
+        "prop4_overall_smape_summary.csv": tables.get("prop4_overall_smape_summary.csv", pd.DataFrame()),
+        "prop4_conditional_summary.csv": tables.get("prop4_conditional_summary.csv", pd.DataFrame()),
+        "prop4_alternative_loss_summary.csv": tables.get("prop4_alternative_loss_summary.csv", pd.DataFrame()),
+        "prop4_residual_perturbation_diagnostics.csv": tables.get("prop4_residual_perturbation_diagnostics.csv", pd.DataFrame()),
+        "prop4_placebo_summary.csv": tables.get("prop4_placebo_summary.csv", pd.DataFrame()),
+        "prop4_model_status.csv": tables.get("prop4_model_status.csv", pd.DataFrame()),
+    }
+    for name, frame in prop4_table_map.items():
+        write_csv(frame, prop4_dir / "tables" / name)
+    for name in [
+        "cp_reproduction_audit.csv",
+        "strong_fast_slow_equivalence_audit.csv",
+        "feature_purity_audit.csv",
+        "ridge_penalty_audit.csv",
+    ]:
+        copy_if_exists(outdir / "audits" / name, prop4_dir / "audits" / name)
+
+    (prop4_dir / "README.md").write_text(
+        "\n".join(
+            [
+                "# Prop 4 Corrected Repo-CP Ladder",
+                "",
+                "Purpose: test whether PM/path-order features add value inside average-based forecasting models.",
+                "",
+                "Status: not proven globally under headline SMAPE.",
+                "",
+                "Source run: GitHub Actions run `28269511971` from `Harman6139/money-making`, branch `cp-pm-incremental-actions`.",
+                "",
+                "Benchmark: `CP_REPO_FRESH`, using repo `contig_prime_modulo` with repo `RV*` and `CP_*` feature columns.",
+                "",
+                "`CP_REPO_RIDGE_LRPM` is implemented after the source run and is listed as `implemented_after_run_not_in_prop4_table`; it must not be read as part of run `28269511971` results.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (prop4_dir / "model_logic.md").write_text(
+        "\n".join(
+            [
+                "# Prop 4 Model Logic",
+                "",
+                "Correct CP:",
+                "",
+                "`CP_REPO_FRESH = RV/HAR + contig_prime_modulo(vol.copy(), n=22, per_day_normalize=False)`",
+                "",
+                "Correct PM:",
+                "",
+                "`PM = add_prime_modulo_terms(..., n=22)` using the repo minimal-prime construction.",
+                "",
+                "Main model form:",
+                "",
+                "`y_{t+1} = alpha + beta'C_t + theta'Z_t + eps`",
+                "",
+                "Partial ridge form:",
+                "",
+                "`min ||y - alpha - C beta - Z theta||^2 + lambda_Z ||theta||^2`",
+                "",
+                "Gated/hybrid form:",
+                "",
+                "`y_{t+1} = alpha + beta'C_t + g_t(theta_C'Z_C,t + theta_R'Z_R,t) + eps`",
+                "",
+                "`CPB_B*` four-block lag means are diagnostic only and are forbidden as the primary CP benchmark.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    overall = tables.get("prop4_overall_smape_summary.csv", pd.DataFrame())
+    overall_cols = [
+        "model_name",
+        "n_obs_total",
+        "n_assets",
+        "equal_weight_asset_mean_advantage_vs_CP",
+        "equal_weight_asset_win_rate_vs_CP",
+        "assets_positive",
+    ]
+    alt = tables.get("prop4_alternative_loss_summary.csv", pd.DataFrame())
+    if not alt.empty:
+        alt_show = alt[
+            (alt["condition"].astype(str) == "all_rows")
+            & (alt["loss_variant"].astype(str) == "standard")
+            & (alt["loss_metric"].astype(str).isin(["SMAPE", "MAE", "MSE", "RMSE", "log_RV_MSE"]))
+        ].copy()
+    else:
+        alt_show = pd.DataFrame()
+    (prop4_dir / "results_summary.md").write_text(
+        "# Prop 4 Results Summary\n\n"
+        "Main conclusion: no always-on challenger beats `CP_REPO_FRESH` under headline SMAPE. Prop 4 is not proven as a broad always-on claim. Some models improve MAE/MSE/RMSE and some conditional regimes are positive, so PM/path-order information may still be useful in narrower settings.\n\n"
+        "## Overall SMAPE\n\n"
+        + markdown_table(slim(overall, overall_cols))
+        + "\n\n## Alternative Losses\n\n"
+        + markdown_table(
+            slim(
+                alt_show,
+                [
+                    "model_name",
+                    "loss_metric",
+                    "n_obs_total",
+                    "pooled_advantage_cp_minus_model",
+                    "assets_positive",
+                ],
+            ),
+            max_rows=40,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    overlay_recomputed = tables.get("prop5_selective_overlay_recomputed_from_predictions.csv", pd.DataFrame())
+    overlay_threshold = tables.get("prop5_selective_overlay_threshold_selection.csv", pd.DataFrame())
+    overlay_placebo = tables.get("prop5_selective_overlay_placebo_summary.csv", pd.DataFrame())
+    write_csv(overlay_recomputed, prop5_dir / "tables" / "prop5_overlay_recomputed_from_predictions.csv")
+    write_csv(overlay_threshold, prop5_dir / "tables" / "prop5_overlay_threshold_selection.csv")
+    write_csv(overlay_placebo, prop5_dir / "tables" / "prop5_overlay_placebo_summary.csv")
+    (prop5_dir / "README.md").write_text(
+        "\n".join(
+            [
+                "# Prop 5 Overlay Exploratory",
+                "",
+                "This folder is exploratory context only. It is not a final paper claim.",
+                "",
+                "Overlay formula:",
+                "",
+                "`overlay = CP + active_flag * (challenger - CP)`",
+                "",
+                "Top-percentile and condition-label overlays are descriptive unless their thresholds are selected using train-only or prefix-validation logic. See `tables/prop5_overlay_threshold_selection.csv` for provenance flags.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def write_docs(outdir: Path, tables: dict[str, pd.DataFrame], pred_counts: pd.DataFrame, manifest: pd.DataFrame) -> None:
     prop3 = tables.get("prop3_raw_cp_pm_conditional_summary.csv", pd.DataFrame())
     prop4 = tables.get("prop4_overall_smape_summary.csv", pd.DataFrame())
@@ -281,7 +677,7 @@ def write_docs(outdir: Path, tables: dict[str, pd.DataFrame], pred_counts: pd.Da
                 f"Generated: {utc_now()}",
                 "",
                 "This package consolidates the current internal evidence for PM/path-order tests in the HAR/RV repo.",
-                "It is not a final paper draft. The intended draft-v1 direction is Prop 5: PM/path-order information is useful as a selective gated overlay in regimes where temporal order matters.",
+                "It is not a final paper draft. Prop 5 overlay work is included only as exploratory context for later review.",
                 "",
                 "## Source Runs",
                 "",
@@ -297,11 +693,14 @@ def write_docs(outdir: Path, tables: dict[str, pd.DataFrame], pred_counts: pd.Da
                 "- Prop 1 and Prop 2 are theoretical support statements.",
                 "- Prop 3 is empirically supported: raw/global PM is noisy overall, while entry and recent-spike regimes can be positive.",
                 "- Prop 4 is not proven globally: always-on PM/shape challengers do not beat repo CP under headline SMAPE.",
-                "- Prop 5 is the strongest lead: selective overlays can produce positive equal-weight SMAPE advantage on rare active rows and across most assets.",
+                "- Prop 5 is a promising exploratory lead: selective overlays can produce positive equal-weight SMAPE advantage on rare active rows and across most assets, but threshold validation needs manual review before draft use.",
                 "- `CP_REPO_LRPM` is diagnostic/non-paper-eligible in the current corrected run because the unregularized design is rank deficient and numerically unstable.",
                 "",
                 "## Key Files",
                 "",
+                "- `prop3_raw_pm_diagnostics/`: cleaned Prop 3 diagnostics.",
+                "- `prop4_corrected_repo_cp_ladder/`: corrected repo-CP 18-model evidence.",
+                "- `prop5_overlay_exploratory/`: exploratory overlay context only.",
                 "- `model_guide.md`: compact model-family guide for teammates.",
                 "- `test_results_guide.md`: what was tested, what passed, and what remains weak.",
                 "- `prop_status_summary.md`: proposition-by-proposition status.",
@@ -370,10 +769,10 @@ def write_docs(outdir: Path, tables: dict[str, pd.DataFrame], pred_counts: pd.Da
                 "# Model Guide",
                 "",
                 "## CP_REPO_FRESH",
-                "The corrected benchmark uses the repository `contig_prime_modulo` CP design plus the repo HAR/RV convention from the prior incremental test. It is the denominator for the corrected repo-CP ladder.",
+                "The corrected benchmark is `CP_REPO_FRESH = RV/HAR + contig_prime_modulo(vol.copy(), n=22, per_day_normalize=False)`. It uses repo `RV*` and `CP_*` feature columns and is the denominator for the corrected repo-CP ladder.",
                 "",
                 "## Raw PM and Raw CP+PM",
-                "`RAW_PM` tests standalone prime-modulo residue averages. `RAW_CP_REPO_PLUS_PM` adds raw PM to the repo CP controls and replicates the older incremental test pattern: noisy overall, useful in some entry/recent-spike regimes.",
+                "`RAW_PM` tests standalone prime-modulo residue averages from `add_prime_modulo_terms(..., n=22)`. `RAW_CP_REPO_PLUS_PM` adds raw PM to the repo CP controls and replicates the older incremental test pattern: noisy overall, useful in some entry/recent-spike regimes.",
                 "",
                 "## OPS-R",
                 "OPS-R uses centered prime-residue contrasts as an incremental shape layer beyond repo CP. The ridge version is the controlled diagnostic; unregularized residue models are noisy.",
@@ -422,7 +821,7 @@ def write_docs(outdir: Path, tables: dict[str, pd.DataFrame], pred_counts: pd.Da
                 markdown_table(best_always_on),
                 "",
                 "## Prop 5",
-                "Selective overlays are the strongest current evidence.",
+                "Selective overlays are exploratory context, not a final paper claim in this package.",
                 "",
                 markdown_table(best_overlay),
                 "",
@@ -467,32 +866,77 @@ def write_docs(outdir: Path, tables: dict[str, pd.DataFrame], pred_counts: pd.Da
     )
 
     latex = r"""
-\section{Research Status}
-This internal note summarizes current PM/CP evidence. It is not a final paper draft.
+\section{Research Setup}
+This internal KT note summarizes the cleaned PM/CP evidence carried forward in the consolidated working branch. It is not a final paper draft and does not import anything into \texttt{pre-final}.
 
-\section{Propositions}
-Prop 1 and Prop 2 are theory-support propositions. Prop 3 is empirically supported. Prop 4 is not proven globally. Prop 5 is the strongest draft-v1 direction.
+\section{Correct CP and PM Construction}
+Correct CP:
+\[
+\texttt{CP\_REPO\_FRESH} = \texttt{RV/HAR} + \texttt{contig\_prime\_modulo(vol.copy(), n=22, per\_day\_normalize=False)}.
+\]
+Correct PM:
+\[
+\texttt{PM} = \texttt{add\_prime\_modulo\_terms(..., n=22)}
+\]
+using the repo minimal-prime construction.
 
-\section{Model Families Tested}
-The corrected ladder compares repo CP against raw PM, raw CP+PM, OPS-R, LRPM, recent slope, Haar shape, OPS-C, gated OPS-C, OPS-HG, placebos, ridge AR(22), and KOPS.
+Stale/incorrect benchmark: \texttt{CPB\_B*} four-block lag means are diagnostic only and are not the primary CP benchmark.
 
-\section{Prop 3 Evidence: Raw PM Is Noisy}
-Raw CP+PM loses overall but improves cluster-entry and recent-spike regimes in the older incremental tests.
+\section{Proposition Status}
+\begin{tabular}{lll}
+\hline
+Proposition & Status & Use in draft? \\
+\hline
+Prop 1 & theoretical proof & foundation \\
+Prop 2 & theoretical proof & foundation \\
+Prop 3 & empirical diagnostic & probably not main paper \\
+Prop 4 & not proven globally & internal discussion \\
+Prop 5 & promising exploratory lead & later decision \\
+\hline
+\end{tabular}
 
-\section{Prop 4 Evidence: Always-On PM Does Not Beat CP}
-Under headline SMAPE, the corrected always-on ladder does not beat repo CP. Some models improve MAE/MSE/RMSE, so loss-function reporting matters.
+\section{Prop 3: Raw PM Diagnostics}
+Raw CP+PM is negative on all observations, positive in cluster-entry and recent-spike regimes, and negative in cluster-exit and older-spike regimes. The minimal interpretation is: raw PM is noisy overall but positive in entry/recent-spike regimes.
 
-\section{Prop 5 Evidence: Selective Overlay}
-Selective overlays using CP everywhere and applying a challenger perturbation only in high-score/entry regimes produce the strongest evidence.
+\section{Prop 4: Corrected Repo-CP 18-Model Ladder}
+The corrected 18-model ladder uses GitHub Actions run \texttt{28269511971}. No always-on challenger beats \texttt{CP\_REPO\_FRESH} under headline SMAPE. Some challengers improve MAE/MSE/RMSE and some conditional regimes are positive, so Prop 4 is not proven globally.
 
-\section{Audit Summary}
-CP reproduction, feature purity, ridge placement, no-lookahead markers, and strong fast/slow checks are included in the package audits. Unregularized LRPM is diagnostic only.
+\section{Audits and Validity Checks}
+\begin{itemize}
+\item CP reproduction passed.
+\item Target alignment passed.
+\item No-lookahead passed.
+\item Stronger fast/slow passed.
+\item Feature purity passed.
+\item Ridge placement passed.
+\item LRPM unstable.
+\item Manual \texttt{n\_assets} bug fixed in recomputed tables.
+\end{itemize}
 
-\section{Open Issues}
-Rerun the full ladder with CP_REPO_RIDGE_LRPM included, deepen validation-selected overlay tests, and treat condition labels as ex-post descriptive unless thresholds are selected using past-only validation.
+\section{Why Always-On Models Failed}
+Let
+\[
+\delta_t = \widehat{y}^{model}_t - \widehat{y}^{CP}_t
+\]
+and
+\[
+e_t = y_t - \widehat{y}^{CP}_t.
+\]
+Under squared loss:
+\[
+L_{CP} - L_{model} = 2 e_t \delta_t - \delta_t^2.
+\]
+The extra PM/shape correction only helps when it aligns with CP residuals enough to overcome its own perturbation penalty. Current results show that always-on corrections help in some regimes but hurt elsewhere, especially under SMAPE.
 
-\section{Next Tests}
-Run the selective overlay script on the full saved prediction panels, compare real gate versus shuffled gate, and check robustness across SMAPE plus at least one non-SMAPE loss.
+\section{Prop 5 Exploratory Direction}
+Selective overlay formula:
+\[
+\texttt{overlay} = \texttt{CP} + \texttt{active\_flag} \times (\texttt{challenger} - \texttt{CP}).
+\]
+This is exploratory until train-only threshold validation is finalized.
+
+\section{Open Issues Before Drafting}
+Rerun the full ladder if \texttt{CP\_REPO\_RIDGE\_LRPM} should enter result tables; complete train-only threshold validation for overlays; decide whether Prop 5 is draft-facing after manual review; keep stale four-block CP outputs archived as diagnostics only.
 """.strip()
     (outdir / "latex" / "internal_results_summary.tex").write_text(latex + "\n", encoding="utf-8")
 
@@ -509,6 +953,7 @@ def build_package(args: argparse.Namespace) -> None:
     pred_counts = prediction_row_counts(pred_root)
     make_figures(tables, outdir)
     write_docs(outdir, tables, pred_counts, manifest)
+    write_prop_subfolders(outdir, tables)
     status = {
         "generated_at_utc": utc_now(),
         "outdir": str(outdir.relative_to(PROJECT_ROOT)),

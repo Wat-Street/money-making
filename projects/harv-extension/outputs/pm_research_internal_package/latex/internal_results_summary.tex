@@ -1,26 +1,71 @@
-\section{Research Status}
-This internal note summarizes current PM/CP evidence. It is not a final paper draft.
+\section{Research Setup}
+This internal KT note summarizes the cleaned PM/CP evidence carried forward in the consolidated working branch. It is not a final paper draft and does not import anything into \texttt{pre-final}.
 
-\section{Propositions}
-Prop 1 and Prop 2 are theory-support propositions. Prop 3 is empirically supported. Prop 4 is not proven globally. Prop 5 is the strongest draft-v1 direction.
+\section{Correct CP and PM Construction}
+Correct CP:
+\[
+\texttt{CP\_REPO\_FRESH} = \texttt{RV/HAR} + \texttt{contig\_prime\_modulo(vol.copy(), n=22, per\_day\_normalize=False)}.
+\]
+Correct PM:
+\[
+\texttt{PM} = \texttt{add\_prime\_modulo\_terms(..., n=22)}
+\]
+using the repo minimal-prime construction.
 
-\section{Model Families Tested}
-The corrected ladder compares repo CP against raw PM, raw CP+PM, OPS-R, LRPM, recent slope, Haar shape, OPS-C, gated OPS-C, OPS-HG, placebos, ridge AR(22), and KOPS.
+Stale/incorrect benchmark: \texttt{CPB\_B*} four-block lag means are diagnostic only and are not the primary CP benchmark.
 
-\section{Prop 3 Evidence: Raw PM Is Noisy}
-Raw CP+PM loses overall but improves cluster-entry and recent-spike regimes in the older incremental tests.
+\section{Proposition Status}
+\begin{tabular}{lll}
+\hline
+Proposition & Status & Use in draft? \\
+\hline
+Prop 1 & theoretical proof & foundation \\
+Prop 2 & theoretical proof & foundation \\
+Prop 3 & empirical diagnostic & probably not main paper \\
+Prop 4 & not proven globally & internal discussion \\
+Prop 5 & promising exploratory lead & later decision \\
+\hline
+\end{tabular}
 
-\section{Prop 4 Evidence: Always-On PM Does Not Beat CP}
-Under headline SMAPE, the corrected always-on ladder does not beat repo CP. Some models improve MAE/MSE/RMSE, so loss-function reporting matters.
+\section{Prop 3: Raw PM Diagnostics}
+Raw CP+PM is negative on all observations, positive in cluster-entry and recent-spike regimes, and negative in cluster-exit and older-spike regimes. The minimal interpretation is: raw PM is noisy overall but positive in entry/recent-spike regimes.
 
-\section{Prop 5 Evidence: Selective Overlay}
-Selective overlays using CP everywhere and applying a challenger perturbation only in high-score/entry regimes produce the strongest evidence.
+\section{Prop 4: Corrected Repo-CP 18-Model Ladder}
+The corrected 18-model ladder uses GitHub Actions run \texttt{28269511971}. No always-on challenger beats \texttt{CP\_REPO\_FRESH} under headline SMAPE. Some challengers improve MAE/MSE/RMSE and some conditional regimes are positive, so Prop 4 is not proven globally.
 
-\section{Audit Summary}
-CP reproduction, feature purity, ridge placement, no-lookahead markers, and strong fast/slow checks are included in the package audits. Unregularized LRPM is diagnostic only.
+\section{Audits and Validity Checks}
+\begin{itemize}
+\item CP reproduction passed.
+\item Target alignment passed.
+\item No-lookahead passed.
+\item Stronger fast/slow passed.
+\item Feature purity passed.
+\item Ridge placement passed.
+\item LRPM unstable.
+\item Manual \texttt{n\_assets} bug fixed in recomputed tables.
+\end{itemize}
 
-\section{Open Issues}
-Rerun the full ladder with CP_REPO_RIDGE_LRPM included, deepen validation-selected overlay tests, and treat condition labels as ex-post descriptive unless thresholds are selected using past-only validation.
+\section{Why Always-On Models Failed}
+Let
+\[
+\delta_t = \widehat{y}^{model}_t - \widehat{y}^{CP}_t
+\]
+and
+\[
+e_t = y_t - \widehat{y}^{CP}_t.
+\]
+Under squared loss:
+\[
+L_{CP} - L_{model} = 2 e_t \delta_t - \delta_t^2.
+\]
+The extra PM/shape correction only helps when it aligns with CP residuals enough to overcome its own perturbation penalty. Current results show that always-on corrections help in some regimes but hurt elsewhere, especially under SMAPE.
 
-\section{Next Tests}
-Run the selective overlay script on the full saved prediction panels, compare real gate versus shuffled gate, and check robustness across SMAPE plus at least one non-SMAPE loss.
+\section{Prop 5 Exploratory Direction}
+Selective overlay formula:
+\[
+\texttt{overlay} = \texttt{CP} + \texttt{active\_flag} \times (\texttt{challenger} - \texttt{CP}).
+\]
+This is exploratory until train-only threshold validation is finalized.
+
+\section{Open Issues Before Drafting}
+Rerun the full ladder if \texttt{CP\_REPO\_RIDGE\_LRPM} should enter result tables; complete train-only threshold validation for overlays; decide whether Prop 5 is draft-facing after manual review; keep stale four-block CP outputs archived as diagnostics only.

@@ -17,7 +17,7 @@ Top always-on challengers by equal-weight SMAPE advantage:
 | CP_REPO_GATED_RIDGE_OPS_C | all_observations | 367468 | 10 | 101.0390814503095 | 101.0397847323894 | 100.87996479236024 | 100.88077507091973 | -0.1591166579492674 | -0.1590096614697036 | 0.009367631785414 | 0.0093696206127617 | 0.4180908269563608 | 0.4180941303457799 | -0.0732666793805453 | -0.073169037393894 | 0.0104752268524412 | 0.0104955018173863 | 0.0005851564015481 | 0.0005851280965765 | 0.0005862627333686 | 0.0005862345983269 | 1.1063318205380753e-06 | 1.1065017504231826e-06 | 1 | 9 |
 
 ## Prop 5
-Selective overlays are the strongest current evidence.
+Selective overlays are exploratory context, not a final paper claim in this package.
 
 | model_name | strategy | mean_coverage_equal_weight | n_active_total | mean_advantage_active_rows_weighted | mean_advantage_overall_equal_weight | win_rate_overall_equal_weight | false_positive_loss_mean_equal_weight | false_negative_cost_mean_equal_weight | assets_positive_overall |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

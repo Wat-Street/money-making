@@ -1,0 +1,20 @@
+model_name,status,in_run_28269511971,paper_result_table,limitation
+HAR_RV,full_run_result,True,True,
+CP_REPO_FRESH,full_run_result,True,True,
+RAW_PM,full_run_result,True,True,
+RAW_CP_REPO_PLUS_PM,full_run_result,True,True,
+CP_REPO_OPS_R,full_run_result,True,True,
+CP_REPO_RIDGE_OPS_R,full_run_result,True,True,
+CP_REPO_LRPM,full_run_result,True,False,rank_deficient_unregularized_diagnostic
+CP_REPO_RECENT_SLOPE,full_run_result,True,True,
+CP_REPO_HAAR_SHAPE,full_run_result,True,True,
+CP_REPO_OPS_C,full_run_result,True,True,
+CP_REPO_RIDGE_OPS_C,full_run_result,True,True,
+CP_REPO_GATED_RIDGE_OPS_C,full_run_result,True,True,
+CP_REPO_OPS_HG,full_run_result,True,True,
+RANDOM_RESIDUES_PLACEBO_REPO,full_run_result,True,True,
+SHUFFLED_LAG_PM_PLACEBO_REPO,full_run_result,True,True,
+RANDOM_GATE_PLACEBO_REPO,full_run_result,True,True,
+RIDGE_AR22,full_run_result,True,True,
+CP_REPO_OPS_K,full_run_result,True,True,
+CP_REPO_RIDGE_LRPM,implemented_after_run_not_in_prop4_table,False,False,implementation-ready in runner; requires new full run before entering result tables
