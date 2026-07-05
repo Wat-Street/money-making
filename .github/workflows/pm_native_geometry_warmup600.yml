@@ -55,7 +55,6 @@ permissions:
 jobs:
   asset-full-run:
     name: PM Native ${{ matrix.asset }}
-    if: ${{ contains(format(',{0},', inputs.assets), format(',{0},', matrix.asset)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     strategy:
@@ -71,22 +70,26 @@ jobs:
       MODELS_WITH_CP: CP_REPO_FRESH,PM_QDK,PM_QDK_2,PHQO
     steps:
       - name: Checkout branch
+        if: ${{ contains(format(',{0},', inputs.assets), format(',{0},', matrix.asset)) }}
         uses: actions/checkout@v4
         with:
           ref: cp-pm-incremental-actions
 
       - name: Setup Python
+        if: ${{ contains(format(',{0},', inputs.assets), format(',{0},', matrix.asset)) }}
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install dependencies
+        if: ${{ contains(format(',{0},', inputs.assets), format(',{0},', matrix.asset)) }}
         working-directory: projects/harv-extension
         run: |
           python -m pip install --upgrade pip
           python -m pip install numpy==1.26.4 pandas==2.2.2 scipy==1.13.1 statsmodels==0.14.4 scikit-learn==1.5.0 matplotlib==3.9.0 yfinance==0.2.40 joblib==1.4.2
 
       - name: Run PM-native challengers for asset
+        if: ${{ contains(format(',{0},', inputs.assets), format(',{0},', matrix.asset)) }}
         working-directory: projects/harv-extension
         shell: bash
         run: |
@@ -117,7 +120,7 @@ jobs:
             2>&1 | tee "${OUTDIR}/logs/full_${ASSET}.log"
 
       - name: Validate asset output
-        if: always()
+        if: ${{ always() && contains(format(',{0},', inputs.assets), format(',{0},', matrix.asset)) }}
         working-directory: projects/harv-extension
         shell: bash
         run: |
@@ -203,7 +206,7 @@ jobs:
           PY
 
       - name: Upload asset artifact
-        if: always()
+        if: ${{ always() && contains(format(',{0},', inputs.assets), format(',{0},', matrix.asset)) }}
         uses: actions/upload-artifact@v4
         with:
           name: pm-native-geometry-${{ matrix.asset }}-${{ github.run_id }}
