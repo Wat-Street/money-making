@@ -455,6 +455,60 @@ def kernel_values_from_phi(
     values = []
     finite_q = np.isfinite(q).all(axis=1)
     train_valid = valid & finite_q
+    sqrt_q_dim = math.sqrt(max(q.shape[1], 1))
+    geometry = np.column_stack(
+        [
+            (level.reshape(-1, 1) / level_scale),
+            (c_state / c_scale),
+            (q / (q_scale * sqrt_q_dim)),
+        ]
+    )
+    geometry_norm = np.einsum("ij,ij->i", geometry, geometry)
+    trainable_idx = np.flatnonzero(train_valid & np.isfinite(y_next))
+    train_window = int(args.pm_kernel_train_window or 0)
+    for i in range(start_i, min(stop_i, len(frame) - 1)):
+        if not (bool(train_valid[i]) and np.isfinite(y_next[i])):
+            continue
+        train_left = max(0, i - train_window) if train_window > 0 else 0
+        left = int(np.searchsorted(trainable_idx, train_left, side="left"))
+        right = int(np.searchsorted(trainable_idx, i, side="left"))
+        train_idx = trainable_idx[left:right]
+        if train_idx.size < 5:
+            continue
+        d2 = geometry_norm[train_idx] + geometry_norm[i] - 2.0 * (geometry[train_idx] @ geometry[i])
+        d2 = np.maximum(d2, 0.0)
+        weights = runner.softmax_weights(-0.5 * d2 / (h * h))
+        if weights.size == 0:
+            continue
+        pred = runner.weighted_smape_action(y_next[train_idx], weights)
+        if np.isfinite(pred):
+            values.append((i, float(pred)))
+        if max_forecasts and len(values) >= max_forecasts:
+            break
+    return values
+
+
+def kernel_values_from_phi_slow_reference(
+    frame: pd.DataFrame,
+    args: SimpleNamespace,
+    level: np.ndarray,
+    c_state: np.ndarray,
+    q: np.ndarray,
+    valid: np.ndarray,
+    bandwidth: float,
+    start_i: int,
+    stop_i: int,
+    max_forecasts: int = 0,
+) -> list[tuple[int, float]]:
+    y_next = pd.to_numeric(frame["RV_d"].shift(-1), errors="coerce").to_numpy(dtype=float)
+    scale_end = max(start_i, args.n + 25)
+    level_scale = float(runner.robust_scale(level[:scale_end, None])[0])
+    c_scale = runner.robust_scale(c_state[:scale_end])
+    q_scale = runner.robust_scale(q[:scale_end])
+    h = max(float(bandwidth), 1e-12)
+    values = []
+    finite_q = np.isfinite(q).all(axis=1)
+    train_valid = valid & finite_q
     for i in range(start_i, min(stop_i, len(frame) - 1)):
         if not (bool(train_valid[i]) and np.isfinite(y_next[i])):
             continue
@@ -474,6 +528,67 @@ def kernel_values_from_phi(
         if max_forecasts and len(values) >= max_forecasts:
             break
     return values
+
+
+def kernel_fast_slow_equivalence_audit(
+    frame: pd.DataFrame,
+    args: SimpleNamespace,
+    level: np.ndarray,
+    c_state: np.ndarray,
+    q: np.ndarray,
+    valid: np.ndarray,
+    start_i: int,
+    stop_i: int,
+    max_forecasts: int = 3,
+    atol: float = 1e-9,
+) -> dict[str, object]:
+    max_abs_diff = 0.0
+    checked = 0
+    mismatch_count = 0
+    for bandwidth in args.pm_bandwidth_grid_values:
+        fast = dict(
+            kernel_values_from_phi(
+                frame,
+                args,
+                level,
+                c_state,
+                q,
+                valid,
+                float(bandwidth),
+                start_i,
+                stop_i,
+                max_forecasts=max_forecasts,
+            )
+        )
+        slow = dict(
+            kernel_values_from_phi_slow_reference(
+                frame,
+                args,
+                level,
+                c_state,
+                q,
+                valid,
+                float(bandwidth),
+                start_i,
+                stop_i,
+                max_forecasts=max_forecasts,
+            )
+        )
+        fast_keys = set(fast)
+        slow_keys = set(slow)
+        mismatch_count += len(fast_keys.symmetric_difference(slow_keys))
+        for origin in sorted(fast_keys & slow_keys):
+            diff = abs(float(fast[origin]) - float(slow[origin]))
+            max_abs_diff = max(max_abs_diff, diff)
+            checked += 1
+    passed = bool(checked > 0 and mismatch_count == 0 and max_abs_diff <= atol)
+    return {
+        "fast_slow_equivalence_passed": passed,
+        "fast_slow_checked_forecasts": checked,
+        "fast_slow_origin_mismatch_count": mismatch_count,
+        "fast_slow_max_abs_pred_diff": max_abs_diff,
+        "fast_slow_atol": atol,
+    }
 
 
 def generate_placebo_predictions(
@@ -496,6 +611,16 @@ def generate_placebo_predictions(
     param_rows = []
     for model_name, (phi, desc) in embeddings.items():
         q = runner.expanding_linear_residuals(phi, c_state, valid & np.isfinite(y_next))
+        equivalence = kernel_fast_slow_equivalence_audit(
+            frame,
+            args,
+            level,
+            c_state,
+            q,
+            valid,
+            val_start,
+            first_oos,
+        )
         best = (np.inf, float(args.pm_bandwidth_grid_values[0]))
         for bandwidth in args.pm_bandwidth_grid_values:
             vals = kernel_values_from_phi(
@@ -552,6 +677,7 @@ def generate_placebo_predictions(
                 "ridge_grid": "not_used_kernel_matched_none",
                 "validation_rule": "fixed_pre_oos_inner_window",
                 "basis_description": desc,
+                **equivalence,
             }
         )
     return predictions, pd.DataFrame(param_rows)
@@ -1026,6 +1152,21 @@ def source_audits(source_run: Path, asset: str, frame: pd.DataFrame, feature_gro
     placebo_dims = pd.to_numeric(placebo_param_rows.get("phi_dim", pd.Series(dtype=float)), errors="coerce").dropna().astype(int).tolist()
     matched = bool(placebo_dims) and all(dim == pm_dim_expected for dim in placebo_dims)
     add("placebo_matched_feature_count_smoothing_tuning_budget", matched, False, f"expected_phi_dim={pm_dim_expected}; placebo_dims={placebo_dims}; bandwidth_grid={args.pm_bandwidth_grid_values}")
+
+    if "fast_slow_equivalence_passed" in placebo_param_rows.columns:
+        eq_passed = placebo_param_rows["fast_slow_equivalence_passed"].astype(bool)
+        max_diff = safe_float(pd.to_numeric(placebo_param_rows.get("fast_slow_max_abs_pred_diff", pd.Series(dtype=float)), errors="coerce").max())
+        checked = int(pd.to_numeric(placebo_param_rows.get("fast_slow_checked_forecasts", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
+        mismatches = int(pd.to_numeric(placebo_param_rows.get("fast_slow_origin_mismatch_count", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
+        atol = safe_float(pd.to_numeric(placebo_param_rows.get("fast_slow_atol", pd.Series(dtype=float)), errors="coerce").max())
+        add(
+            "matched_kernel_fast_slow_equivalence",
+            bool((not placebo_param_rows.empty) and eq_passed.all()),
+            True,
+            f"checked_forecasts={checked}; origin_mismatches={mismatches}; max_abs_pred_diff={max_diff}; atol={atol}",
+        )
+    else:
+        add("matched_kernel_fast_slow_equivalence", False, True, "missing fast/slow equivalence audit columns")
     return pd.DataFrame(rows)
 
 
