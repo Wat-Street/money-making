@@ -9,6 +9,8 @@ This repository is organized around five top-level questions: where is the final
 | `final_paper/` | Submission-ready manuscript, final PDF, and the exact table/figure assets used by that manuscript. | You want to read, compile, or upload the final paper. |
 | `paper_outputs/` | Alternate manuscript export, working paper assets, previews, supplemental figures, and archived generated paper outputs. | You want generated paper material that is not the final submission bundle. |
 | `run_results/` | Empirical predictions, tables, figures, LaTeX fragments, and historical test runs. | You want model outputs or evidence from a specific run. |
+| `models/` | Human-facing inventory of original, Prop 4, and robustness/control models. | You need to identify which model is which before running or interpreting tests. |
+| `tests/` | Human-facing index of named test/result families; generated artifacts stay in `outputs/` and `run_results/`. | You need to classify Prop 3, Prop 4, Prop 5, or original paper-pipeline evidence. |
 | `code/` | Python source code, paper export scripts, and shared utilities. | You want to rerun models or regenerate figures/tables. |
 | `data/` | Raw and cleaned market data. | You need source input data for the empirical pipeline. |
 | `config/` | Environment requirements and command notes. | You need setup or reproduction commands. |
@@ -55,6 +57,12 @@ See `run_results/paper_runs/README.md` for run-level notes.
 - `code/Helpers_for_paper_export_scripts/` - Later-stage paper asset and robustness helpers.
 - `config/requirements.txt` - Python dependencies.
 - `config/result_generation_commands.md` - Command notes for regenerating results.
+
+## Agent And Repo Rules
+
+- `AGENTS.md` - Repo 1 / repo 2 / repo 3 operating rules for future agents.
+- `models/README.md` - Canonical model inventory. Repo 1 and repo 2 should carry the same model set; repo 3 may contain only draft-ready models.
+- `tests/README.md` - Named result families. Prop 3 is the CP+PM incremental-value test; Prop 4 is the CP-REPO-OPS-HG 18-model suite; Prop 5 is the selective overlay line.
 
 ## Safety Notes
 

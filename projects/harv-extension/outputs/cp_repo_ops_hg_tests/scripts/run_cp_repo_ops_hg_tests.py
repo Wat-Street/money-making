@@ -85,7 +85,6 @@ MODEL_ORDER = [
     "CP_REPO_OPS_R",
     "CP_REPO_RIDGE_OPS_R",
     "CP_REPO_LRPM",
-    "CP_REPO_RIDGE_LRPM",
     "CP_REPO_RECENT_SLOPE",
     "CP_REPO_HAAR_SHAPE",
     "CP_REPO_OPS_C",
@@ -103,7 +102,6 @@ SHAPE_MODELS = {
     "CP_REPO_OPS_R",
     "CP_REPO_RIDGE_OPS_R",
     "CP_REPO_LRPM",
-    "CP_REPO_RIDGE_LRPM",
     "CP_REPO_RECENT_SLOPE",
     "CP_REPO_HAAR_SHAPE",
     "CP_REPO_OPS_C",
@@ -130,7 +128,6 @@ PHASE_MODELS = {
     "phase2": [
         "CP_REPO_RIDGE_OPS_R",
         "CP_REPO_LRPM",
-        "CP_REPO_RIDGE_LRPM",
         "CP_REPO_RECENT_SLOPE",
         "CP_REPO_HAAR_SHAPE",
         "CP_REPO_OPS_HG",
@@ -745,17 +742,6 @@ def build_model_registry(n: int) -> dict:
                 "paper_eligible": False,
                 "expected_interpretation": "Unregularized local residue bridge diagnostic only; rank-deficient and unstable in full runs.",
             },
-            "CP_REPO_RIDGE_LRPM": {
-                "feature_families": ["RV_REPO", "CP_REPO", "LRPM"],
-                "includes_cp": True,
-                "includes_raw_pm": False,
-                "shape_features_cp_orthogonal": False,
-                "uses_gate": False,
-                "uses_ridge": True,
-                "is_placebo": False,
-                "paper_eligible": True,
-                "expected_interpretation": "Ridge-stabilized LRPM with repo CP controls unpenalized and LRPM shape coefficients shrunk.",
-            },
             "CP_REPO_RECENT_SLOPE": {
                 "feature_families": ["RV_REPO", "CP_REPO", "RECENT_SLOPE"],
                 "includes_cp": True,
@@ -1123,7 +1109,6 @@ def build_feature_frame(ticker: str, args) -> tuple[pd.DataFrame, dict[str, list
         "CP_REPO_OPS_R": cp_cols + z_groups["PMCTR"],
         "CP_REPO_RIDGE_OPS_R": cp_cols + z_groups["PMCTR"],
         "CP_REPO_LRPM": cp_cols + z_groups["LRPM"],
-        "CP_REPO_RIDGE_LRPM": cp_cols + z_groups["LRPM"],
         "CP_REPO_RECENT_SLOPE": cp_cols + z_groups["RSLOPE"],
         "CP_REPO_HAAR_SHAPE": cp_cols + z_groups["HAAR"],
         "CP_REPO_OPS_C": cp_cols + z_groups["OPSC"],
@@ -1159,7 +1144,7 @@ def build_feature_frame(ticker: str, args) -> tuple[pd.DataFrame, dict[str, list
 def ridge_penalties(model_name: str, features: list[str], lambda_shape: float, lambda_r_ratio: float) -> dict[str, float]:
     ridge = {}
     unpenalized = {"RV_REPO", "CP_REPO"}
-    if model_name in {"CP_REPO_RIDGE_OPS_R", "CP_REPO_RIDGE_LRPM", "RANDOM_RESIDUES_PLACEBO_REPO", "SHUFFLED_LAG_PM_PLACEBO_REPO"}:
+    if model_name in {"CP_REPO_RIDGE_OPS_R", "RANDOM_RESIDUES_PLACEBO_REPO", "SHUFFLED_LAG_PM_PLACEBO_REPO"}:
         ridge = {col: lambda_shape for col in features if feature_family(col) not in unpenalized}
     elif model_name in {"CP_REPO_RIDGE_OPS_C", "CP_REPO_GATED_RIDGE_OPS_C", "RANDOM_GATE_PLACEBO_REPO", "CP_REPO_OPS_K"}:
         ridge = {col: lambda_shape for col in features if feature_family(col) not in unpenalized}
@@ -1236,7 +1221,6 @@ def validation_score_for_penalties(
 def select_ridge_controls(model_name: str, features: list[str], frame: pd.DataFrame, args) -> tuple[float, float, str, float]:
     if model_name not in {
         "CP_REPO_RIDGE_OPS_R",
-        "CP_REPO_RIDGE_LRPM",
         "CP_REPO_RIDGE_OPS_C",
         "CP_REPO_GATED_RIDGE_OPS_C",
         "CP_REPO_OPS_HG",
@@ -1283,7 +1267,7 @@ def model_spec(model_name: str, features: list[str], frame: pd.DataFrame, args) 
     lambda_shape, lambda_r_ratio, cv_mode_effective, cv_score = select_ridge_controls(model_name, features, frame, args)
     ridge = ridge_penalties(model_name, features, lambda_shape, lambda_r_ratio)
     family = "linear"
-    if model_name in {"CP_REPO_RIDGE_OPS_R", "CP_REPO_RIDGE_LRPM", "RANDOM_RESIDUES_PLACEBO_REPO", "SHUFFLED_LAG_PM_PLACEBO_REPO"}:
+    if model_name in {"CP_REPO_RIDGE_OPS_R", "RANDOM_RESIDUES_PLACEBO_REPO", "SHUFFLED_LAG_PM_PLACEBO_REPO"}:
         family = "ridge_shape"
     elif model_name in {"CP_REPO_RIDGE_OPS_C", "CP_REPO_GATED_RIDGE_OPS_C", "RANDOM_GATE_PLACEBO_REPO", "CP_REPO_OPS_K"}:
         family = "ridge_shape"
@@ -1547,7 +1531,6 @@ def run_fast_slow_equivalence_audit(outdir: Path, args, asset: str = "AAPL") -> 
         "RAW_CP_REPO_PLUS_PM",
         "CP_REPO_RIDGE_OPS_R",
         "CP_REPO_LRPM",
-        "CP_REPO_RIDGE_LRPM",
         "CP_REPO_RIDGE_OPS_C",
         "CP_REPO_GATED_RIDGE_OPS_C",
         "CP_REPO_OPS_HG",
