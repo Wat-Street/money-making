@@ -2669,7 +2669,7 @@ def mean_loss(actual: pd.Series, pred: pd.Series, metric: str) -> float:
         return np.nan
     err = actual - pred
     if metric == "SMAPE":
-        return safe_float(smape(actual, pred).mean())
+        return safe_float(np.nanmean(smape(actual, pred)))
     if metric == "MAE":
         return safe_float(err.abs().mean())
     if metric == "MSE":
