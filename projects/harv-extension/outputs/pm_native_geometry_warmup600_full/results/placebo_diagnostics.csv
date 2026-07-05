@@ -1,0 +1,31 @@
+diagnostic,passed,seed,details_json,asset,run_type
+random_residue_group_sizes,True,143,"{""construction"": ""random residue groups use the true PM group-size vector for each prime"", ""random_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}, ""true_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}}",AAPL,full
+shuffled_pm_not_identical,True,244,"{""identical_after_projection"": false, ""shuffled_weight_columns"": 10, ""true_weight_columns"": 10}",AAPL,full
+random_gate_shuffled_real_distribution,True,345,"{""max_abs_sorted_difference"": 0.0, ""n_gate_values"": 37362, ""sorted_value_equality"": true}",AAPL,full
+random_residue_group_sizes,True,143,"{""construction"": ""random residue groups use the true PM group-size vector for each prime"", ""random_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}, ""true_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}}",AMZN,full
+shuffled_pm_not_identical,True,244,"{""identical_after_projection"": false, ""shuffled_weight_columns"": 10, ""true_weight_columns"": 10}",AMZN,full
+random_gate_shuffled_real_distribution,True,345,"{""max_abs_sorted_difference"": 0.0, ""n_gate_values"": 37362, ""sorted_value_equality"": true}",AMZN,full
+random_residue_group_sizes,True,143,"{""construction"": ""random residue groups use the true PM group-size vector for each prime"", ""random_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}, ""true_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}}",EEM,full
+shuffled_pm_not_identical,True,244,"{""identical_after_projection"": false, ""shuffled_weight_columns"": 10, ""true_weight_columns"": 10}",EEM,full
+random_gate_shuffled_real_distribution,True,345,"{""max_abs_sorted_difference"": 0.0, ""n_gate_values"": 37362, ""sorted_value_equality"": true}",EEM,full
+random_residue_group_sizes,True,143,"{""construction"": ""random residue groups use the true PM group-size vector for each prime"", ""random_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}, ""true_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}}",FXI,full
+shuffled_pm_not_identical,True,244,"{""identical_after_projection"": false, ""shuffled_weight_columns"": 10, ""true_weight_columns"": 10}",FXI,full
+random_gate_shuffled_real_distribution,True,345,"{""max_abs_sorted_difference"": 0.0, ""n_gate_values"": 37440, ""sorted_value_equality"": true}",FXI,full
+random_residue_group_sizes,True,143,"{""construction"": ""random residue groups use the true PM group-size vector for each prime"", ""random_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}, ""true_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}}",GLD,full
+shuffled_pm_not_identical,True,244,"{""identical_after_projection"": false, ""shuffled_weight_columns"": 10, ""true_weight_columns"": 10}",GLD,full
+random_gate_shuffled_real_distribution,True,345,"{""max_abs_sorted_difference"": 0.0, ""n_gate_values"": 37362, ""sorted_value_equality"": true}",GLD,full
+random_residue_group_sizes,True,143,"{""construction"": ""random residue groups use the true PM group-size vector for each prime"", ""random_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}, ""true_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}}",GOOGL,full
+shuffled_pm_not_identical,True,244,"{""identical_after_projection"": false, ""shuffled_weight_columns"": 10, ""true_weight_columns"": 10}",GOOGL,full
+random_gate_shuffled_real_distribution,True,345,"{""max_abs_sorted_difference"": 0.0, ""n_gate_values"": 37362, ""sorted_value_equality"": true}",GOOGL,full
+random_residue_group_sizes,True,143,"{""construction"": ""random residue groups use the true PM group-size vector for each prime"", ""random_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}, ""true_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}}",HYG,full
+shuffled_pm_not_identical,True,244,"{""identical_after_projection"": false, ""shuffled_weight_columns"": 10, ""true_weight_columns"": 10}",HYG,full
+random_gate_shuffled_real_distribution,True,345,"{""max_abs_sorted_difference"": 0.0, ""n_gate_values"": 37362, ""sorted_value_equality"": true}",HYG,full
+random_residue_group_sizes,True,143,"{""construction"": ""random residue groups use the true PM group-size vector for each prime"", ""random_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}, ""true_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}}",QQQ,full
+shuffled_pm_not_identical,True,244,"{""identical_after_projection"": false, ""shuffled_weight_columns"": 10, ""true_weight_columns"": 10}",QQQ,full
+random_gate_shuffled_real_distribution,True,345,"{""max_abs_sorted_difference"": 0.0, ""n_gate_values"": 37362, ""sorted_value_equality"": true}",QQQ,full
+random_residue_group_sizes,True,143,"{""construction"": ""random residue groups use the true PM group-size vector for each prime"", ""random_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}, ""true_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}}",SPY,full
+shuffled_pm_not_identical,True,244,"{""identical_after_projection"": false, ""shuffled_weight_columns"": 10, ""true_weight_columns"": 10}",SPY,full
+random_gate_shuffled_real_distribution,True,345,"{""max_abs_sorted_difference"": 0.0, ""n_gate_values"": 37362, ""sorted_value_equality"": true}",SPY,full
+random_residue_group_sizes,True,143,"{""construction"": ""random residue groups use the true PM group-size vector for each prime"", ""random_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}, ""true_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}}",TLT,full
+shuffled_pm_not_identical,True,244,"{""identical_after_projection"": false, ""shuffled_weight_columns"": 10, ""true_weight_columns"": 10}",TLT,full
+random_gate_shuffled_real_distribution,True,345,"{""max_abs_sorted_difference"": 0.0, ""n_gate_values"": 37362, ""sorted_value_equality"": true}",TLT,full

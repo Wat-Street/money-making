@@ -1,0 +1,4 @@
+model_name,benchmark_model,n_assets,assets_positive_smape_advantage,assets_positive_mae_advantage,equal_weight_mean_smape_advantage,equal_weight_mean_abs_error_advantage
+PM_QDK,CP_REPO_FRESH,10,0,1,-1.7377371519811913,-3.0156996296453764e-05
+PM_QDK_2,CP_REPO_FRESH,10,9,7,1.4780783007984046,-1.5024934784782086e-05
+PHQO,CP_REPO_FRESH,10,6,7,-0.0006030820972933133,4.743528226234858e-08

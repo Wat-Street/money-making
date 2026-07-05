@@ -1,0 +1,51 @@
+check_name,passed,details,asset
+online_standardization_uses_prior_rows,True,Changing rows >=80 leaves z-scores before row 80 unchanged.,AAPL
+gate_uses_lagged_and_prior_scaled_inputs,True,Changing future RV values leaves earlier gates unchanged.,AAPL
+pm_harmonic_embedding_uses_lagged_inputs_only,True,Changing future RV values leaves earlier PM-QDK harmonic embeddings unchanged.,AAPL
+expanding_forecast_excludes_current_target,True,Perturbing the first forecast target changes Actual but not the fitted prediction.,AAPL
+inner_validation_precedes_first_oos_target,True,Validation targets end at index 622; first OOS target is 623.,AAPL
+online_standardization_uses_prior_rows,True,Changing rows >=80 leaves z-scores before row 80 unchanged.,AMZN
+gate_uses_lagged_and_prior_scaled_inputs,True,Changing future RV values leaves earlier gates unchanged.,AMZN
+pm_harmonic_embedding_uses_lagged_inputs_only,True,Changing future RV values leaves earlier PM-QDK harmonic embeddings unchanged.,AMZN
+expanding_forecast_excludes_current_target,True,Perturbing the first forecast target changes Actual but not the fitted prediction.,AMZN
+inner_validation_precedes_first_oos_target,True,Validation targets end at index 622; first OOS target is 623.,AMZN
+online_standardization_uses_prior_rows,True,Changing rows >=80 leaves z-scores before row 80 unchanged.,EEM
+gate_uses_lagged_and_prior_scaled_inputs,True,Changing future RV values leaves earlier gates unchanged.,EEM
+pm_harmonic_embedding_uses_lagged_inputs_only,True,Changing future RV values leaves earlier PM-QDK harmonic embeddings unchanged.,EEM
+expanding_forecast_excludes_current_target,True,Perturbing the first forecast target changes Actual but not the fitted prediction.,EEM
+inner_validation_precedes_first_oos_target,True,Validation targets end at index 622; first OOS target is 623.,EEM
+online_standardization_uses_prior_rows,True,Changing rows >=80 leaves z-scores before row 80 unchanged.,FXI
+gate_uses_lagged_and_prior_scaled_inputs,True,Changing future RV values leaves earlier gates unchanged.,FXI
+pm_harmonic_embedding_uses_lagged_inputs_only,True,Changing future RV values leaves earlier PM-QDK harmonic embeddings unchanged.,FXI
+expanding_forecast_excludes_current_target,True,Perturbing the first forecast target changes Actual but not the fitted prediction.,FXI
+inner_validation_precedes_first_oos_target,True,Validation targets end at index 622; first OOS target is 623.,FXI
+online_standardization_uses_prior_rows,True,Changing rows >=80 leaves z-scores before row 80 unchanged.,GLD
+gate_uses_lagged_and_prior_scaled_inputs,True,Changing future RV values leaves earlier gates unchanged.,GLD
+pm_harmonic_embedding_uses_lagged_inputs_only,True,Changing future RV values leaves earlier PM-QDK harmonic embeddings unchanged.,GLD
+expanding_forecast_excludes_current_target,True,Perturbing the first forecast target changes Actual but not the fitted prediction.,GLD
+inner_validation_precedes_first_oos_target,True,Validation targets end at index 622; first OOS target is 623.,GLD
+online_standardization_uses_prior_rows,True,Changing rows >=80 leaves z-scores before row 80 unchanged.,GOOGL
+gate_uses_lagged_and_prior_scaled_inputs,True,Changing future RV values leaves earlier gates unchanged.,GOOGL
+pm_harmonic_embedding_uses_lagged_inputs_only,True,Changing future RV values leaves earlier PM-QDK harmonic embeddings unchanged.,GOOGL
+expanding_forecast_excludes_current_target,True,Perturbing the first forecast target changes Actual but not the fitted prediction.,GOOGL
+inner_validation_precedes_first_oos_target,True,Validation targets end at index 622; first OOS target is 623.,GOOGL
+online_standardization_uses_prior_rows,True,Changing rows >=80 leaves z-scores before row 80 unchanged.,HYG
+gate_uses_lagged_and_prior_scaled_inputs,True,Changing future RV values leaves earlier gates unchanged.,HYG
+pm_harmonic_embedding_uses_lagged_inputs_only,True,Changing future RV values leaves earlier PM-QDK harmonic embeddings unchanged.,HYG
+expanding_forecast_excludes_current_target,True,Perturbing the first forecast target changes Actual but not the fitted prediction.,HYG
+inner_validation_precedes_first_oos_target,True,Validation targets end at index 622; first OOS target is 623.,HYG
+online_standardization_uses_prior_rows,True,Changing rows >=80 leaves z-scores before row 80 unchanged.,QQQ
+gate_uses_lagged_and_prior_scaled_inputs,True,Changing future RV values leaves earlier gates unchanged.,QQQ
+pm_harmonic_embedding_uses_lagged_inputs_only,True,Changing future RV values leaves earlier PM-QDK harmonic embeddings unchanged.,QQQ
+expanding_forecast_excludes_current_target,True,Perturbing the first forecast target changes Actual but not the fitted prediction.,QQQ
+inner_validation_precedes_first_oos_target,True,Validation targets end at index 622; first OOS target is 623.,QQQ
+online_standardization_uses_prior_rows,True,Changing rows >=80 leaves z-scores before row 80 unchanged.,SPY
+gate_uses_lagged_and_prior_scaled_inputs,True,Changing future RV values leaves earlier gates unchanged.,SPY
+pm_harmonic_embedding_uses_lagged_inputs_only,True,Changing future RV values leaves earlier PM-QDK harmonic embeddings unchanged.,SPY
+expanding_forecast_excludes_current_target,True,Perturbing the first forecast target changes Actual but not the fitted prediction.,SPY
+inner_validation_precedes_first_oos_target,True,Validation targets end at index 622; first OOS target is 623.,SPY
+online_standardization_uses_prior_rows,True,Changing rows >=80 leaves z-scores before row 80 unchanged.,TLT
+gate_uses_lagged_and_prior_scaled_inputs,True,Changing future RV values leaves earlier gates unchanged.,TLT
+pm_harmonic_embedding_uses_lagged_inputs_only,True,Changing future RV values leaves earlier PM-QDK harmonic embeddings unchanged.,TLT
+expanding_forecast_excludes_current_target,True,Perturbing the first forecast target changes Actual but not the fitted prediction.,TLT
+inner_validation_precedes_first_oos_target,True,Validation targets end at index 622; first OOS target is 623.,TLT
