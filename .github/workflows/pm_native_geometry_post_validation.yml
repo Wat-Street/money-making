@@ -1,0 +1,144 @@
+name: PM Native Geometry Post-Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      assets:
+        description: "Comma-separated assets to validate"
+        required: true
+        default: "AAPL,AMZN,EEM,FXI,GLD,GOOGL,HYG,QQQ,SPY,TLT"
+      max_parallel:
+        description: "Maximum concurrent asset jobs"
+        required: true
+        default: "10"
+      seed:
+        description: "Deterministic seed"
+        required: true
+        default: "42"
+      bootstrap_samples:
+        description: "Bootstrap samples for aggregate confidence intervals"
+        required: true
+        default: "500"
+      pm_kernel_train_window:
+        description: "Maximum prior rows used by matched kernel smoothers"
+        required: true
+        default: "2500"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  asset-validation:
+    name: Validate ${{ matrix.asset }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.max_parallel) }}
+      matrix:
+        asset: [AAPL, AMZN, EEM, FXI, GLD, GOOGL, HYG, QQQ, SPY, TLT]
+    env:
+      ASSET: ${{ matrix.asset }}
+      OUTDIR: outputs/pm_native_geometry_warmup600_post_validation_actions/${{ github.run_id }}/${{ matrix.asset }}
+    steps:
+      - name: Checkout branch
+        if: ${{ contains(format(',{0},', inputs.assets), format(',{0},', matrix.asset)) }}
+        uses: actions/checkout@v4
+        with:
+          ref: cp-pm-incremental-actions
+
+      - name: Setup Python
+        if: ${{ contains(format(',{0},', inputs.assets), format(',{0},', matrix.asset)) }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        if: ${{ contains(format(',{0},', inputs.assets), format(',{0},', matrix.asset)) }}
+        working-directory: projects/harv-extension
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==1.26.4 pandas==2.2.2 scipy==1.13.1 statsmodels==0.14.4 scikit-learn==1.5.0 matplotlib==3.9.0 yfinance==0.2.40 joblib==1.4.2 tabulate==0.9.0
+
+      - name: Run asset post-validation
+        if: ${{ contains(format(',{0},', inputs.assets), format(',{0},', matrix.asset)) }}
+        working-directory: projects/harv-extension
+        shell: bash
+        run: |
+          python outputs/cp_repo_ops_hg_tests/scripts/validate_pm_native_geometry.py \
+            --mode asset \
+            --asset "${ASSET}" \
+            --source-run outputs/pm_native_geometry_warmup600_full \
+            --outdir "${OUTDIR}" \
+            --seed "${{ inputs.seed }}" \
+            --n 22 \
+            --warmup 600 \
+            --pm-kernel-train-window "${{ inputs.pm_kernel_train_window }}"
+
+      - name: Upload asset validation artifact
+        if: ${{ always() && contains(format(',{0},', inputs.assets), format(',{0},', matrix.asset)) }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pm-native-post-validation-${{ matrix.asset }}-${{ github.run_id }}
+          path: projects/harv-extension/outputs/pm_native_geometry_warmup600_post_validation_actions/${{ github.run_id }}/${{ matrix.asset }}/
+          if-no-files-found: warn
+          retention-days: 30
+
+  aggregate:
+    name: Aggregate post-validation
+    needs: asset-validation
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      COMBINED_OUTDIR: outputs/pm_native_geometry_warmup600_post_validation_actions/${{ github.run_id }}/combined
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: cp-pm-incremental-actions
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: projects/harv-extension
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==1.26.4 pandas==2.2.2 scipy==1.13.1 statsmodels==0.14.4 scikit-learn==1.5.0 matplotlib==3.9.0 yfinance==0.2.40 joblib==1.4.2 tabulate==0.9.0
+
+      - name: Download asset artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pm-native-post-validation-*-${{ github.run_id }}
+          path: projects/harv-extension/_pm_native_post_validation_artifacts
+          merge-multiple: false
+
+      - name: Aggregate validation package
+        id: aggregate
+        continue-on-error: true
+        working-directory: projects/harv-extension
+        shell: bash
+        run: |
+          python outputs/cp_repo_ops_hg_tests/scripts/validate_pm_native_geometry.py \
+            --mode aggregate \
+            --artifacts-dir _pm_native_post_validation_artifacts \
+            --outdir "${COMBINED_OUTDIR}" \
+            --seed "${{ inputs.seed }}" \
+            --bootstrap-samples "${{ inputs.bootstrap_samples }}"
+
+      - name: Upload combined validation package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pm-native-post-validation-combined-${{ github.run_id }}
+          path: projects/harv-extension/outputs/pm_native_geometry_warmup600_post_validation_actions/${{ github.run_id }}/combined/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Fail on fatal validation audit
+        if: ${{ steps.aggregate.outcome != 'success' }}
+        run: exit 1
