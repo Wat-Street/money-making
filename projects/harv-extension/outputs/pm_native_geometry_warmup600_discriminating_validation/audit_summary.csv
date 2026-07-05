@@ -1,0 +1,91 @@
+asset,audit_name,passed,fatal,details
+GLD,cp_construction_reproduction,True,True,source rows=10
+GLD,no_lookahead,True,True,source rows=50
+GLD,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+GLD,frozen_pm_qdk2_design_no_model_search,True,False,"PM_QDK_2 design, grids, validation window, and matched-placebo rules are fixed before this discriminating validation pass"
+GLD,selected_hyperparameters_in_declared_grids,True,True,selected_pm_bandwidth=[2.0]; selected_pm_tau=[0.05]; selected_pm_eta=[0.0]; selected_phqo_gamma=[2.0]
+GLD,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+GLD,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+GLD,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+GLD,matched_kernel_fast_slow_equivalence,True,True,checked_forecasts=108; origin_mismatches=0; max_abs_pred_diff=0.0; atol=1e-09
+TLT,cp_construction_reproduction,True,True,source rows=10
+TLT,no_lookahead,True,True,source rows=50
+TLT,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+TLT,frozen_pm_qdk2_design_no_model_search,True,False,"PM_QDK_2 design, grids, validation window, and matched-placebo rules are fixed before this discriminating validation pass"
+TLT,selected_hyperparameters_in_declared_grids,True,True,"selected_pm_bandwidth=[2.0]; selected_pm_tau=[1.0, 0.05]; selected_pm_eta=[1.0]; selected_phqo_gamma=[2.0]"
+TLT,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+TLT,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+TLT,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+TLT,matched_kernel_fast_slow_equivalence,True,True,checked_forecasts=108; origin_mismatches=0; max_abs_pred_diff=0.0; atol=1e-09
+SPY,cp_construction_reproduction,True,True,source rows=10
+SPY,no_lookahead,True,True,source rows=50
+SPY,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+SPY,frozen_pm_qdk2_design_no_model_search,True,False,"PM_QDK_2 design, grids, validation window, and matched-placebo rules are fixed before this discriminating validation pass"
+SPY,selected_hyperparameters_in_declared_grids,True,True,"selected_pm_bandwidth=[0.5, 2.0]; selected_pm_tau=[0.05]; selected_pm_eta=[0.0]; selected_phqo_gamma=[0.0]"
+SPY,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+SPY,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+SPY,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+SPY,matched_kernel_fast_slow_equivalence,True,True,checked_forecasts=108; origin_mismatches=0; max_abs_pred_diff=0.0; atol=1e-09
+EEM,cp_construction_reproduction,True,True,source rows=10
+EEM,no_lookahead,True,True,source rows=50
+EEM,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+EEM,frozen_pm_qdk2_design_no_model_search,True,False,"PM_QDK_2 design, grids, validation window, and matched-placebo rules are fixed before this discriminating validation pass"
+EEM,selected_hyperparameters_in_declared_grids,True,True,selected_pm_bandwidth=[2.0]; selected_pm_tau=[0.05]; selected_pm_eta=[1.0]; selected_phqo_gamma=[2.0]
+EEM,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+EEM,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+EEM,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+EEM,matched_kernel_fast_slow_equivalence,True,True,checked_forecasts=108; origin_mismatches=0; max_abs_pred_diff=0.0; atol=1e-09
+AAPL,cp_construction_reproduction,True,True,source rows=10
+AAPL,no_lookahead,True,True,source rows=50
+AAPL,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+AAPL,frozen_pm_qdk2_design_no_model_search,True,False,"PM_QDK_2 design, grids, validation window, and matched-placebo rules are fixed before this discriminating validation pass"
+AAPL,selected_hyperparameters_in_declared_grids,True,True,"selected_pm_bandwidth=[0.5, 2.0]; selected_pm_tau=[0.05]; selected_pm_eta=[0.0]; selected_phqo_gamma=[0.0]"
+AAPL,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+AAPL,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+AAPL,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+AAPL,matched_kernel_fast_slow_equivalence,True,True,checked_forecasts=108; origin_mismatches=0; max_abs_pred_diff=0.0; atol=1e-09
+GOOGL,cp_construction_reproduction,True,True,source rows=10
+GOOGL,no_lookahead,True,True,source rows=50
+GOOGL,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+GOOGL,frozen_pm_qdk2_design_no_model_search,True,False,"PM_QDK_2 design, grids, validation window, and matched-placebo rules are fixed before this discriminating validation pass"
+GOOGL,selected_hyperparameters_in_declared_grids,True,True,"selected_pm_bandwidth=[2.0]; selected_pm_tau=[0.25, 0.05]; selected_pm_eta=[1.0]; selected_phqo_gamma=[2.0]"
+GOOGL,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+GOOGL,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+GOOGL,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+GOOGL,matched_kernel_fast_slow_equivalence,True,True,checked_forecasts=108; origin_mismatches=0; max_abs_pred_diff=0.0; atol=1e-09
+HYG,cp_construction_reproduction,True,True,source rows=10
+HYG,no_lookahead,True,True,source rows=50
+HYG,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+HYG,frozen_pm_qdk2_design_no_model_search,True,False,"PM_QDK_2 design, grids, validation window, and matched-placebo rules are fixed before this discriminating validation pass"
+HYG,selected_hyperparameters_in_declared_grids,True,True,"selected_pm_bandwidth=[2.0, 1.0]; selected_pm_tau=[0.05]; selected_pm_eta=[1.0]; selected_phqo_gamma=[2.0]"
+HYG,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+HYG,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+HYG,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+HYG,matched_kernel_fast_slow_equivalence,True,True,checked_forecasts=108; origin_mismatches=0; max_abs_pred_diff=0.0; atol=1e-09
+QQQ,cp_construction_reproduction,True,True,source rows=10
+QQQ,no_lookahead,True,True,source rows=50
+QQQ,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+QQQ,frozen_pm_qdk2_design_no_model_search,True,False,"PM_QDK_2 design, grids, validation window, and matched-placebo rules are fixed before this discriminating validation pass"
+QQQ,selected_hyperparameters_in_declared_grids,True,True,"selected_pm_bandwidth=[1.0, 2.0]; selected_pm_tau=[0.05]; selected_pm_eta=[1.0]; selected_phqo_gamma=[0.0]"
+QQQ,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+QQQ,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+QQQ,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+QQQ,matched_kernel_fast_slow_equivalence,True,True,checked_forecasts=108; origin_mismatches=0; max_abs_pred_diff=0.0; atol=1e-09
+FXI,cp_construction_reproduction,True,True,source rows=10
+FXI,no_lookahead,True,True,source rows=50
+FXI,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+FXI,frozen_pm_qdk2_design_no_model_search,True,False,"PM_QDK_2 design, grids, validation window, and matched-placebo rules are fixed before this discriminating validation pass"
+FXI,selected_hyperparameters_in_declared_grids,True,True,selected_pm_bandwidth=[2.0]; selected_pm_tau=[0.05]; selected_pm_eta=[1.0]; selected_phqo_gamma=[0.0]
+FXI,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+FXI,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36817; PM_QDK_overlap=36817
+FXI,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+FXI,matched_kernel_fast_slow_equivalence,True,True,checked_forecasts=108; origin_mismatches=0; max_abs_pred_diff=0.0; atol=1e-09
+AMZN,cp_construction_reproduction,True,True,source rows=10
+AMZN,no_lookahead,True,True,source rows=50
+AMZN,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+AMZN,frozen_pm_qdk2_design_no_model_search,True,False,"PM_QDK_2 design, grids, validation window, and matched-placebo rules are fixed before this discriminating validation pass"
+AMZN,selected_hyperparameters_in_declared_grids,True,True,selected_pm_bandwidth=[2.0]; selected_pm_tau=[0.05]; selected_pm_eta=[1.0]; selected_phqo_gamma=[0.0]
+AMZN,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+AMZN,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+AMZN,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+AMZN,matched_kernel_fast_slow_equivalence,True,True,checked_forecasts=108; origin_mismatches=0; max_abs_pred_diff=0.0; atol=1e-09

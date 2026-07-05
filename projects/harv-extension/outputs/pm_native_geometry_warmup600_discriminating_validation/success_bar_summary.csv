@@ -1,0 +1,10 @@
+success_bar_check,passed,detail
+beats_cp_on_smape,True,1.4785526053608025
+beats_all_matched_placebos_on_smape,False,2/6
+wins_at_least_7_of_10_assets,True,9/10
+bootstrap_ci_positive,True,"[1.39139289785069, 1.5641745047929214]"
+cp_fiber_residual_test_favors_pm,True,pm=-0.0629097649406182; best_placebo=-0.07693830794701492
+residual_smoothness_test_favors_pm,False,pm=-2.1853105257975285e-05; best_placebo=-1.3927127779036312e-05
+no_fatal_mae_rmse_blowup,True,MAE_rel=0.02559880315251739; RMSE_rel=0.08922931082957097
+full_pm_beats_all_partial_pm_ablations_on_smape,False,0/6
+fatal_audits_passed,True,fatal_failures=0
