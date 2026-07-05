@@ -53,10 +53,17 @@ NUMERIC_RIDGE = 1e-12
 ZERO_SUM_TOL = 1e-10
 DEFAULT_LAMBDA_GRID = "0.001"
 DEFAULT_LAMBDA_R_RATIO_GRID = "10"
+DEFAULT_PM_TAU_GRID = "0.05,0.1,0.25,0.5,1.0"
+DEFAULT_PM_ETA_GRID = "0,0.25,0.5,1.0"
+DEFAULT_PM_BANDWIDTH_GRID = "0.5,1,2"
+DEFAULT_PHQO_GAMMA_GRID = "0,0.25,0.5,1,2"
+DEFAULT_PM_LOW_MODES = 12
+DEFAULT_PM_KERNEL_TRAIN_WINDOW = 2500
 LOG_EPS_DEFAULT = 1e-12
 REGISTRY_FILENAME = "model_registry.json"
 NO_LOOKAHEAD_AUDIT_FILENAME = "no_lookahead_audit.csv"
 RV_HAR_COLS = ["RV_d", "RV_w", "RV_m"]
+PM_NATIVE_MODELS = ["PM_QDK", "PM_QDK_2", "PHQO"]
 
 CONDITION_ORDER = [
     "all_observations",
@@ -96,6 +103,9 @@ MODEL_ORDER = [
     "RANDOM_GATE_PLACEBO_REPO",
     "RIDGE_AR22",
     "CP_REPO_OPS_K",
+    "PM_QDK",
+    "PM_QDK_2",
+    "PHQO",
 ]
 
 SHAPE_MODELS = {
@@ -112,6 +122,9 @@ SHAPE_MODELS = {
     "SHUFFLED_LAG_PM_PLACEBO_REPO",
     "RANDOM_GATE_PLACEBO_REPO",
     "CP_REPO_OPS_K",
+    "PM_QDK",
+    "PM_QDK_2",
+    "PHQO",
 }
 
 PHASE_MODELS = {
@@ -138,7 +151,7 @@ PHASE_MODELS = {
     ],
 }
 PHASE_MODELS["linear"] = list(dict.fromkeys(PHASE_MODELS["phase1"] + PHASE_MODELS["phase2"]))
-PHASE_MODELS["all"] = list(dict.fromkeys(PHASE_MODELS["linear"] + ["CP_REPO_OPS_K"]))
+PHASE_MODELS["all"] = list(dict.fromkeys(PHASE_MODELS["linear"] + ["CP_REPO_OPS_K"] + PM_NATIVE_MODELS))
 
 # Prior predictions remain diagnostic only; paper-eligible rows are regenerated
 # by this runner around the repo contig_prime_modulo CP benchmark.
@@ -605,6 +618,524 @@ def kops_weights(n: int, blocks: list[list[int]]) -> dict[str, np.ndarray]:
     return weights
 
 
+def pm_primes(n: int) -> list[int]:
+    primes = build_minimal_primes(n)
+    if primes != [2, 3, 5]:
+        raise ValueError(f"PM-native geometry is locked to n=22 with primes [2, 3, 5]; got {primes}")
+    return primes
+
+
+def prime_torus_modes(n: int, include_zero: bool = False) -> list[tuple[int, int, int]]:
+    primes = pm_primes(n)
+    modes = []
+    for a2 in range(primes[0]):
+        for a3 in range(primes[1]):
+            for a5 in range(primes[2]):
+                mode = (a2, a3, a5)
+                if include_zero or any(mode):
+                    modes.append(mode)
+    return sorted(modes, key=lambda mode: (prime_torus_eigenvalue(mode, primes), mode))
+
+
+def prime_torus_eigenvalue(mode: tuple[int, int, int], primes: list[int]) -> float:
+    return float(sum(2.0 - 2.0 * math.cos(2.0 * math.pi * a / p) for a, p in zip(mode, primes)))
+
+
+def prime_character_matrix(n: int, modes: list[tuple[int, int, int]], normalize: bool = False) -> np.ndarray:
+    primes = pm_primes(n)
+    lags = np.arange(1, n + 1, dtype=float)
+    mat = np.empty((n, len(modes)), dtype=np.complex128)
+    for idx, mode in enumerate(modes):
+        phase = np.zeros(n, dtype=float)
+        for a, prime in zip(mode, primes):
+            phase += float(a) * np.mod(lags, prime) / float(prime)
+        mat[:, idx] = np.exp(2j * np.pi * phase)
+    if normalize and len(modes):
+        mat = mat / math.sqrt(float(n))
+    return mat
+
+
+def cp_path_projection_matrix(n: int) -> np.ndarray:
+    primes = pm_primes(n)
+    rows = []
+
+    lag1 = np.zeros(n, dtype=float)
+    lag1[0] = 1.0
+    rows.append(lag1)
+
+    weekly = np.zeros(n, dtype=float)
+    weekly[: min(5, n)] = 1.0 / float(min(5, n))
+    rows.append(weekly)
+
+    monthly = np.ones(n, dtype=float) / float(n)
+    rows.append(monthly)
+
+    for prime in primes:
+        for remainder in range(prime):
+            lags = [lag for lag in range(1, n + 1) if lag % prime == remainder]
+            row = np.zeros(n, dtype=float)
+            for lag in lags:
+                row[lag - 1] = 1.0 / float(len(lags))
+            rows.append(row)
+    return np.vstack(rows)
+
+
+def cp_orthogonal_projection(n: int) -> tuple[np.ndarray, np.ndarray]:
+    c_mat = cp_path_projection_matrix(n)
+    recon = c_mat.T @ np.linalg.pinv(c_mat @ c_mat.T)
+    m_c = np.eye(n, dtype=float) - recon @ c_mat
+    return c_mat, m_c
+
+
+def real_embedding(values: np.ndarray) -> np.ndarray:
+    return np.concatenate([values.real, values.imag], axis=1)
+
+
+def pm_mode_subset(n: int, max_modes: int | None = None) -> tuple[list[tuple[int, int, int]], np.ndarray]:
+    modes = prime_torus_modes(n, include_zero=False)
+    if max_modes is not None and max_modes > 0:
+        modes = modes[: min(int(max_modes), len(modes))]
+    primes = pm_primes(n)
+    mu = np.array([prime_torus_eigenvalue(mode, primes) for mode in modes], dtype=float)
+    return modes, mu
+
+
+def robust_scale(values: np.ndarray, floor: float = 1e-12) -> np.ndarray:
+    arr = np.asarray(values, dtype=float)
+    scale = np.nanstd(arr, axis=0)
+    scale = np.where(np.isfinite(scale) & (scale > floor), scale, floor)
+    return scale
+
+
+def pm_native_feature_count(model_name: str, args) -> int:
+    c_rows = cp_path_projection_matrix(args.n).shape[0]
+    mode_count = len(prime_torus_modes(args.n, include_zero=False))
+    if model_name == "PM_QDK":
+        return c_rows + 2 * mode_count
+    if model_name == "PM_QDK_2":
+        return 1 + c_rows + 2 * min(int(args.pm_low_modes), mode_count) * len(args.pm_tau_grid_values)
+    if model_name == "PHQO":
+        return int(args.n)
+    return 0
+
+
+def phqo_base_weights(n: int) -> np.ndarray:
+    lag1 = np.zeros(n, dtype=float)
+    lag1[0] = 1.0
+    weekly = np.zeros(n, dtype=float)
+    weekly[: min(5, n)] = 1.0 / float(min(5, n))
+    monthly = np.ones(n, dtype=float) / float(n)
+    beta = (lag1 + weekly + monthly) / 3.0
+    beta = np.clip(beta, 1e-12, None)
+    return beta / beta.sum()
+
+
+def pm_native_manifest_rows(n: int, blocks: list[list[int]], args) -> list[dict]:
+    c_mat, m_c = cp_orthogonal_projection(n)
+    del c_mat
+    modes, mu = pm_mode_subset(n)
+    chars = prime_character_matrix(n, modes, normalize=False)
+    tau = float(args.pm_tau_grid_values[0]) if getattr(args, "pm_tau_grid_values", None) else float(DEFAULT_PM_TAU_GRID.split(",")[0])
+    qdk_weights = (np.conjugate(chars).T @ m_c).T * np.sqrt(np.exp(-tau * mu))[None, :]
+    rows = []
+    for idx, mode in enumerate(modes):
+        base_extra = {
+            "prime_mode": json.dumps(list(mode)),
+            "laplacian_eigenvalue": float(mu[idx]),
+            "diffusion_tau": tau,
+            "model_role": "PM quotient harmonic basis",
+        }
+        rows.append(
+            manifest_row(
+                f"PMQDK_MODE_{idx + 1:02d}_REAL",
+                "PM_QDK_HARMONIC",
+                qdk_weights[:, idx].real,
+                blocks,
+                "PM_QDK",
+                extra={**base_extra, "component": "real"},
+            )
+        )
+        rows.append(
+            manifest_row(
+                f"PMQDK_MODE_{idx + 1:02d}_IMAG",
+                "PM_QDK_HARMONIC",
+                qdk_weights[:, idx].imag,
+                blocks,
+                "PM_QDK",
+                extra={**base_extra, "component": "imag"},
+            )
+        )
+
+    low_modes, low_mu = pm_mode_subset(n, int(args.pm_low_modes))
+    low_chars = prime_character_matrix(n, low_modes, normalize=True)
+    phqo_tau = tau
+    h_pm = np.real(low_chars @ np.diag(np.exp(-phqo_tau * low_mu)) @ np.conjugate(low_chars).T @ m_c)
+    for lag in range(n):
+        rows.append(
+            manifest_row(
+                f"PHQO_ENERGY_LAG_{lag + 1:02d}",
+                "PHQO_ENERGY_FIELD",
+                h_pm[lag, :],
+                blocks,
+                "PHQO",
+                extra={
+                    "diffusion_tau": phqo_tau,
+                    "pm_low_modes": int(args.pm_low_modes),
+                    "model_role": "Prime-harmonic quotient energy row",
+                },
+            )
+        )
+    return rows
+
+
+def pm_qdk_phi(x: np.ndarray, n: int, tau: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    c_mat, m_c = cp_orthogonal_projection(n)
+    modes, mu = pm_mode_subset(n)
+    chars = prime_character_matrix(n, modes, normalize=False)
+    residual = x @ m_c.T
+    coeff = residual @ np.conjugate(chars)
+    coeff = coeff * np.sqrt(np.exp(-float(tau) * mu))[None, :]
+    return x @ c_mat.T, real_embedding(coeff), mu
+
+
+def pm_qdk2_embedding(x: np.ndarray, n: int, tau_grid: list[float], log_eps: float, low_modes: int | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    c_mat, _ = cp_orthogonal_projection(n)
+    modes, mu = pm_mode_subset(n, low_modes)
+    chars = prime_character_matrix(n, modes, normalize=False)
+    z = np.log(np.clip(x, 0.0, None) + log_eps)
+    level = z.mean(axis=1)
+    centered = z - level[:, None]
+    pieces = []
+    base_coeff = centered @ np.conjugate(chars)
+    for tau in tau_grid:
+        pieces.append(base_coeff * np.exp(-float(tau) * mu)[None, :])
+    phi = real_embedding(np.concatenate(pieces, axis=1))
+    return level, x @ c_mat.T, phi
+
+
+def expanding_linear_residuals(target: np.ndarray, controls: np.ndarray, valid: np.ndarray, ridge: float = 1e-8) -> np.ndarray:
+    n_rows, dim = target.shape
+    z = np.column_stack([np.ones(n_rows, dtype=float), controls])
+    q = np.full_like(target, np.nan, dtype=float)
+    p = z.shape[1]
+    zz = np.zeros((p, p), dtype=float)
+    zy = np.zeros((p, dim), dtype=float)
+    count = 0
+    penalty = np.eye(p, dtype=float) * ridge
+    penalty[0, 0] = 0.0
+    for idx in range(n_rows):
+        if count >= p + 2 and np.isfinite(z[idx]).all() and np.isfinite(target[idx]).all():
+            try:
+                beta = np.linalg.solve(zz + penalty, zy)
+            except np.linalg.LinAlgError:
+                beta = np.linalg.pinv(zz + penalty, rcond=1e-10) @ zy
+            q[idx] = target[idx] - z[idx] @ beta
+        elif np.isfinite(target[idx]).all():
+            q[idx] = target[idx]
+        if bool(valid[idx]) and np.isfinite(z[idx]).all() and np.isfinite(target[idx]).all():
+            zz += np.outer(z[idx], z[idx])
+            zy += np.outer(z[idx], target[idx])
+            count += 1
+    return q
+
+
+def weighted_smape_action(y: np.ndarray, weights: np.ndarray, eps: float = 1e-12) -> float:
+    y = np.asarray(y, dtype=float)
+    weights = np.asarray(weights, dtype=float)
+    mask = np.isfinite(y) & np.isfinite(weights) & (weights > 0)
+    y = y[mask]
+    weights = weights[mask]
+    if y.size == 0:
+        return np.nan
+    y = np.clip(y, 0.0, None)
+    high = max(float(np.nanmax(y)) * 2.0, eps)
+    low = 0.0
+
+    def deriv(a: float) -> float:
+        denom = np.square(y + a + eps)
+        left = y < a
+        right = y > a
+        return float(np.sum(weights[left] * 2.0 * y[left] / denom[left]) - np.sum(weights[right] * 2.0 * y[right] / denom[right]))
+
+    if deriv(low) >= 0:
+        return 0.0
+    if deriv(high) <= 0:
+        return high
+    for _ in range(64):
+        mid = 0.5 * (low + high)
+        if deriv(mid) <= 0:
+            low = mid
+        else:
+            high = mid
+    return float(0.5 * (low + high))
+
+
+def validation_window_indices(frame: pd.DataFrame, n: int, warmup: int) -> tuple[int, int]:
+    first_forecast_origin = n + warmup
+    val_start = max(n + 25, int(first_forecast_origin * 0.8))
+    val_start = min(val_start, max(n + 1, first_forecast_origin - 10))
+    return val_start, first_forecast_origin
+
+
+def softmax_weights(log_weights: np.ndarray) -> np.ndarray:
+    log_weights = np.asarray(log_weights, dtype=float)
+    finite = np.isfinite(log_weights)
+    if not finite.any():
+        return np.array([], dtype=float)
+    lw = log_weights[finite]
+    lw = lw - np.max(lw)
+    w = np.exp(np.clip(lw, -745.0, 50.0))
+    total = float(w.sum())
+    if not np.isfinite(total) or total <= 0:
+        return np.array([], dtype=float)
+    out = np.zeros_like(log_weights, dtype=float)
+    out[finite] = w / total
+    return out
+
+
+def candidate_train_indices(valid: np.ndarray, y_next: np.ndarray, i: int, train_window: int | None = None) -> np.ndarray:
+    start = 0
+    if train_window is not None and int(train_window) > 0:
+        start = max(0, i - int(train_window))
+    idx = np.arange(start, i)
+    mask = valid[idx] & np.isfinite(y_next[idx])
+    return idx[mask]
+
+
+def prediction_rows_common(
+    frame: pd.DataFrame,
+    model_name: str,
+    values: list[tuple[int, float]],
+) -> pd.DataFrame:
+    rows = []
+    y_next = pd.to_numeric(frame["RV_d"].shift(-1), errors="coerce").to_numpy(dtype=float)
+    for i, pred in values:
+        actual = float(y_next[i])
+        if not (np.isfinite(pred) and np.isfinite(actual)):
+            continue
+        pred = float(max(pred, 0.0))
+        err = actual - pred
+        denom = max(1e-12, abs(actual) + abs(pred))
+        rows.append(
+            {
+                "Date": frame.index[i + 1],
+                "Actual": actual,
+                f"Predicted_{model_name}": pred,
+                f"Err_{model_name}": err,
+                f"AbsErr_{model_name}": abs(err),
+                f"SMAPE_{model_name}_pct": 200.0 * abs(err) / denom,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def pm_qdk_predict_values(
+    frame: pd.DataFrame,
+    args,
+    params: dict,
+    start_i: int,
+    stop_i: int,
+    max_forecasts: int | None = None,
+) -> list[tuple[int, float]]:
+    x = lag_matrix(frame, args.n)
+    y_next = pd.to_numeric(frame["RV_d"].shift(-1), errors="coerce").to_numpy(dtype=float)
+    valid = np.isfinite(x).all(axis=1)
+    c_state, phi, _ = pm_qdk_phi(x, args.n, float(params["tau"]))
+    scale_end = max(start_i, args.n + 25)
+    c_scale = robust_scale(c_state[:scale_end])
+    h = max(float(params["bandwidth"]), 1e-12)
+    eta = float(params["eta"])
+    values = []
+    for i in range(start_i, min(stop_i, len(frame) - 1)):
+        if not valid[i] or not np.isfinite(y_next[i]):
+            continue
+        train_idx = candidate_train_indices(valid, y_next, i, args.pm_kernel_train_window)
+        if train_idx.size < 5:
+            continue
+        dc = (c_state[train_idx] - c_state[i]) / c_scale
+        d2 = np.sum(dc * dc, axis=1)
+        k_perp = phi[train_idx] @ phi[i]
+        log_w = -0.5 * d2 / (h * h) + eta * k_perp
+        weights = softmax_weights(log_w)
+        if weights.size == 0:
+            continue
+        pred = float(np.sum(weights * y_next[train_idx]))
+        values.append((i, pred))
+        if max_forecasts is not None and len(values) >= max_forecasts:
+            break
+    return values
+
+
+def pm_qdk2_predict_values(
+    frame: pd.DataFrame,
+    args,
+    params: dict,
+    start_i: int,
+    stop_i: int,
+    max_forecasts: int | None = None,
+) -> list[tuple[int, float]]:
+    x = lag_matrix(frame, args.n)
+    y_next = pd.to_numeric(frame["RV_d"].shift(-1), errors="coerce").to_numpy(dtype=float)
+    valid = np.isfinite(x).all(axis=1)
+    level, c_state, phi = pm_qdk2_embedding(x, args.n, args.pm_tau_grid_values, args.log_eps, int(args.pm_low_modes))
+    q = expanding_linear_residuals(phi, c_state, valid & np.isfinite(y_next))
+    scale_end = max(start_i, args.n + 25)
+    level_scale = float(robust_scale(level[:scale_end, None])[0])
+    c_scale = robust_scale(c_state[:scale_end])
+    q_scale = robust_scale(q[:scale_end])
+    h = max(float(params["bandwidth"]), 1e-12)
+    values = []
+    for i in range(start_i, min(stop_i, len(frame) - 1)):
+        if not valid[i] or not np.isfinite(y_next[i]) or not np.isfinite(q[i]).all():
+            continue
+        train_idx = candidate_train_indices(valid & np.isfinite(q).all(axis=1), y_next, i, args.pm_kernel_train_window)
+        if train_idx.size < 5:
+            continue
+        dl = np.square((level[train_idx] - level[i]) / level_scale)
+        dc = (c_state[train_idx] - c_state[i]) / c_scale
+        dq = (q[train_idx] - q[i]) / q_scale
+        d2 = dl + np.sum(dc * dc, axis=1) + np.sum(dq * dq, axis=1) / max(q.shape[1], 1)
+        weights = softmax_weights(-0.5 * d2 / (h * h))
+        if weights.size == 0:
+            continue
+        pred = weighted_smape_action(y_next[train_idx], weights)
+        values.append((i, pred))
+        if max_forecasts is not None and len(values) >= max_forecasts:
+            break
+    return values
+
+
+def cp_prediction_map(
+    frame: pd.DataFrame,
+    feature_groups: dict[str, list[str]],
+    args,
+    max_forecasts: int | None,
+    warmup_override: int | None = None,
+) -> dict[pd.Timestamp, float]:
+    cp_spec = model_spec("CP_REPO_FRESH", feature_groups["CP_REPO_FRESH"], frame, args)
+    cp_pred = fast_expanding_predict(
+        frame,
+        cp_spec,
+        args.n,
+        args.warmup if warmup_override is None else int(warmup_override),
+        target_transform=args.target_transform,
+        log_eps=args.log_eps,
+        max_forecasts=max_forecasts,
+    )
+    if cp_pred.empty:
+        return {}
+    return dict(zip(pd.to_datetime(cp_pred["Date"]), pd.to_numeric(cp_pred["Predicted_CP_REPO_FRESH"], errors="coerce")))
+
+
+def phqo_predict_values(
+    frame: pd.DataFrame,
+    feature_groups: dict[str, list[str]],
+    args,
+    params: dict,
+    start_i: int,
+    stop_i: int,
+    max_forecasts: int | None = None,
+) -> list[tuple[int, float]]:
+    x = lag_matrix(frame, args.n)
+    y_next = pd.to_numeric(frame["RV_d"].shift(-1), errors="coerce").to_numpy(dtype=float)
+    valid = np.isfinite(x).all(axis=1) & np.isfinite(y_next)
+    _, m_c = cp_orthogonal_projection(args.n)
+    modes, mu = pm_mode_subset(args.n, int(args.pm_low_modes))
+    chars = prime_character_matrix(args.n, modes, normalize=True)
+    tau = float(params["tau"])
+    gamma = float(params["gamma"])
+    h_pm = np.real(chars @ np.diag(np.exp(-tau * mu)) @ np.conjugate(chars).T @ m_c)
+    energy = x @ h_pm.T
+    beta = phqo_base_weights(args.n)
+    base_raw = x @ beta
+    cp_map = cp_prediction_map(frame, feature_groups, args, max_forecasts=max_forecasts, warmup_override=max(0, int(start_i) - args.n))
+    values = []
+    for i in range(start_i, min(stop_i, len(frame) - 1)):
+        if not bool(valid[i]):
+            continue
+        date = pd.Timestamp(frame.index[i + 1])
+        cp_pred = cp_map.get(date)
+        if cp_pred is None or not np.isfinite(cp_pred) or not np.isfinite(base_raw[i]) or abs(base_raw[i]) <= 1e-18:
+            continue
+        logits = np.clip(gamma * energy[i], -50.0, 50.0)
+        tilted = beta * np.exp(logits)
+        denom = float(tilted.sum())
+        if not np.isfinite(denom) or denom <= 0:
+            continue
+        weights = tilted / denom * beta.sum()
+        ratio = float((weights @ x[i]) / base_raw[i])
+        pred = float(cp_pred * ratio)
+        values.append((i, pred))
+        if max_forecasts is not None and len(values) >= max_forecasts:
+            break
+    return values
+
+
+def score_prediction_values(frame: pd.DataFrame, values: list[tuple[int, float]]) -> float:
+    pred = prediction_rows_common(frame, "_TMP", values)
+    if pred.empty:
+        return np.inf
+    return float(np.nanmean(pred["SMAPE__TMP_pct"]))
+
+
+def select_pm_native_controls(model_name: str, frame: pd.DataFrame, feature_groups: dict[str, list[str]], args) -> dict:
+    val_start, first_oos = validation_window_indices(frame, args.n, args.warmup)
+    if model_name == "PM_QDK":
+        best = (np.inf, {"tau": args.pm_tau_grid_values[0], "eta": args.pm_eta_grid_values[0], "bandwidth": args.pm_bandwidth_grid_values[0]})
+        for tau in args.pm_tau_grid_values:
+            for eta in args.pm_eta_grid_values:
+                for bandwidth in args.pm_bandwidth_grid_values:
+                    params = {"tau": float(tau), "eta": float(eta), "bandwidth": float(bandwidth)}
+                    score = score_prediction_values(frame, pm_qdk_predict_values(frame, args, params, val_start, first_oos))
+                    if np.isfinite(score) and score < best[0]:
+                        best = (score, params)
+        best[1]["cv_score"] = safe_float(best[0])
+        return best[1]
+    if model_name == "PM_QDK_2":
+        best = (np.inf, {"bandwidth": args.pm_bandwidth_grid_values[0]})
+        for bandwidth in args.pm_bandwidth_grid_values:
+            params = {"bandwidth": float(bandwidth)}
+            score = score_prediction_values(frame, pm_qdk2_predict_values(frame, args, params, val_start, first_oos))
+            if np.isfinite(score) and score < best[0]:
+                best = (score, params)
+        best[1]["cv_score"] = safe_float(best[0])
+        return best[1]
+    if model_name == "PHQO":
+        best = (np.inf, {"tau": args.pm_tau_grid_values[0], "gamma": args.phqo_gamma_grid_values[0]})
+        for tau in args.pm_tau_grid_values:
+            for gamma in args.phqo_gamma_grid_values:
+                params = {"tau": float(tau), "gamma": float(gamma)}
+                score = score_prediction_values(frame, phqo_predict_values(frame, feature_groups, args, params, val_start, first_oos))
+                if np.isfinite(score) and score < best[0]:
+                    best = (score, params)
+        best[1]["cv_score"] = safe_float(best[0])
+        return best[1]
+    raise ValueError(f"Unknown PM-native model {model_name}")
+
+
+def pm_native_expanding_predict(
+    frame: pd.DataFrame,
+    feature_groups: dict[str, list[str]],
+    model_name: str,
+    args,
+    max_forecasts: int | None = None,
+) -> pd.DataFrame:
+    params = select_pm_native_controls(model_name, frame, feature_groups, args)
+    start_i = args.n + args.warmup
+    stop_i = len(frame) - 1
+    if model_name == "PM_QDK":
+        values = pm_qdk_predict_values(frame, args, params, start_i, stop_i, max_forecasts=max_forecasts)
+    elif model_name == "PM_QDK_2":
+        values = pm_qdk2_predict_values(frame, args, params, start_i, stop_i, max_forecasts=max_forecasts)
+    elif model_name == "PHQO":
+        values = phqo_predict_values(frame, feature_groups, args, params, start_i, stop_i, max_forecasts=max_forecasts)
+    else:
+        raise ValueError(f"Unknown PM-native model {model_name}")
+    pred = prediction_rows_common(frame, model_name, values)
+    pred.attrs["pm_native_params"] = params
+    return pred
+
+
 def online_standardize(frame: pd.DataFrame, columns: list[str], min_periods: int = 25) -> tuple[pd.DataFrame, list[str]]:
     out = frame.copy()
     z_cols = []
@@ -863,6 +1394,42 @@ def build_model_registry(n: int) -> dict:
                 "paper_eligible": True,
                 "expected_interpretation": "Optional kernel challenger using repo-CP-controlled prime-signature kernel features.",
             },
+            "PM_QDK": {
+                "feature_families": ["PM_NATIVE_KERNEL"],
+                "includes_cp": True,
+                "includes_raw_pm": False,
+                "shape_features_cp_orthogonal": True,
+                "uses_gate": False,
+                "uses_ridge": False,
+                "is_placebo": False,
+                "paper_eligible": True,
+                "interpretation_status": "exploratory_challenger",
+                "expected_interpretation": "Prime-Modular Quotient Diffusion Kernel using CP-orthogonal lag residuals and prime-torus harmonic diffusion geometry.",
+            },
+            "PM_QDK_2": {
+                "feature_families": ["PM_NATIVE_QUOTIENT_KERNEL"],
+                "includes_cp": True,
+                "includes_raw_pm": False,
+                "shape_features_cp_orthogonal": True,
+                "uses_gate": False,
+                "uses_ridge": False,
+                "is_placebo": False,
+                "paper_eligible": True,
+                "interpretation_status": "exploratory_challenger",
+                "expected_interpretation": "Loss-native PM-QDK-2 forecaster using log-centered PM heat embeddings, train-only CP quotient residualization, and SMAPE-native weighted Bayes action.",
+            },
+            "PHQO": {
+                "feature_families": ["PM_NATIVE_OPERATOR"],
+                "includes_cp": True,
+                "includes_raw_pm": False,
+                "shape_features_cp_orthogonal": True,
+                "uses_gate": True,
+                "uses_ridge": False,
+                "is_placebo": False,
+                "paper_eligible": True,
+                "interpretation_status": "exploratory_challenger",
+                "expected_interpretation": "Prime-Harmonic Quotient Operator that maps CP-invisible prime energy back to lag weights and scales the current CP_REPO_FRESH forecast; gamma=0 is exact CP.",
+            },
         },
     }
     return registry
@@ -921,6 +1488,10 @@ def feature_family(column: str) -> str:
 def validate_model_features(model_name: str, features: list[str], registry: dict, blocks: list[list[int]]) -> None:
     if model_name not in registry["models"]:
         raise ValueError(f"{model_name}: model missing from registry")
+    if model_name in PM_NATIVE_MODELS:
+        if features:
+            raise ValueError(f"{model_name}: PM-native models must use custom predictor geometry, not additive feature columns")
+        return
     entry = registry["models"][model_name]
     allowed = set(entry["feature_families"])
     actual = [feature_family(col) for col in features]
@@ -1068,6 +1639,7 @@ def build_feature_frame(ticker: str, args) -> tuple[pd.DataFrame, dict[str, list
         for feature_name, weight in weights.items():
             shape_weights[feature_name] = weight
             manifest.append(manifest_row(feature_name, family, weight, blocks, source_model))
+    manifest.extend(pm_native_manifest_rows(args.n, blocks, args))
 
     frame = add_weight_features(frame, shape_weights, args.n)
     recent = frame[[f"lag{lag}" for lag in range(1, 4)]].mean(axis=1)
@@ -1120,6 +1692,9 @@ def build_feature_frame(ticker: str, args) -> tuple[pd.DataFrame, dict[str, list
         "RANDOM_GATE_PLACEBO_REPO": cp_cols + [f"RGATED_{col}" for col in z_groups["OPSC"]],
         "RIDGE_AR22": lag_cols,
         "CP_REPO_OPS_K": cp_cols + [f"GATED_{col}" for col in z_groups["KOPS"]],
+        "PM_QDK": [],
+        "PM_QDK_2": [],
+        "PHQO": [],
     }
     registry = getattr(args, "model_registry", None) or build_model_registry(args.n)
     for model_name, cols in features.items():
@@ -1219,6 +1794,8 @@ def validation_score_for_penalties(
 
 
 def select_ridge_controls(model_name: str, features: list[str], frame: pd.DataFrame, args) -> tuple[float, float, str, float]:
+    if model_name in PM_NATIVE_MODELS:
+        return 0.0, 0.0, "pm_native_pre_oos", np.nan
     if model_name not in {
         "CP_REPO_RIDGE_OPS_R",
         "CP_REPO_RIDGE_OPS_C",
@@ -1261,6 +1838,8 @@ def select_ridge_controls(model_name: str, features: list[str], frame: pd.DataFr
 
 
 def model_spec(model_name: str, features: list[str], frame: pd.DataFrame, args) -> ModelSpec:
+    if model_name in PM_NATIVE_MODELS:
+        return ModelSpec(model_name, [], {}, "pm_native_geometry")
     if model_name == "CP_REPO_OPS_K" and not features:
         return ModelSpec(model_name, features, {}, "advanced", scaffolded=True, scaffold_reason="No KOPS features generated")
 
@@ -1537,14 +2116,21 @@ def run_fast_slow_equivalence_audit(outdir: Path, args, asset: str = "AAPL") -> 
         "RANDOM_GATE_PLACEBO_REPO",
         "RIDGE_AR22",
         "CP_REPO_OPS_K",
+        "PM_QDK",
+        "PM_QDK_2",
+        "PHQO",
     ]
     frame, feature_groups, _, _, _ = build_feature_frame(asset, args)
     rows = []
     for model_name in selected:
         try:
             spec = model_spec(model_name, feature_groups[model_name], frame, args)
-            fast = fast_expanding_predict(frame, spec, args.n, args.warmup, args.target_transform, args.log_eps, max_forecasts=8)
-            slow = slow_expanding_predict(frame, spec, args.n, args.warmup, args.target_transform, args.log_eps, max_forecasts=8)
+            if model_name in PM_NATIVE_MODELS:
+                fast = pm_native_expanding_predict(frame, feature_groups, model_name, args, max_forecasts=8)
+                slow = pm_native_expanding_predict(frame, feature_groups, model_name, args, max_forecasts=8)
+            else:
+                fast = fast_expanding_predict(frame, spec, args.n, args.warmup, args.target_transform, args.log_eps, max_forecasts=8)
+                slow = slow_expanding_predict(frame, spec, args.n, args.warmup, args.target_transform, args.log_eps, max_forecasts=8)
             pred_col = f"Predicted_{model_name}"
             merged = fast[["Date", "Actual", pred_col]].merge(
                 slow[["Date", "Actual", pred_col]],
@@ -1569,8 +2155,9 @@ def run_fast_slow_equivalence_audit(outdir: Path, args, asset: str = "AAPL") -> 
             )
             max_diff = float(diff.max()) if not diff.empty else np.inf
             mean_diff = float(diff.mean()) if not diff.empty else np.inf
-            rank = compute_design_rank(frame, spec.features)
-            threshold = 1e-6 if rank < len(spec.features) else 1e-8
+            feature_count = pm_native_feature_count(model_name, args) if model_name in PM_NATIVE_MODELS else len(spec.features)
+            rank = feature_count if model_name in PM_NATIVE_MODELS else compute_design_rank(frame, spec.features)
+            threshold = 1e-6 if rank < feature_count else 1e-8
             passes = bool(not merged.empty and timestamp_alignment_exact and no_duplicate_dates and actual_match and max_diff <= threshold)
             first_fail = ""
             if not passes and not merged.empty:
@@ -1590,8 +2177,8 @@ def run_fast_slow_equivalence_audit(outdir: Path, args, asset: str = "AAPL") -> 
                     "selected_lambda_shape": spec.lambda_shape,
                     "selected_lambda_r_ratio": spec.lambda_r_ratio,
                     "design_rank": rank,
-                    "feature_count": len(spec.features),
-                    "rank_deficient": bool(rank < len(spec.features)),
+                    "feature_count": feature_count,
+                    "rank_deficient": bool(rank < feature_count),
                     "threshold": threshold,
                     "first_failing_timestamp": first_fail,
                     "passes": passes,
@@ -1658,24 +2245,28 @@ def run_strong_fast_slow_equivalence_audit(outdir: Path, args) -> pd.DataFrame:
                 continue
             try:
                 spec = model_spec(model_name, feature_groups[model_name], frame, args)
-                fast = fast_expanding_predict(
-                    frame,
-                    spec,
-                    args.n,
-                    args.warmup,
-                    args.target_transform,
-                    args.log_eps,
-                    max_forecasts=int(args.strong_audit_rows),
-                )
-                slow = slow_expanding_predict(
-                    frame,
-                    spec,
-                    args.n,
-                    args.warmup,
-                    args.target_transform,
-                    args.log_eps,
-                    max_forecasts=int(args.strong_audit_rows),
-                )
+                if model_name in PM_NATIVE_MODELS:
+                    fast = pm_native_expanding_predict(frame, feature_groups, model_name, args, max_forecasts=int(args.strong_audit_rows))
+                    slow = pm_native_expanding_predict(frame, feature_groups, model_name, args, max_forecasts=int(args.strong_audit_rows))
+                else:
+                    fast = fast_expanding_predict(
+                        frame,
+                        spec,
+                        args.n,
+                        args.warmup,
+                        args.target_transform,
+                        args.log_eps,
+                        max_forecasts=int(args.strong_audit_rows),
+                    )
+                    slow = slow_expanding_predict(
+                        frame,
+                        spec,
+                        args.n,
+                        args.warmup,
+                        args.target_transform,
+                        args.log_eps,
+                        max_forecasts=int(args.strong_audit_rows),
+                    )
                 pred_col = f"Predicted_{model_name}"
                 merged = fast[["Date", "Actual", pred_col]].merge(
                     slow[["Date", "Actual", pred_col]],
@@ -1703,8 +2294,9 @@ def run_strong_fast_slow_equivalence_audit(outdir: Path, args) -> pd.DataFrame:
                 )
                 max_diff = float(diff.max()) if not diff.empty else np.inf
                 mean_diff = float(diff.mean()) if not diff.empty else np.inf
-                rank = compute_design_rank(frame, spec.features)
-                threshold = 1e-6 if rank < len(spec.features) else 1e-8
+                feature_count = pm_native_feature_count(model_name, args) if model_name in PM_NATIVE_MODELS else len(spec.features)
+                rank = feature_count if model_name in PM_NATIVE_MODELS else compute_design_rank(frame, spec.features)
+                threshold = 1e-6 if rank < feature_count else 1e-8
                 first_fail = ""
                 if not diff.empty:
                     bad = merged.loc[diff > threshold].head(1)
@@ -1723,8 +2315,8 @@ def run_strong_fast_slow_equivalence_audit(outdir: Path, args) -> pd.DataFrame:
                         "selected_lambda_shape": spec.lambda_shape,
                         "selected_lambda_r_ratio": spec.lambda_r_ratio,
                         "design_rank": rank,
-                        "feature_count": len(spec.features),
-                        "rank_deficient": bool(rank < len(spec.features)),
+                        "feature_count": feature_count,
+                        "rank_deficient": bool(rank < feature_count),
                         "threshold": threshold,
                         "first_failing_timestamp": first_fail,
                         "passes": bool(not merged.empty and timestamp_alignment_exact and no_duplicate_dates and actual_match and max_diff <= threshold),
@@ -2262,7 +2854,8 @@ def compute_results(outdir: Path, mode: str, assets: list[str], models: list[str
             for condition in CONDITION_ORDER:
                 subset = lagged.loc[conditions[condition]].copy()
                 conditional_rows.append(metric_row(subset, model_name, asset, condition, prov))
-                alternative_rows.extend(alternative_loss_rows(subset, model_name, asset, condition))
+                if condition != "all_observations":
+                    alternative_rows.extend(alternative_loss_rows(subset, model_name, asset, condition))
                 if not subset.empty:
                     pooled_piece = subset.copy()
                     pooled_piece["asset"] = asset
@@ -2355,7 +2948,8 @@ def write_figures(results: dict[str, pd.DataFrame], fig_dir: Path) -> None:
     plt.close(fig)
 
     pooled = results["pooled"].copy()
-    focus = pooled[pooled["model_name"].isin(["RAW_CP_REPO_PLUS_PM", "CP_REPO_GATED_RIDGE_OPS_C", "CP_REPO_OPS_HG"])] if not pooled.empty else pd.DataFrame()
+    focus_models = ["RAW_CP_REPO_PLUS_PM", "CP_REPO_GATED_RIDGE_OPS_C", "CP_REPO_OPS_HG", *PM_NATIVE_MODELS]
+    focus = pooled[pooled["model_name"].isin(focus_models)] if not pooled.empty else pd.DataFrame()
     fig, ax = plt.subplots(figsize=(12, 6))
     if focus.empty:
         ax.text(0.5, 0.5, "No conditional rows available", ha="center", va="center")
@@ -2371,6 +2965,149 @@ def write_figures(results: dict[str, pd.DataFrame], fig_dir: Path) -> None:
     fig.tight_layout()
     fig.savefig(fig_dir / "conditional_advantages.png", dpi=180)
     plt.close(fig)
+
+
+def write_pm_native_report(outdir: Path, results: dict[str, pd.DataFrame]) -> None:
+    result_dir = outdir / "results"
+    paper_dir = outdir / "paper_tables"
+    fig_dir = outdir / "figures"
+    for directory in [result_dir, paper_dir, fig_dir]:
+        directory.mkdir(parents=True, exist_ok=True)
+
+    alt = results.get("alternative_loss", pd.DataFrame()).copy()
+    pm_loss = pd.DataFrame()
+    if not alt.empty:
+        pm_loss = alt[
+            alt["model_name"].isin(PM_NATIVE_MODELS)
+            & (alt["condition"] == "all_observations")
+            & (alt["loss_variant"] == "standard")
+            & (alt["loss_metric"].isin(["SMAPE", "MAE", "MSE", "RMSE"]))
+        ].copy()
+        if not pm_loss.empty:
+            pm_loss = pm_loss.sort_values(["loss_metric", "pooled_advantage_CP_minus_model"], ascending=[True, False])
+    write_csv(pm_loss, paper_dir / "pm_native_loss_summary.csv")
+
+    overall = results.get("overall", pd.DataFrame()).copy()
+    consistency_rows = []
+    if not overall.empty:
+        for model_name in PM_NATIVE_MODELS:
+            subset = overall[(overall["model_name"] == model_name) & (overall["condition"] == "all_observations")].copy()
+            if subset.empty:
+                continue
+            consistency_rows.append(
+                {
+                    "model_name": model_name,
+                    "benchmark_model": "CP_REPO_FRESH",
+                    "n_assets": int(subset["asset"].nunique()),
+                    "assets_positive_smape_advantage": int((pd.to_numeric(subset["mean_advantage_vs_CP"], errors="coerce") > 0).sum()),
+                    "assets_positive_mae_advantage": int((pd.to_numeric(subset["mean_abs_error_advantage_vs_CP"], errors="coerce") > 0).sum()),
+                    "equal_weight_mean_smape_advantage": safe_float(pd.to_numeric(subset["mean_advantage_vs_CP"], errors="coerce").mean()),
+                    "equal_weight_mean_abs_error_advantage": safe_float(pd.to_numeric(subset["mean_abs_error_advantage_vs_CP"], errors="coerce").mean()),
+                }
+            )
+    consistency = pd.DataFrame(consistency_rows)
+    write_csv(consistency, paper_dir / "pm_native_asset_consistency.csv")
+
+    ablation = results.get("ablation", pd.DataFrame()).copy()
+    placebo_rows = []
+    placebo_models = ["RANDOM_RESIDUES_PLACEBO_REPO", "SHUFFLED_LAG_PM_PLACEBO_REPO", "RANDOM_GATE_PLACEBO_REPO", "RIDGE_AR22"]
+    if not ablation.empty:
+        for model_name in PM_NATIVE_MODELS:
+            pm_row = ablation[ablation["model_name"] == model_name]
+            if pm_row.empty:
+                continue
+            pm_adv = safe_float(pm_row["mean_advantage_vs_CP"].iloc[0])
+            for placebo in placebo_models:
+                placebo_row = ablation[ablation["model_name"] == placebo]
+                if placebo_row.empty:
+                    continue
+                placebo_adv = safe_float(placebo_row["mean_advantage_vs_CP"].iloc[0])
+                placebo_rows.append(
+                    {
+                        "model_name": model_name,
+                        "placebo_model": placebo,
+                        "pm_smape_advantage": pm_adv,
+                        "placebo_smape_advantage": placebo_adv,
+                        "pm_minus_placebo_smape_advantage": safe_float(pm_adv - placebo_adv),
+                        "pm_beats_placebo": bool(np.isfinite(pm_adv) and np.isfinite(placebo_adv) and pm_adv > placebo_adv),
+                    }
+                )
+    placebo_cmp = pd.DataFrame(placebo_rows)
+    write_csv(placebo_cmp, result_dir / "pm_native_placebo_comparison.csv")
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+    if pm_loss.empty:
+        ax.text(0.5, 0.5, "No PM-native loss rows available", ha="center", va="center")
+        ax.set_axis_off()
+    else:
+        pivot = pm_loss.pivot_table(index="model_name", columns="loss_metric", values="pooled_advantage_CP_minus_model", aggfunc="mean")
+        pivot = pivot.reindex(PM_NATIVE_MODELS)
+        pivot.plot(kind="bar", ax=ax)
+        ax.axhline(0, color="black", linewidth=1)
+        ax.set_ylabel("CP loss minus model loss")
+        ax.set_title("PM-Native Metric Advantages")
+        ax.tick_params(axis="x", rotation=30)
+    fig.tight_layout()
+    fig.savefig(fig_dir / "pm_native_metric_advantages.png", dpi=180)
+    plt.close(fig)
+
+    report_lines = [
+        "# PM-Native Warmup-600 Results Report",
+        "",
+        f"Generated: {utc_now()}",
+        "",
+        "Benchmark: `CP_REPO_FRESH` using repo `RV*` and repo `CP_*` features from `contig_prime_modulo(vol.copy(), n=22, per_day_normalize=False)`.",
+        "PM-native kernels use only prior rows; the configured rolling support cap is recorded in `run_metadata.csv` as `pm_kernel_train_window`.",
+        "",
+        "Positive advantage means lower loss than corrected CP.",
+        "",
+    ]
+    if pm_loss.empty:
+        report_lines.append("No PM-native loss rows were available.")
+    else:
+        report_lines.extend(
+            [
+                "## Global Loss Summary",
+                "",
+                "```text",
+                pm_loss[
+                    [
+                        "model_name",
+                        "loss_metric",
+                        "n_obs_total",
+                        "pooled_CP_loss",
+                        "pooled_model_loss",
+                        "pooled_advantage_CP_minus_model",
+                        "assets_positive",
+                    ]
+                ].to_string(index=False),
+                "```",
+                "",
+            ]
+        )
+    if not consistency.empty:
+        report_lines.extend(
+            [
+                "## Asset Consistency",
+                "",
+                "```text",
+                consistency.to_string(index=False),
+                "```",
+                "",
+            ]
+        )
+    if not placebo_cmp.empty:
+        report_lines.extend(
+            [
+                "## Placebo Comparisons",
+                "",
+                "```text",
+                placebo_cmp.to_string(index=False),
+                "```",
+                "",
+            ]
+        )
+    (result_dir / "pm_native_results_report.md").write_text("\n".join(report_lines) + "\n", encoding="utf-8")
 
 
 def write_raw_cp_pm_reproduction_audit(outdir: Path, results: dict[str, pd.DataFrame]) -> pd.DataFrame:
@@ -2436,6 +3173,12 @@ Generated: {utc_now()}
 - Target transform: `{args.target_transform}`
 - Ridge lambda grid: `{args.lambda_grid}`
 - Ridge R-ratio grid: `{args.lambda_r_ratio_grid}`
+- PM tau grid: `{args.pm_tau_grid}`
+- PM eta grid: `{args.pm_eta_grid}`
+- PM bandwidth grid: `{args.pm_bandwidth_grid}`
+- PHQO gamma grid: `{args.phqo_gamma_grid}`
+- PM low modes: `{args.pm_low_modes}`
+- PM kernel train window: `{args.pm_kernel_train_window}` prior rows (`0` means all prior rows)
 - CV mode: `{args.cv_mode}`
 - Command: `{args.command_line}`
 - Paper eligibility rule: rows are paper eligible only when both the model and CP benchmark were generated in the current full run and exact timestamp/actual alignment passes. Smoke, reused-prior, skipped, and scaffolded rows are excluded.
@@ -2548,6 +3291,7 @@ def write_results(outdir: Path, args, mode_for_tables: str, assets: list[str], m
     write_csv(paper_cond, paper_dir / "conditional_summary.csv")
     write_csv(paper_placebo, paper_dir / "placebo_summary.csv")
     write_figures(results, outdir / "figures")
+    write_pm_native_report(outdir, results)
     return results
 
 
@@ -2578,6 +3322,12 @@ def add_common_metadata(metadata: pd.DataFrame, args, outdir: Path) -> pd.DataFr
         "package_versions_json": getattr(args, "package_versions_json", ""),
         "lambda_grid": args.lambda_grid,
         "lambda_r_ratio_grid": args.lambda_r_ratio_grid,
+        "pm_tau_grid": args.pm_tau_grid,
+        "pm_eta_grid": args.pm_eta_grid,
+        "pm_bandwidth_grid": args.pm_bandwidth_grid,
+        "phqo_gamma_grid": args.phqo_gamma_grid,
+        "pm_low_modes": args.pm_low_modes,
+        "pm_kernel_train_window": args.pm_kernel_train_window,
         "cv_mode": args.cv_mode,
         "target_transform": args.target_transform,
     }
@@ -2615,6 +3365,20 @@ def run_no_lookahead_audit(args, outdir: Path) -> pd.DataFrame:
             "check_name": "gate_uses_lagged_and_prior_scaled_inputs",
             "passed": bool(np.allclose(gate_base.loc[gate_base.index[:75], "GATE_REAL"], gate_changed.loc[gate_changed.index[:75], "GATE_REAL"], equal_nan=True)),
             "details": "Changing future RV values leaves earlier gates unchanged.",
+        }
+    )
+
+    pm_base = add_lag_columns(base, args.n)
+    pm_future = add_lag_columns(future, args.n)
+    base_x = lag_matrix(pm_base, args.n)
+    future_x = lag_matrix(pm_future, args.n)
+    _, base_phi, _ = pm_qdk_phi(base_x, args.n, float(args.pm_tau_grid_values[0]))
+    _, future_phi, _ = pm_qdk_phi(future_x, args.n, float(args.pm_tau_grid_values[0]))
+    rows.append(
+        {
+            "check_name": "pm_harmonic_embedding_uses_lagged_inputs_only",
+            "passed": bool(np.allclose(base_phi[:75], future_phi[:75], equal_nan=True)),
+            "details": "Changing future RV values leaves earlier PM-QDK harmonic embeddings unchanged.",
         }
     )
 
@@ -2880,19 +3644,32 @@ def process_asset(asset: str, models: list[str], args, dirs: dict[str, Path]) ->
                 )
                 continue
 
-            design_rank = compute_design_rank(feature_frame, spec.features)
-            pred = fast_expanding_predict(
-                feature_frame,
-                spec,
-                args.n,
-                args.warmup,
-                target_transform=args.target_transform,
-                log_eps=args.log_eps,
-                max_forecasts=max_rows,
-            )
+            if model_name in PM_NATIVE_MODELS:
+                design_rank = pm_native_feature_count(model_name, args)
+                pred = pm_native_expanding_predict(
+                    feature_frame,
+                    feature_groups,
+                    model_name,
+                    args,
+                    max_forecasts=max_rows,
+                )
+                pm_params = pred.attrs.get("pm_native_params", {})
+            else:
+                design_rank = compute_design_rank(feature_frame, spec.features)
+                pred = fast_expanding_predict(
+                    feature_frame,
+                    spec,
+                    args.n,
+                    args.warmup,
+                    target_transform=args.target_transform,
+                    log_eps=args.log_eps,
+                    max_forecasts=max_rows,
+                )
+                pm_params = {}
             if pred.empty:
                 raise RuntimeError(f"{model_name} produced no predictions")
             append_prediction(pred_path, pred, model_name, force=args.force)
+            feature_count = pm_native_feature_count(model_name, args) if model_name in PM_NATIVE_MODELS else int(len(spec.features))
             metadata_rows.append(
                 {
                     "time_utc": utc_now(),
@@ -2905,16 +3682,20 @@ def process_asset(asset: str, models: list[str], args, dirs: dict[str, Path]) ->
                     "phase": args.phase,
                     "seed": args.seed,
                     "n_obs": int(len(pred)),
-                    "feature_count": int(len(spec.features)),
+                    "feature_count": feature_count,
                     "design_rank": design_rank,
-                    "rank_deficient": bool(design_rank < len(spec.features)),
+                    "rank_deficient": bool(design_rank < feature_count),
                     "seconds": time.perf_counter() - started,
                     "scaffolded": False,
                     "model_family": spec.family,
                     "selected_lambda_shape": spec.lambda_shape,
                     "selected_lambda_r_ratio": spec.lambda_r_ratio,
                     "cv_mode_effective": spec.cv_mode_effective,
-                    "cv_score": spec.cv_score,
+                    "cv_score": pm_params.get("cv_score", spec.cv_score),
+                    "selected_pm_tau": pm_params.get("tau", np.nan),
+                    "selected_pm_eta": pm_params.get("eta", np.nan),
+                    "selected_pm_bandwidth": pm_params.get("bandwidth", np.nan),
+                    "selected_phqo_gamma": pm_params.get("gamma", np.nan),
                     "target_transform": args.target_transform,
                     **feature_meta,
                 }
@@ -2995,6 +3776,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-forecasts", type=int, default=0, help="Optional cap for full/debug runs; 0 means no cap.")
     parser.add_argument("--lambda-grid", default=DEFAULT_LAMBDA_GRID)
     parser.add_argument("--lambda-r-ratio-grid", default=DEFAULT_LAMBDA_R_RATIO_GRID)
+    parser.add_argument("--pm-tau-grid", default=DEFAULT_PM_TAU_GRID)
+    parser.add_argument("--pm-eta-grid", default=DEFAULT_PM_ETA_GRID)
+    parser.add_argument("--pm-bandwidth-grid", default=DEFAULT_PM_BANDWIDTH_GRID)
+    parser.add_argument("--phqo-gamma-grid", default=DEFAULT_PHQO_GAMMA_GRID)
+    parser.add_argument("--pm-low-modes", type=int, default=DEFAULT_PM_LOW_MODES)
+    parser.add_argument("--pm-kernel-train-window", type=int, default=DEFAULT_PM_KERNEL_TRAIN_WINDOW, help="Maximum prior rows used by PM-native kernel smoothers; 0 means all prior rows.")
     parser.add_argument("--cv-mode", choices=["auto", "fixed", "inner"], default="auto")
     parser.add_argument("--target-transform", choices=["level", "log"], default="level")
     parser.add_argument("--log-eps", type=float, default=LOG_EPS_DEFAULT)
@@ -3045,6 +3832,8 @@ def write_run_files(
         result_dir / "inference_summary.csv",
         result_dir / "alternative_loss_summary_by_asset.csv",
         result_dir / "alternative_loss_summary.csv",
+        result_dir / "pm_native_placebo_comparison.csv",
+        result_dir / "pm_native_results_report.md",
         result_dir / "placebo_diagnostics.csv",
         result_dir / "model_feature_manifest.csv",
         result_dir / "model_construction_proof.md",
@@ -3053,8 +3842,11 @@ def write_run_files(
         outdir / "paper_tables" / "main_model_summary.csv",
         outdir / "paper_tables" / "conditional_summary.csv",
         outdir / "paper_tables" / "placebo_summary.csv",
+        outdir / "paper_tables" / "pm_native_loss_summary.csv",
+        outdir / "paper_tables" / "pm_native_asset_consistency.csv",
         outdir / "figures" / "ablation_ladder.png",
         outdir / "figures" / "conditional_advantages.png",
+        outdir / "figures" / "pm_native_metric_advantages.png",
         outdir / "README.md",
     ]
     missing = [str(path) for path in required if not path.exists()]
@@ -3097,6 +3889,10 @@ def main() -> None:
     args.max_forecasts = None if int(args.max_forecasts or 0) <= 0 else int(args.max_forecasts)
     args.lambda_grid_values = parse_float_grid(args.lambda_grid, DEFAULT_LAMBDA_GRID)
     args.lambda_r_ratio_grid_values = parse_float_grid(args.lambda_r_ratio_grid, DEFAULT_LAMBDA_R_RATIO_GRID)
+    args.pm_tau_grid_values = parse_float_grid(args.pm_tau_grid, DEFAULT_PM_TAU_GRID)
+    args.pm_eta_grid_values = parse_float_grid(args.pm_eta_grid, DEFAULT_PM_ETA_GRID)
+    args.pm_bandwidth_grid_values = parse_float_grid(args.pm_bandwidth_grid, DEFAULT_PM_BANDWIDTH_GRID)
+    args.phqo_gamma_grid_values = parse_float_grid(args.phqo_gamma_grid, DEFAULT_PHQO_GAMMA_GRID)
     fallback_blocks(args.n)
     args.assets_resolved = parse_csv(args.assets, DEFAULT_ASSETS)
     phase_models = PHASE_MODELS[args.phase]

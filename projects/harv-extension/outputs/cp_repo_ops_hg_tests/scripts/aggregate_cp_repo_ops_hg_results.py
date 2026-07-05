@@ -38,7 +38,11 @@ DEFAULT_MODELS = [
     "RANDOM_GATE_PLACEBO_REPO",
     "RIDGE_AR22",
     "CP_REPO_OPS_K",
+    "PM_QDK",
+    "PM_QDK_2",
+    "PHQO",
 ]
+PM_NATIVE_MODELS = {"PM_QDK", "PM_QDK_2", "PHQO"}
 PLACEBO_MODELS = {
     "RANDOM_RESIDUES_PLACEBO_REPO",
     "SHUFFLED_LAG_PM_PLACEBO_REPO",
@@ -251,6 +255,7 @@ def main() -> None:
         "model_conditional_by_asset.csv",
         "inference_summary.csv",
         "alternative_loss_summary_by_asset.csv",
+        "pm_native_placebo_comparison.csv",
     ]
     combined = {name: concat_result(asset_roots, name) for name in result_files}
     for name, frame in combined.items():

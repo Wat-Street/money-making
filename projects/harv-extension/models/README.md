@@ -48,6 +48,19 @@ This is the active 18-model suite used for Prop 4 testing. Results compare again
 | `RANDOM_GATE_PLACEBO_REPO` | Random gate placebo. |
 | `RIDGE_AR22` | Flexible AR(22) ridge benchmark. |
 | `CP_REPO_OPS_K` | Optional kernel challenger in the Prop 4 suite. |
+| `PM_QDK` | PM-native quotient diffusion kernel using CP-orthogonal prime-torus harmonics. |
+| `PM_QDK_2` | Loss-native quotient kernel using log-centered PM heat embeddings and train-only CP-fiber residualization. |
+| `PHQO` | Prime-Harmonic Quotient Operator that warps CP weights and nests exact CP when `gamma=0`. |
+
+## PM-Native Warmup-600 Geometry Challengers
+
+These exploratory challengers test whether PM should act as a geometry of averaging/comparison rather than an additive feature block. They are evaluated against `CP_REPO_FRESH` with `n=22`, `warmup=600`, and no global standardization or lookahead.
+
+| Model | Meaning |
+|---|---|
+| `PM_QDK` | CP state plus CP-invisible prime-modular harmonic diffusion kernel. |
+| `PM_QDK_2` | Level, CP state, and quotient PM heat geometry with a SMAPE-native weighted Bayes action. |
+| `PHQO` | Prime-harmonic energy field mapped back to lag weights, scaled by the current CP forecast for exact CP nesting at `gamma=0`. |
 
 ## Section 5 Robustness And Control Families
 

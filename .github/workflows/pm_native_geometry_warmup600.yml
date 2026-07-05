@@ -1,0 +1,346 @@
+name: PM Native Geometry Warmup-600
+
+on:
+  workflow_dispatch:
+    inputs:
+      assets:
+        description: "Comma-separated assets to run"
+        required: true
+        default: "AAPL,SPY,GLD"
+      seed:
+        description: "Deterministic seed"
+        required: true
+        default: "42"
+      max_parallel:
+        description: "Maximum concurrent asset jobs"
+        required: true
+        default: "3"
+      run_audits:
+        description: "Run no-lookahead, repo-CP, and fast-vs-slow audits"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      pm_tau_grid:
+        description: "PM diffusion tau grid"
+        required: true
+        default: "0.05,0.1,0.25,0.5,1.0"
+      pm_eta_grid:
+        description: "PM-QDK eta grid"
+        required: true
+        default: "0,0.25,0.5,1.0"
+      pm_bandwidth_grid:
+        description: "PM kernel bandwidth grid"
+        required: true
+        default: "0.5,1,2"
+      phqo_gamma_grid:
+        description: "PHQO gamma grid"
+        required: true
+        default: "0,0.25,0.5,1,2"
+      pm_low_modes:
+        description: "PHQO low prime-harmonic modes"
+        required: true
+        default: "12"
+      pm_kernel_train_window:
+        description: "Maximum prior rows used by PM-native kernel smoothers; 0 means all prior rows"
+        required: true
+        default: "2500"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  asset-full-run:
+    name: PM Native ${{ matrix.asset }}
+    if: ${{ contains(format(',{0},', inputs.assets), format(',{0},', matrix.asset)) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.max_parallel) }}
+      matrix:
+        asset: [AAPL, AMZN, EEM, FXI, GLD, GOOGL, HYG, QQQ, SPY, TLT]
+    env:
+      ASSET: ${{ matrix.asset }}
+      RUN_AUDITS: ${{ inputs.run_audits }}
+      OUTDIR: outputs/pm_native_geometry_warmup600_actions/${{ github.run_id }}/${{ matrix.asset }}
+      CHALLENGERS: PM_QDK,PM_QDK_2,PHQO
+      MODELS_WITH_CP: CP_REPO_FRESH,PM_QDK,PM_QDK_2,PHQO
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: cp-pm-incremental-actions
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: projects/harv-extension
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==1.26.4 pandas==2.2.2 scipy==1.13.1 statsmodels==0.14.4 scikit-learn==1.5.0 matplotlib==3.9.0 yfinance==0.2.40 joblib==1.4.2
+
+      - name: Run PM-native challengers for asset
+        working-directory: projects/harv-extension
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p "${OUTDIR}/logs"
+          AUDIT_ARGS=""
+          if [ "${RUN_AUDITS}" = "true" ]; then
+            AUDIT_ARGS="--audit-no-lookahead --audit-repo-cp-reproduction --audit-fast-slow-equivalence"
+          fi
+          python outputs/cp_repo_ops_hg_tests/scripts/run_cp_repo_ops_hg_tests.py \
+            --mode full \
+            --phase all \
+            --assets "${ASSET}" \
+            --models "${CHALLENGERS}" \
+            --n 22 \
+            --warmup 600 \
+            --seed "${{ inputs.seed }}" \
+            --outdir "${OUTDIR}" \
+            --force \
+            ${AUDIT_ARGS} \
+            --cv-mode inner \
+            --pm-tau-grid "${{ inputs.pm_tau_grid }}" \
+            --pm-eta-grid "${{ inputs.pm_eta_grid }}" \
+            --pm-bandwidth-grid "${{ inputs.pm_bandwidth_grid }}" \
+            --phqo-gamma-grid "${{ inputs.phqo_gamma_grid }}" \
+            --pm-low-modes "${{ inputs.pm_low_modes }}" \
+            --pm-kernel-train-window "${{ inputs.pm_kernel_train_window }}" \
+            2>&1 | tee "${OUTDIR}/logs/full_${ASSET}.log"
+
+      - name: Validate asset output
+        if: always()
+        working-directory: projects/harv-extension
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          from pathlib import Path
+
+          import pandas as pd
+
+          asset = os.environ["ASSET"]
+          outdir = Path(os.environ["OUTDIR"])
+          models = os.environ["MODELS_WITH_CP"].split(",")
+          run_audits = os.environ.get("RUN_AUDITS", "true") == "true"
+          failures = []
+
+          def fail(message):
+              failures.append(message)
+
+          pred_path = outdir / "predictions" / "full" / f"{asset}.csv"
+          if not pred_path.exists():
+              fail(f"missing prediction file: {pred_path}")
+          else:
+              pred = pd.read_csv(pred_path)
+              for model in models:
+                  col = f"Predicted_{model}"
+                  if col not in pred.columns or pred[col].dropna().empty:
+                      fail(f"{asset}: missing/nonempty prediction column {col}")
+                  elif not pd.to_numeric(pred[col], errors="coerce").dropna().map(pd.notna).all():
+                      fail(f"{asset}: non-finite values in {col}")
+
+          metadata_path = outdir / "results" / "run_metadata.csv"
+          if not metadata_path.exists():
+              fail("missing run_metadata.csv")
+          else:
+              metadata = pd.read_csv(metadata_path)
+              completed = set(metadata.loc[metadata["status"] == "complete", "model_name"].astype(str))
+              missing = sorted(set(models) - completed)
+              if missing:
+                  fail(f"models not complete: {missing}")
+
+          required = [
+              outdir / "results" / "model_overall_by_asset.csv",
+              outdir / "results" / "alternative_loss_summary.csv",
+              outdir / "results" / "pm_native_results_report.md",
+              outdir / "paper_tables" / "pm_native_loss_summary.csv",
+              outdir / "paper_tables" / "pm_native_asset_consistency.csv",
+              outdir / "figures" / "pm_native_metric_advantages.png",
+          ]
+          for path in required:
+              if not path.exists():
+                  fail(f"missing required output: {path}")
+
+          if run_audits:
+              for name, column in [("repo_cp_reproduction_audit.csv", "passes"), ("fast_slow_equivalence_audit.csv", "passes")]:
+                  path = outdir / "results" / name
+                  if not path.exists():
+                      fail(f"missing {name}")
+                  else:
+                      audit = pd.read_csv(path)
+                      if audit.empty or column not in audit.columns or not bool(audit[column].astype(bool).all()):
+                          fail(f"{name} failed")
+          no_lookahead = outdir / "results" / "no_lookahead_audit.csv"
+          if not no_lookahead.exists():
+              fail("missing no_lookahead_audit.csv")
+          else:
+              audit = pd.read_csv(no_lookahead)
+              if audit.empty or "passed" not in audit.columns or not bool(audit["passed"].astype(bool).all()):
+                  fail("no-lookahead audit failed")
+
+          if (outdir / "SUCCESS.txt").exists():
+              fail("per-asset job wrote SUCCESS.txt; only combined output may do that")
+
+          summary = outdir / "logs" / f"validation_{asset}.txt"
+          summary.parent.mkdir(parents=True, exist_ok=True)
+          if failures:
+              summary.write_text("\n".join(failures) + "\n", encoding="utf-8")
+              for item in failures:
+                  print(f"VALIDATION FAILURE: {item}")
+              sys.exit(1)
+          summary.write_text(f"{asset} validation passed\n", encoding="utf-8")
+          print(f"{asset} validation passed")
+          PY
+
+      - name: Upload asset artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pm-native-geometry-${{ matrix.asset }}-${{ github.run_id }}
+          path: projects/harv-extension/outputs/pm_native_geometry_warmup600_actions/${{ github.run_id }}/${{ matrix.asset }}/
+          if-no-files-found: warn
+          retention-days: 30
+
+  aggregate:
+    name: PM Native aggregate artifacts
+    needs: asset-full-run
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      RUN_ID: ${{ github.run_id }}
+      RUN_AUDITS: ${{ inputs.run_audits }}
+      ASSETS: ${{ inputs.assets }}
+      CHALLENGERS: PM_QDK,PM_QDK_2,PHQO
+      MODELS_WITH_CP: CP_REPO_FRESH,PM_QDK,PM_QDK_2,PHQO
+      COMBINED_OUTDIR: outputs/pm_native_geometry_warmup600_actions/${{ github.run_id }}/combined
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: cp-pm-incremental-actions
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: projects/harv-extension
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==1.26.4 pandas==2.2.2 scipy==1.13.1 statsmodels==0.14.4 scikit-learn==1.5.0 matplotlib==3.9.0 yfinance==0.2.40 joblib==1.4.2
+
+      - name: Download per-asset artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pm-native-geometry-*-${{ github.run_id }}
+          path: projects/harv-extension/_pm_native_geometry_artifacts
+          merge-multiple: false
+
+      - name: Aggregate and regenerate tables
+        working-directory: projects/harv-extension
+        shell: bash
+        run: |
+          python outputs/cp_repo_ops_hg_tests/scripts/aggregate_cp_repo_ops_hg_results.py \
+            --artifacts-dir _pm_native_geometry_artifacts \
+            --outdir "${COMBINED_OUTDIR}" \
+            --assets "${ASSETS}" \
+            --models "${MODELS_WITH_CP}" \
+            --copy-predictions \
+            --run-audits "${RUN_AUDITS}"
+          python outputs/cp_repo_ops_hg_tests/scripts/run_cp_repo_ops_hg_tests.py \
+            --mode tables-only \
+            --phase all \
+            --assets "${ASSETS}" \
+            --models "${CHALLENGERS}" \
+            --n 22 \
+            --warmup 600 \
+            --seed "${{ inputs.seed }}" \
+            --outdir "${COMBINED_OUTDIR}" \
+            --pm-tau-grid "${{ inputs.pm_tau_grid }}" \
+            --pm-eta-grid "${{ inputs.pm_eta_grid }}" \
+            --pm-bandwidth-grid "${{ inputs.pm_bandwidth_grid }}" \
+            --phqo-gamma-grid "${{ inputs.phqo_gamma_grid }}" \
+            --pm-low-modes "${{ inputs.pm_low_modes }}" \
+            --pm-kernel-train-window "${{ inputs.pm_kernel_train_window }}"
+
+      - name: Validate combined output
+        if: always()
+        working-directory: projects/harv-extension
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          from pathlib import Path
+
+          import pandas as pd
+
+          combined = Path(os.environ["COMBINED_OUTDIR"])
+          assets = [x.strip() for x in os.environ["ASSETS"].split(",") if x.strip()]
+          models = os.environ["MODELS_WITH_CP"].split(",")
+          failures = []
+
+          def fail(message):
+              failures.append(message)
+
+          for asset in assets:
+              pred_path = combined / "predictions" / "full" / f"{asset}.csv"
+              if not pred_path.exists():
+                  fail(f"missing prediction file for {asset}")
+                  continue
+              pred = pd.read_csv(pred_path)
+              for model in models:
+                  col = f"Predicted_{model}"
+                  if col not in pred.columns or pred[col].dropna().empty:
+                      fail(f"{asset}: missing/nonempty prediction column {col}")
+
+          for path in [
+              combined / "results" / "aggregate_audit_summary.csv",
+              combined / "results" / "model_overall_by_asset.csv",
+              combined / "results" / "alternative_loss_summary.csv",
+              combined / "results" / "pm_native_results_report.md",
+              combined / "paper_tables" / "pm_native_loss_summary.csv",
+              combined / "paper_tables" / "pm_native_asset_consistency.csv",
+              combined / "figures" / "pm_native_metric_advantages.png",
+          ]:
+              if not path.exists():
+                  fail(f"missing required combined output: {path}")
+
+          audit_path = combined / "results" / "aggregate_audit_summary.csv"
+          if audit_path.exists():
+              audit = pd.read_csv(audit_path)
+              if audit.empty or "passed" not in audit.columns or not bool(audit["passed"].astype(bool).all()):
+                  fail("aggregate audit failed")
+
+          summary = combined / "logs" / "combined_validation.txt"
+          summary.parent.mkdir(parents=True, exist_ok=True)
+          if failures:
+              summary.write_text("\n".join(failures) + "\n", encoding="utf-8")
+              for item in failures:
+                  print(f"VALIDATION FAILURE: {item}")
+              sys.exit(1)
+          (combined / "SUCCESS.txt").write_text("PM-native warmup-600 combined run completed successfully\n", encoding="utf-8")
+          summary.write_text("combined validation passed\n", encoding="utf-8")
+          print("combined validation passed")
+          PY
+
+      - name: Upload combined artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pm-native-geometry-combined-${{ github.run_id }}
+          path: projects/harv-extension/outputs/pm_native_geometry_warmup600_actions/${{ github.run_id }}/combined/
+          if-no-files-found: warn
+          retention-days: 30
