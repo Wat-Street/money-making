@@ -1,0 +1,71 @@
+asset,audit_name,passed,fatal,details
+AMZN,cp_construction_reproduction,True,True,source rows=10
+AMZN,no_lookahead,True,True,source rows=50
+AMZN,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+AMZN,selected_hyperparameters_in_declared_grids,True,True,selected_pm_bandwidth=[2.0]; selected_pm_tau=[0.05]; selected_pm_eta=[1.0]; selected_phqo_gamma=[0.0]
+AMZN,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+AMZN,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+AMZN,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+EEM,cp_construction_reproduction,True,True,source rows=10
+EEM,no_lookahead,True,True,source rows=50
+EEM,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+EEM,selected_hyperparameters_in_declared_grids,True,True,selected_pm_bandwidth=[2.0]; selected_pm_tau=[0.05]; selected_pm_eta=[1.0]; selected_phqo_gamma=[2.0]
+EEM,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+EEM,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+EEM,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+GOOGL,cp_construction_reproduction,True,True,source rows=10
+GOOGL,no_lookahead,True,True,source rows=50
+GOOGL,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+GOOGL,selected_hyperparameters_in_declared_grids,True,True,"selected_pm_bandwidth=[2.0]; selected_pm_tau=[0.25, 0.05]; selected_pm_eta=[1.0]; selected_phqo_gamma=[2.0]"
+GOOGL,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+GOOGL,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+GOOGL,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+HYG,cp_construction_reproduction,True,True,source rows=10
+HYG,no_lookahead,True,True,source rows=50
+HYG,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+HYG,selected_hyperparameters_in_declared_grids,True,True,"selected_pm_bandwidth=[2.0, 1.0]; selected_pm_tau=[0.05]; selected_pm_eta=[1.0]; selected_phqo_gamma=[2.0]"
+HYG,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+HYG,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+HYG,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+GLD,cp_construction_reproduction,True,True,source rows=10
+GLD,no_lookahead,True,True,source rows=50
+GLD,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+GLD,selected_hyperparameters_in_declared_grids,True,True,selected_pm_bandwidth=[2.0]; selected_pm_tau=[0.05]; selected_pm_eta=[0.0]; selected_phqo_gamma=[2.0]
+GLD,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+GLD,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+GLD,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+SPY,cp_construction_reproduction,True,True,source rows=10
+SPY,no_lookahead,True,True,source rows=50
+SPY,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+SPY,selected_hyperparameters_in_declared_grids,True,True,"selected_pm_bandwidth=[0.5, 2.0]; selected_pm_tau=[0.05]; selected_pm_eta=[0.0]; selected_phqo_gamma=[0.0]"
+SPY,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+SPY,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+SPY,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+TLT,cp_construction_reproduction,True,True,source rows=10
+TLT,no_lookahead,True,True,source rows=50
+TLT,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+TLT,selected_hyperparameters_in_declared_grids,True,True,"selected_pm_bandwidth=[2.0]; selected_pm_tau=[1.0, 0.05]; selected_pm_eta=[1.0]; selected_phqo_gamma=[2.0]"
+TLT,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+TLT,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+TLT,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+AAPL,cp_construction_reproduction,True,True,source rows=10
+AAPL,no_lookahead,True,True,source rows=50
+AAPL,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+AAPL,selected_hyperparameters_in_declared_grids,True,True,"selected_pm_bandwidth=[0.5, 2.0]; selected_pm_tau=[0.05]; selected_pm_eta=[0.0]; selected_phqo_gamma=[0.0]"
+AAPL,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+AAPL,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+AAPL,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+FXI,cp_construction_reproduction,True,True,source rows=10
+FXI,no_lookahead,True,True,source rows=50
+FXI,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+FXI,selected_hyperparameters_in_declared_grids,True,True,selected_pm_bandwidth=[2.0]; selected_pm_tau=[0.05]; selected_pm_eta=[1.0]; selected_phqo_gamma=[0.0]
+FXI,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+FXI,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36817; PM_QDK_overlap=36817
+FXI,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
+QQQ,cp_construction_reproduction,True,True,source rows=10
+QQQ,no_lookahead,True,True,source rows=50
+QQQ,hyperparameter_selection_pre_oos,True,True,val_start=497; first_oos_origin=622; first_oos_target=623
+QQQ,selected_hyperparameters_in_declared_grids,True,True,"selected_pm_bandwidth=[1.0, 2.0]; selected_pm_tau=[0.05]; selected_pm_eta=[1.0]; selected_phqo_gamma=[0.0]"
+QQQ,feature_leakage_cp_repo_fresh_contract,True,True,cp_feature_count=13; forbidden=[]
+QQQ,asset_oos_alignment_core_models,True,True,PM_QDK_2_overlap=36739; PM_QDK_overlap=36739
+QQQ,placebo_matched_feature_count_smoothing_tuning_budget,True,False,"expected_phi_dim=120; placebo_dims=[120, 120, 120]; bandwidth_grid=[0.5, 1.0, 2.0]"
