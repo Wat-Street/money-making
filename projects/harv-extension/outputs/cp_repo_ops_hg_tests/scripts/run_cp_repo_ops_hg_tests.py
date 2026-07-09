@@ -2656,42 +2656,48 @@ def provenance_for(meta_map: dict, asset: str, model: str, cp_meta: dict | None 
     }
 
 
+def inference_row(frame: pd.DataFrame, model_name: str, condition: str) -> dict | None:
+    model_col = f"SMAPE_{model_name}_pct"
+    if frame.empty or model_col not in frame.columns:
+        return None
+    advantage = frame["SMAPE_CP_REPO_FRESH_pct"].astype(float) - frame[model_col].astype(float)
+    mean_value = float(advantage.mean())
+    se = standard_error(advantage)
+    asset_means = frame.assign(_advantage=advantage).groupby("asset", observed=True)["_advantage"].mean()
+    return {
+        "model_name": model_name,
+        "condition": condition,
+        "n_obs": int(len(advantage.dropna())),
+        "mean_advantage_vs_CP": safe_float(mean_value),
+        "standard_error": safe_float(se),
+        "ci_low_approx": safe_float(mean_value - 1.96 * se) if np.isfinite(se) else np.nan,
+        "ci_high_approx": safe_float(mean_value + 1.96 * se) if np.isfinite(se) else np.nan,
+        "p_value_mean_advantage_gt_0": one_sided_pvalue(mean_value, se),
+        "asset_sign_count": int((asset_means > 0).sum() - (asset_means < 0).sum()),
+        "number_of_assets_positive": int((asset_means > 0).sum()),
+        "number_of_assets": int(len(asset_means)),
+        "inference_method": "normal_approx_row_se",
+    }
+
+
+def finalize_inference(rows: list[dict]) -> pd.DataFrame:
+    inference = pd.DataFrame(rows)
+    if not inference.empty:
+        inference["fdr_adjusted_p_value"] = bh_fdr(inference["p_value_mean_advantage_gt_0"])
+    return inference
+
+
 def compute_inference_summary(pooled_all: pd.DataFrame) -> pd.DataFrame:
     rows = []
     if pooled_all.empty:
         return pd.DataFrame()
     for model_name in sorted(pooled_all["model_name"].unique(), key=lambda x: MODEL_ORDER.index(x) if x in MODEL_ORDER else 999):
-        model_col = f"SMAPE_{model_name}_pct"
-        if model_col not in pooled_all.columns:
-            continue
         for condition in CONDITION_ORDER:
-            subset = pooled_all[(pooled_all["model_name"] == model_name) & (pooled_all["condition"] == condition)].copy()
-            if subset.empty:
-                continue
-            advantage = subset["SMAPE_CP_REPO_FRESH_pct"].astype(float) - subset[model_col].astype(float)
-            mean_value = float(advantage.mean())
-            se = standard_error(advantage)
-            asset_means = subset.assign(_advantage=advantage).groupby("asset")["_advantage"].mean()
-            rows.append(
-                {
-                    "model_name": model_name,
-                    "condition": condition,
-                    "n_obs": int(len(advantage.dropna())),
-                    "mean_advantage_vs_CP": safe_float(mean_value),
-                    "standard_error": safe_float(se),
-                    "ci_low_approx": safe_float(mean_value - 1.96 * se) if np.isfinite(se) else np.nan,
-                    "ci_high_approx": safe_float(mean_value + 1.96 * se) if np.isfinite(se) else np.nan,
-                    "p_value_mean_advantage_gt_0": one_sided_pvalue(mean_value, se),
-                    "asset_sign_count": int((asset_means > 0).sum() - (asset_means < 0).sum()),
-                    "number_of_assets_positive": int((asset_means > 0).sum()),
-                    "number_of_assets": int(len(asset_means)),
-                    "inference_method": "normal_approx_row_se",
-                }
-            )
-    inference = pd.DataFrame(rows)
-    if not inference.empty:
-        inference["fdr_adjusted_p_value"] = bh_fdr(inference["p_value_mean_advantage_gt_0"])
-    return inference
+            subset = pooled_all[(pooled_all["model_name"] == model_name) & (pooled_all["condition"] == condition)]
+            row = inference_row(subset, model_name, condition)
+            if row is not None:
+                rows.append(row)
+    return finalize_inference(rows)
 
 
 def mean_loss(actual: pd.Series, pred: pd.Series, metric: str) -> float:
@@ -2778,8 +2784,14 @@ def aggregate_alternative_loss(alternative_by_asset: pd.DataFrame) -> pd.DataFra
         weights = pd.to_numeric(group["n_obs"], errors="coerce").fillna(0.0)
         total = float(weights.sum())
         if total > 0:
-            cp_loss = float((pd.to_numeric(group["CP_loss"], errors="coerce") * weights).sum() / total)
-            model_loss = float((pd.to_numeric(group["model_loss"], errors="coerce") * weights).sum() / total)
+            cp_values = pd.to_numeric(group["CP_loss"], errors="coerce")
+            model_values = pd.to_numeric(group["model_loss"], errors="coerce")
+            if rec["loss_metric"] == "RMSE":
+                cp_loss = math.sqrt(float((np.square(cp_values) * weights).sum() / total))
+                model_loss = math.sqrt(float((np.square(model_values) * weights).sum() / total))
+            else:
+                cp_loss = float((cp_values * weights).sum() / total)
+                model_loss = float((model_values * weights).sum() / total)
         else:
             cp_loss = np.nan
             model_loss = np.nan
@@ -2807,7 +2819,6 @@ def compute_results(outdir: Path, mode: str, assets: list[str], models: list[str
     conditional_rows = []
     alignment_rows = []
     alternative_rows = []
-    pooled_parts = []
     model_list = unique_in_order(["CP_REPO_FRESH"] + models)
 
     for asset in assets:
@@ -2891,45 +2902,105 @@ def compute_results(outdir: Path, mode: str, assets: list[str], models: list[str
                 conditional_rows.append(metric_row(subset, model_name, asset, condition, prov))
                 if condition != "all_observations":
                     alternative_rows.extend(alternative_loss_rows(subset, model_name, asset, condition))
-                if not subset.empty:
-                    pooled_piece = subset.copy()
-                    pooled_piece["asset"] = asset
-                    pooled_piece["model_name"] = model_name
-                    pooled_piece["condition"] = condition
-                    pooled_piece["row_is_paper_eligible"] = prov["is_paper_eligible"]
-                    pooled_parts.append(pooled_piece)
 
     overall = pd.DataFrame(overall_rows)
     conditional = pd.DataFrame(conditional_rows)
     alternative_by_asset = pd.DataFrame(alternative_rows)
 
+    # Pool one model at a time. The old implementation retained a full copy of
+    # every overlapping condition panel for every model, which exhausted the
+    # Actions runner on the 10-asset run. This second pass is numerically exact
+    # while bounding memory at one model's compact panel.
     pooled_rows = []
-    if pooled_parts:
-        pooled_all = pd.concat(pooled_parts, ignore_index=True)
-        for model_name in sorted(pooled_all["model_name"].unique(), key=lambda x: MODEL_ORDER.index(x) if x in MODEL_ORDER else 999):
-            for condition in CONDITION_ORDER:
-                subset = pooled_all[(pooled_all["model_name"] == model_name) & (pooled_all["condition"] == condition)].copy()
-                if subset.empty:
-                    continue
-                assets_for_model = sorted(subset["asset"].unique())
-                prov = {
-                    "run_type": mode,
-                    "model_status": "pooled",
-                    "source": "pooled",
-                    "benchmark_source": "pooled",
-                    "source_path": str(pred_dir),
-                    "seed": np.nan,
-                    "phase": "",
-                    "is_paper_eligible": bool(subset["row_is_paper_eligible"].all()),
-                    "alignment_exact": bool(subset["row_is_paper_eligible"].all()),
-                    "actual_match": bool(subset["row_is_paper_eligible"].all()),
-                    "n_rows_overlapping_CP": int(len(subset)),
-                    "n_rows_used_in_CP_comparison": int(len(subset)),
-                    "number_of_assets": int(len(assets_for_model)),
-                }
-                pooled_rows.append(metric_row(subset, model_name, "POOLED", condition, prov))
+    inference_rows = []
+    overall_lookup = pd.DataFrame(overall_rows)
+    for model_name in model_list:
+        model_col = f"Predicted_{model_name}"
+        compact_parts = []
+        for asset in assets:
+            pred_path = pred_dir / f"{asset}.csv"
+            if not pred_path.exists():
+                continue
+            header = pd.read_csv(pred_path, nrows=0).columns
+            required = unique_in_order(["Date", "Actual", "Predicted_CP_REPO_FRESH", model_col])
+            if any(col not in header for col in required):
+                continue
+            pred = pd.read_csv(pred_path, usecols=required, parse_dates=["Date"]).sort_values("Date")
+            model_frame = pred.dropna(subset=unique_in_order(["Actual", "Predicted_CP_REPO_FRESH", model_col])).copy()
+            if model_frame.empty:
+                continue
+            model_frame[f"AbsErr_{model_name}"] = (model_frame["Actual"] - model_frame[model_col]).abs()
+            model_frame[f"SMAPE_{model_name}_pct"] = smape(model_frame["Actual"], model_frame[model_col])
+            model_frame["AbsErr_CP_REPO_FRESH"] = (model_frame["Actual"] - model_frame["Predicted_CP_REPO_FRESH"]).abs()
+            model_frame["SMAPE_CP_REPO_FRESH_pct"] = smape(model_frame["Actual"], model_frame["Predicted_CP_REPO_FRESH"])
+            lagged = add_lagged_actuals(model_frame, n)
+            if lagged.empty:
+                continue
+            conditions = define_conditions(lagged)
+            lagged["asset"] = asset
+            condition_cols = []
+            for condition, mask in conditions.items():
+                col = f"_condition_{condition}"
+                lagged[col] = mask.to_numpy(dtype=bool)
+                condition_cols.append(col)
+            metric_cols = unique_in_order(
+                [
+                    "asset",
+                    "Actual",
+                    "Predicted_CP_REPO_FRESH",
+                    model_col,
+                    f"AbsErr_{model_name}",
+                    f"SMAPE_{model_name}_pct",
+                    "AbsErr_CP_REPO_FRESH",
+                    "SMAPE_CP_REPO_FRESH_pct",
+                    *condition_cols,
+                ]
+            )
+            compact_parts.append(lagged[metric_cols])
+
+        if not compact_parts:
+            continue
+        pooled_model = pd.concat(compact_parts, ignore_index=True)
+        pooled_model["asset"] = pooled_model["asset"].astype("category")
+        for condition in CONDITION_ORDER:
+            condition_col = f"_condition_{condition}"
+            if condition_col not in pooled_model.columns:
+                continue
+            subset = pooled_model.loc[pooled_model[condition_col]]
+            if subset.empty:
+                continue
+            assets_for_model = sorted(subset["asset"].astype(str).unique())
+            eligibility = overall_lookup[
+                (overall_lookup.get("model_name", pd.Series(dtype=str)) == model_name)
+                & overall_lookup.get("asset", pd.Series(dtype=str)).isin(assets_for_model)
+            ]
+            eligible = bool(
+                not eligibility.empty
+                and eligibility.get("is_paper_eligible", pd.Series(False, index=eligibility.index)).astype(bool).all()
+            )
+            prov = {
+                "run_type": mode,
+                "model_status": "pooled",
+                "source": "pooled",
+                "benchmark_source": "pooled",
+                "source_path": str(pred_dir),
+                "seed": np.nan,
+                "phase": "",
+                "is_paper_eligible": eligible,
+                "alignment_exact": eligible,
+                "actual_match": eligible,
+                "n_rows_overlapping_CP": int(len(subset)),
+                "n_rows_used_in_CP_comparison": int(len(subset)),
+                "number_of_assets": int(len(assets_for_model)),
+            }
+            pooled_rows.append(metric_row(subset, model_name, "POOLED", condition, prov))
+            row = inference_row(subset, model_name, condition)
+            if row is not None:
+                inference_rows.append(row)
+        del pooled_model
+
     pooled = pd.DataFrame(pooled_rows)
-    pooled_all = pd.concat(pooled_parts, ignore_index=True) if pooled_parts else pd.DataFrame()
+    inference = finalize_inference(inference_rows)
 
     if not pooled.empty:
         ablation = pooled[pooled["condition"] == "all_observations"].copy()
@@ -2948,7 +3019,7 @@ def compute_results(outdir: Path, mode: str, assets: list[str], models: list[str
         "ablation": ablation,
         "placebo": placebo,
         "alignment": pd.DataFrame(alignment_rows),
-        "inference": compute_inference_summary(pooled_all),
+        "inference": inference,
         "alternative_loss_by_asset": alternative_by_asset,
         "alternative_loss": aggregate_alternative_loss(alternative_by_asset),
     }

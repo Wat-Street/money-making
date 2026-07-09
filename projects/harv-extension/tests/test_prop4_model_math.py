@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -117,6 +118,73 @@ class Prop4ModelMathTests(unittest.TestCase):
         row = pooled.loc[pooled["asset"] == "POOLED"].iloc[0]
         self.assertAlmostEqual(float(row["cp_loss"]), math.sqrt(7.0))
         self.assertAlmostEqual(float(row["model_loss"]), math.sqrt(13.0))
+
+    def test_prop4_loss_aggregation_uses_true_pooled_rmse(self) -> None:
+        frame = pd.DataFrame(
+            [
+                {
+                    "asset": "A",
+                    "model_name": "M",
+                    "condition": "all_observations",
+                    "condition_label_type": "not_conditioned",
+                    "loss_variant": "standard",
+                    "loss_metric": "RMSE",
+                    "n_obs": 1,
+                    "CP_loss": 1.0,
+                    "model_loss": 2.0,
+                    "advantage_CP_minus_model": -1.0,
+                },
+                {
+                    "asset": "B",
+                    "model_name": "M",
+                    "condition": "all_observations",
+                    "condition_label_type": "not_conditioned",
+                    "loss_variant": "standard",
+                    "loss_metric": "RMSE",
+                    "n_obs": 3,
+                    "CP_loss": 3.0,
+                    "model_loss": 4.0,
+                    "advantage_CP_minus_model": -1.0,
+                },
+            ]
+        )
+        row = runner.aggregate_alternative_loss(frame).iloc[0]
+        self.assertAlmostEqual(float(row["pooled_CP_loss"]), math.sqrt(7.0))
+        self.assertAlmostEqual(float(row["pooled_model_loss"]), math.sqrt(13.0))
+
+    def test_exact_pooling_matches_concatenated_row_metric(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            outdir = Path(tmp)
+            pred_dir = outdir / "predictions" / "full"
+            pred_dir.mkdir(parents=True)
+            expected_advantages = []
+            for offset, asset in enumerate(["A", "B"]):
+                actual = np.linspace(0.001 + offset * 0.0002, 0.003 + offset * 0.0002, 40)
+                cp_pred = actual * (1.06 - 0.01 * offset)
+                model_pred = actual * (0.96 + 0.015 * np.sin(np.arange(40) / 3.0 + offset))
+                frame = pd.DataFrame(
+                    {
+                        "Date": pd.date_range("2024-01-01", periods=40, freq="5min"),
+                        "Actual": actual,
+                        "Predicted_CP_REPO_FRESH": cp_pred,
+                        "Predicted_TEST_MODEL": model_pred,
+                    }
+                )
+                frame.to_csv(pred_dir / f"{asset}.csv", index=False)
+                expected_advantages.extend(
+                    (
+                        runner.smape(pd.Series(actual[22:]), pd.Series(cp_pred[22:]))
+                        - runner.smape(pd.Series(actual[22:]), pd.Series(model_pred[22:]))
+                    ).tolist()
+                )
+
+            results = runner.compute_results(outdir, "full", ["A", "B"], ["TEST_MODEL"], 22)
+            row = results["pooled"].loc[
+                (results["pooled"]["model_name"] == "TEST_MODEL")
+                & (results["pooled"]["condition"] == "all_observations")
+            ].iloc[0]
+            self.assertEqual(int(row["n_obs"]), len(expected_advantages))
+            self.assertAlmostEqual(float(row["median_advantage_vs_CP"]), float(np.median(expected_advantages)))
 
 
 if __name__ == "__main__":
