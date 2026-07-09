@@ -83,7 +83,7 @@
       "uses_ridge": false
     },
     "CP_REPO_LRPM": {
-      "expected_interpretation": "Local residue bridge ablation inside lag zones, incremental to repo CP controls.",
+      "expected_interpretation": "Unregularized local residue bridge diagnostic only; rank-deficient and unstable in full runs.",
       "feature_families": [
         "RV_REPO",
         "CP_REPO",
@@ -92,7 +92,7 @@
       "includes_cp": true,
       "includes_raw_pm": false,
       "is_placebo": false,
-      "paper_eligible": true,
+      "paper_eligible": false,
       "shape_features_cp_orthogonal": false,
       "uses_gate": false,
       "uses_ridge": false
@@ -216,8 +216,50 @@
       "uses_gate": false,
       "uses_ridge": false
     },
+    "PHQO": {
+      "expected_interpretation": "Prime-Harmonic Quotient Operator that maps CP-invisible prime energy back to lag weights and scales the current CP_REPO_FRESH forecast; gamma=0 is exact CP.",
+      "feature_families": [
+        "PM_NATIVE_OPERATOR"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "interpretation_status": "exploratory_challenger",
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": true,
+      "uses_gate": true,
+      "uses_ridge": false
+    },
+    "PM_QDK": {
+      "expected_interpretation": "Prime-Modular Quotient Diffusion Kernel using CP-orthogonal lag residuals and prime-torus harmonic diffusion geometry.",
+      "feature_families": [
+        "PM_NATIVE_KERNEL"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "interpretation_status": "exploratory_challenger",
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": true,
+      "uses_gate": false,
+      "uses_ridge": false
+    },
+    "PM_QDK_2": {
+      "expected_interpretation": "Loss-native PM-QDK-2 forecaster using log-centered PM heat embeddings, train-only CP quotient residualization, and SMAPE-native weighted Bayes action.",
+      "feature_families": [
+        "PM_NATIVE_QUOTIENT_KERNEL"
+      ],
+      "includes_cp": true,
+      "includes_raw_pm": false,
+      "interpretation_status": "exploratory_challenger",
+      "is_placebo": false,
+      "paper_eligible": true,
+      "shape_features_cp_orthogonal": true,
+      "uses_gate": false,
+      "uses_ridge": false
+    },
     "RANDOM_GATE_PLACEBO_REPO": {
-      "expected_interpretation": "Gated OPS-C placebo using a deterministic seeded resample from strictly prior real-gate values.",
+      "expected_interpretation": "Gated OPS-C placebo using a shuffled real gate.",
       "feature_families": [
         "RV_REPO",
         "CP_REPO",

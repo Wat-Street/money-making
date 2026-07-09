@@ -1,4 +1,4 @@
-name: CP Repo OPS-HG Full Paper Run
+name: CP Repo OPS-HG Mathematical Fidelity Full Run
 
 on:
   workflow_dispatch:
@@ -45,7 +45,7 @@ jobs:
     env:
       ASSET: ${{ matrix.asset }}
       RUN_AUDITS: ${{ inputs.run_audits }}
-      OUTDIR: outputs/cp_repo_ops_hg_actions/${{ github.run_id }}/${{ matrix.asset }}
+      OUTDIR: outputs/cp_repo_ops_hg_math_audited_actions/${{ github.run_id }}/${{ matrix.asset }}
       MODELS: HAR_RV,CP_REPO_FRESH,RAW_PM,RAW_CP_REPO_PLUS_PM,CP_REPO_OPS_R,CP_REPO_RIDGE_OPS_R,CP_REPO_LRPM,CP_REPO_RECENT_SLOPE,CP_REPO_HAAR_SHAPE,CP_REPO_OPS_C,CP_REPO_RIDGE_OPS_C,CP_REPO_GATED_RIDGE_OPS_C,CP_REPO_OPS_HG,RANDOM_RESIDUES_PLACEBO_REPO,SHUFFLED_LAG_PM_PLACEBO_REPO,RANDOM_GATE_PLACEBO_REPO,RIDGE_AR22,CP_REPO_OPS_K
     steps:
       - name: Checkout branch
@@ -79,6 +79,8 @@ jobs:
             --phase all \
             --assets "${ASSET}" \
             --models "${MODELS}" \
+            --n 22 \
+            --warmup 600 \
             --seed "${{ inputs.seed }}" \
             --outdir "${OUTDIR}" \
             --force \
@@ -183,6 +185,9 @@ jobs:
                   fast = pd.read_csv(fast_path)
                   if fast.empty or "passes" not in fast.columns or not bool(fast["passes"].astype(bool).all()):
                       fail("fast-vs-slow audit failed")
+                  covered = set(fast.get("model_name", pd.Series(dtype=str)).astype(str))
+                  if covered != set(models):
+                      fail(f"fast-vs-slow audit model coverage mismatch: {sorted(covered)}")
 
           raw_path = outdir / "results" / "raw_cp_pm_reproduction_audit.csv"
           if not raw_path.exists():
@@ -221,8 +226,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cp-repo-ops-hg-${{ matrix.asset }}-${{ github.run_id }}
-          path: projects/harv-extension/outputs/cp_repo_ops_hg_actions/${{ github.run_id }}/${{ matrix.asset }}/
+          name: cp-repo-ops-hg-math-audited-${{ matrix.asset }}-${{ github.run_id }}
+          path: projects/harv-extension/outputs/cp_repo_ops_hg_math_audited_actions/${{ github.run_id }}/${{ matrix.asset }}/
           if-no-files-found: warn
           retention-days: 30
 
@@ -237,7 +242,7 @@ jobs:
       RUN_AUDITS: ${{ inputs.run_audits }}
       ASSETS: AAPL,AMZN,EEM,FXI,GLD,GOOGL,HYG,QQQ,SPY,TLT
       MODELS: HAR_RV,CP_REPO_FRESH,RAW_PM,RAW_CP_REPO_PLUS_PM,CP_REPO_OPS_R,CP_REPO_RIDGE_OPS_R,CP_REPO_LRPM,CP_REPO_RECENT_SLOPE,CP_REPO_HAAR_SHAPE,CP_REPO_OPS_C,CP_REPO_RIDGE_OPS_C,CP_REPO_GATED_RIDGE_OPS_C,CP_REPO_OPS_HG,RANDOM_RESIDUES_PLACEBO_REPO,SHUFFLED_LAG_PM_PLACEBO_REPO,RANDOM_GATE_PLACEBO_REPO,RIDGE_AR22,CP_REPO_OPS_K
-      COMBINED_OUTDIR: outputs/cp_repo_ops_hg_actions/${{ github.run_id }}/combined
+      COMBINED_OUTDIR: outputs/cp_repo_ops_hg_math_audited_actions/${{ github.run_id }}/combined
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
@@ -258,8 +263,8 @@ jobs:
       - name: Download per-asset artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: cp-repo-ops-hg-*-${{ github.run_id }}
-          path: projects/harv-extension/_cp_repo_ops_hg_artifacts
+          pattern: cp-repo-ops-hg-math-audited-*-${{ github.run_id }}
+          path: projects/harv-extension/_cp_repo_ops_hg_math_audited_artifacts
           merge-multiple: false
 
       - name: Combine per-asset outputs
@@ -273,7 +278,7 @@ jobs:
 
           import pandas as pd
 
-          artifacts = Path("_cp_repo_ops_hg_artifacts")
+          artifacts = Path("_cp_repo_ops_hg_math_audited_artifacts")
           combined = Path(os.environ["COMBINED_OUTDIR"])
           assets = os.environ["ASSETS"].split(",")
           combined.mkdir(parents=True, exist_ok=True)
@@ -339,7 +344,7 @@ jobs:
         shell: bash
         run: |
           python outputs/cp_repo_ops_hg_tests/scripts/aggregate_cp_repo_ops_hg_results.py \
-            --artifacts-dir _cp_repo_ops_hg_artifacts \
+            --artifacts-dir _cp_repo_ops_hg_math_audited_artifacts \
             --outdir "${COMBINED_OUTDIR}" \
             --assets "${ASSETS}" \
             --models "${MODELS}" \
@@ -350,6 +355,8 @@ jobs:
             --phase all \
             --assets "${ASSETS}" \
             --models "${MODELS}" \
+            --n 22 \
+            --warmup 600 \
             --seed "${{ inputs.seed }}" \
             --outdir "${COMBINED_OUTDIR}"
 
@@ -457,6 +464,11 @@ jobs:
                   fast = pd.read_csv(fast_path)
                   if fast.empty or "passes" not in fast.columns or not bool(fast["passes"].astype(bool).all()):
                       fail("combined fast-vs-slow audit failed")
+                  covered = set(fast.get("model_name", pd.Series(dtype=str)).astype(str))
+                  expected = {(asset, model) for asset in assets for model in models}
+                  observed = set(zip(fast.get("asset", pd.Series(dtype=str)).astype(str), fast.get("model_name", pd.Series(dtype=str)).astype(str)))
+                  if observed != expected:
+                      fail(f"combined fast-vs-slow coverage mismatch: observed={len(observed)} expected={len(expected)}")
 
           raw_path = combined / "results" / "raw_cp_pm_reproduction_audit.csv"
           if not raw_path.exists():
@@ -510,7 +522,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cp-repo-ops-hg-full-combined-${{ github.run_id }}
-          path: projects/harv-extension/outputs/cp_repo_ops_hg_actions/${{ github.run_id }}/combined/
+          name: cp-repo-ops-hg-math-audited-full-combined-${{ github.run_id }}
+          path: projects/harv-extension/outputs/cp_repo_ops_hg_math_audited_actions/${{ github.run_id }}/combined/
           if-no-files-found: warn
           retention-days: 30

@@ -238,6 +238,24 @@ def pad_or_truncate_phi(phi: np.ndarray, target_dim: int) -> np.ndarray:
     return phi
 
 
+def embedding_complexity(phi: np.ndarray, stop: int) -> dict[str, float | int]:
+    sample = np.asarray(phi[:stop], dtype=float)
+    sample = sample[np.isfinite(sample).all(axis=1)]
+    if sample.size == 0:
+        return {"rank": 0, "effective_rank": np.nan, "nonzero_scale_count": 0}
+    centered = sample - sample.mean(axis=0, keepdims=True)
+    singular = np.linalg.svd(centered, compute_uv=False)
+    if singular.size == 0 or not np.isfinite(singular[0]) or singular[0] <= 0.0:
+        return {"rank": 0, "effective_rank": np.nan, "nonzero_scale_count": 0}
+    tolerance = singular[0] * max(centered.shape) * np.finfo(float).eps
+    rank = int(np.sum(singular > tolerance))
+    squared = np.square(singular)
+    fourth = np.square(squared)
+    effective_rank = float(np.square(squared.sum()) / fourth.sum()) if fourth.sum() > 0.0 else np.nan
+    nonzero_scale_count = int(np.sum(np.nanstd(centered, axis=0) > 1e-12))
+    return {"rank": rank, "effective_rank": effective_rank, "nonzero_scale_count": nonzero_scale_count}
+
+
 def torus_modes(moduli: list[int], max_modes: int | None = None) -> tuple[list[tuple[int, ...]], np.ndarray]:
     modes: list[tuple[int, ...]] = []
     ranges = [range(int(m)) for m in moduli]
@@ -600,16 +618,18 @@ def generate_placebo_predictions(
     x = runner.lag_matrix(frame, args.n)
     y_next = pd.to_numeric(frame["RV_d"].shift(-1), errors="coerce").to_numpy(dtype=float)
     valid = np.isfinite(x).all(axis=1)
-    level, c_state, _ = runner.pm_qdk2_embedding(x, args.n, args.pm_tau_grid_values, args.log_eps, int(args.pm_low_modes))
+    level, c_state, true_phi = runner.pm_qdk2_embedding(x, args.n, args.pm_tau_grid_values, args.log_eps, int(args.pm_low_modes))
     embeddings = {}
     embeddings.update(placebo_embeddings(frame, args, seed))
     embeddings.update(pm_ablation_embeddings(frame, args))
     val_start, first_oos = runner.validation_window_indices(frame, args.n, args.warmup)
     start_i = args.n + args.warmup
     stop_i = len(frame) - 1
+    true_complexity = embedding_complexity(true_phi, first_oos)
     predictions = []
     param_rows = []
     for model_name, (phi, desc) in embeddings.items():
+        complexity = embedding_complexity(phi, first_oos)
         q = runner.expanding_linear_residuals(phi, c_state, valid & np.isfinite(y_next))
         equivalence = kernel_fast_slow_equivalence_audit(
             frame,
@@ -670,6 +690,12 @@ def generate_placebo_predictions(
                 "selected_bandwidth": best[1],
                 "cv_score_smape": safe_float(best[0]),
                 "phi_dim": int(phi.shape[1]),
+                "phi_rank": complexity["rank"],
+                "phi_effective_rank": complexity["effective_rank"],
+                "phi_nonzero_scale_count": complexity["nonzero_scale_count"],
+                "true_pm_phi_rank": true_complexity["rank"],
+                "true_pm_phi_effective_rank": true_complexity["effective_rank"],
+                "true_pm_phi_nonzero_scale_count": true_complexity["nonzero_scale_count"],
                 "tau_grid": ",".join(str(x) for x in args.pm_tau_grid_values),
                 "bandwidth_grid": ",".join(str(x) for x in args.pm_bandwidth_grid_values),
                 "pm_kernel_train_window": int(args.pm_kernel_train_window),
@@ -1042,8 +1068,10 @@ def theory_diagnostics_for_asset(
             cp_pred_origin[pos] = value
     residual = y_next - cp_pred_origin
     rows = []
-    pm_smooth = nearest_smoothness(c_state, pm_q, residual, origin_idx, args.pm_kernel_train_window, seed + 8100)
-    pm_fiber = cp_fiber_distance_predictiveness(c_state, pm_q, residual, origin_idx, seed + 8200)
+    smooth_seed = seed + 8100
+    fiber_seed = seed + 8200
+    pm_smooth = nearest_smoothness(c_state, pm_q, residual, origin_idx, args.pm_kernel_train_window, smooth_seed)
+    pm_fiber = cp_fiber_distance_predictiveness(c_state, pm_q, residual, origin_idx, fiber_seed)
     rows.append({"asset": asset, "diagnostic": "pm_geometry_residual_smoothness", "model_name": "PM_QDK_2", **pm_smooth})
     rows.append({"asset": asset, "diagnostic": "pm_geometry_cp_fiber_distance_predictiveness", "model_name": "PM_QDK_2", **pm_fiber})
     all_geometry_embeddings = {}
@@ -1051,8 +1079,8 @@ def theory_diagnostics_for_asset(
     all_geometry_embeddings.update(pm_ablation_embeddings(frame, args))
     for model_name, (phi, desc) in all_geometry_embeddings.items():
         q = runner.expanding_linear_residuals(phi, c_state, valid & np.isfinite(y_next))
-        smooth = nearest_smoothness(c_state, q, residual, origin_idx, args.pm_kernel_train_window, seed + stable_seed_offset(model_name, 10000))
-        fiber = cp_fiber_distance_predictiveness(c_state, q, residual, origin_idx, seed + stable_seed_offset(("fiber", model_name), 10000))
+        smooth = nearest_smoothness(c_state, q, residual, origin_idx, args.pm_kernel_train_window, smooth_seed)
+        fiber = cp_fiber_distance_predictiveness(c_state, q, residual, origin_idx, fiber_seed)
         rows.append({"asset": asset, "diagnostic": "geometry_residual_smoothness", "model_name": model_name, "basis_description": desc, **smooth})
         rows.append({"asset": asset, "diagnostic": "geometry_cp_fiber_distance_predictiveness", "model_name": model_name, "basis_description": desc, **fiber})
     phqo_col = "Predicted_PHQO"
@@ -1136,7 +1164,7 @@ def source_audits(source_run: Path, asset: str, frame: pd.DataFrame, feature_gro
 
     align_passed = True
     align_details = []
-    for model in ["PM_QDK_2", "PM_QDK"]:
+    for model in ["PM_QDK_2", "PM_QDK", "PHQO"]:
         pred_col = f"Predicted_{model}"
         if pred_col not in panel.columns:
             align_passed = False
@@ -1149,9 +1177,26 @@ def source_audits(source_run: Path, asset: str, frame: pd.DataFrame, feature_gro
     add("asset_oos_alignment_core_models", align_passed, True, "; ".join(align_details))
 
     pm_dim_expected = 2 * min(int(args.pm_low_modes), len(runner.prime_torus_modes(args.n, include_zero=False))) * len(args.pm_tau_grid_values)
-    placebo_dims = pd.to_numeric(placebo_param_rows.get("phi_dim", pd.Series(dtype=float)), errors="coerce").dropna().astype(int).tolist()
-    matched = bool(placebo_dims) and all(dim == pm_dim_expected for dim in placebo_dims)
-    add("placebo_matched_feature_count_smoothing_tuning_budget", matched, False, f"expected_phi_dim={pm_dim_expected}; placebo_dims={placebo_dims}; bandwidth_grid={args.pm_bandwidth_grid_values}")
+    matched_rows = placebo_param_rows.loc[placebo_param_rows.get("model_group", pd.Series(dtype=str)) == "matched_placebo"].copy()
+    placebo_dims = pd.to_numeric(matched_rows.get("phi_dim", pd.Series(dtype=float)), errors="coerce").dropna().astype(int).tolist()
+    placebo_ranks = pd.to_numeric(matched_rows.get("phi_rank", pd.Series(dtype=float)), errors="coerce").dropna().astype(int).tolist()
+    true_ranks = pd.to_numeric(matched_rows.get("true_pm_phi_rank", pd.Series(dtype=float)), errors="coerce").dropna().astype(int).unique().tolist()
+    effective = pd.to_numeric(matched_rows.get("phi_effective_rank", pd.Series(dtype=float)), errors="coerce").dropna().tolist()
+    true_effective = pd.to_numeric(matched_rows.get("true_pm_phi_effective_rank", pd.Series(dtype=float)), errors="coerce").dropna().unique().tolist()
+    rank_matched = bool(placebo_ranks and len(true_ranks) == 1 and all(rank == true_ranks[0] for rank in placebo_ranks))
+    effective_matched = bool(
+        effective
+        and len(true_effective) == 1
+        and all(abs(value - true_effective[0]) <= 0.05 * max(abs(true_effective[0]), 1e-12) for value in effective)
+    )
+    matched = bool(placebo_dims) and all(dim == pm_dim_expected for dim in placebo_dims) and rank_matched and effective_matched
+    add(
+        "placebo_matched_feature_count_smoothing_tuning_budget",
+        matched,
+        False,
+        f"expected_phi_dim={pm_dim_expected}; placebo_dims={placebo_dims}; true_rank={true_ranks}; placebo_ranks={placebo_ranks}; "
+        f"true_effective_rank={true_effective}; placebo_effective_ranks={effective}; bandwidth_grid={args.pm_bandwidth_grid_values}",
+    )
 
     if "fast_slow_equivalence_passed" in placebo_param_rows.columns:
         eq_passed = placebo_param_rows["fast_slow_equivalence_passed"].astype(bool)
@@ -1267,22 +1312,32 @@ def aggregate_metric_rows(metric: pd.DataFrame) -> pd.DataFrame:
     all_rows = [metric]
     base = metric.loc[metric["subset"] == "all_observations"].copy()
     if not base.empty:
+        def pooled_row(group: pd.DataFrame) -> pd.Series:
+            weights = np.maximum(pd.to_numeric(group["n_obs"], errors="coerce").to_numpy(dtype=float), 1.0)
+            cp_values = pd.to_numeric(group["cp_loss"], errors="coerce").to_numpy(dtype=float)
+            model_values = pd.to_numeric(group["model_loss"], errors="coerce").to_numpy(dtype=float)
+            if str(group.name[2]) == "RMSE":
+                cp_loss = math.sqrt(float(np.average(np.square(cp_values), weights=weights)))
+                model_loss = math.sqrt(float(np.average(np.square(model_values), weights=weights)))
+            else:
+                cp_loss = float(np.average(cp_values, weights=weights))
+                model_loss = float(np.average(model_values, weights=weights))
+            return pd.Series(
+                {
+                    "asset": "POOLED",
+                    "subset": "all_observations",
+                    "n_obs": int(group["n_obs"].sum()),
+                    "cp_loss": cp_loss,
+                    "model_loss": model_loss,
+                    "advantage_cp_minus_model": cp_loss - model_loss,
+                    "win_rate_vs_cp": np.average(group["win_rate_vs_cp"], weights=weights),
+                    "mean_row_loss_diff_cp_minus_model": np.average(group["mean_row_loss_diff_cp_minus_model"], weights=weights),
+                }
+            )
+
         grouped = (
             base.groupby(["model_name", "benchmark_model", "loss_metric"], dropna=False)
-            .apply(
-                lambda g: pd.Series(
-                    {
-                        "asset": "POOLED",
-                        "subset": "all_observations",
-                        "n_obs": int(g["n_obs"].sum()),
-                        "cp_loss": np.average(g["cp_loss"], weights=np.maximum(g["n_obs"], 1)),
-                        "model_loss": np.average(g["model_loss"], weights=np.maximum(g["n_obs"], 1)),
-                        "advantage_cp_minus_model": np.average(g["advantage_cp_minus_model"], weights=np.maximum(g["n_obs"], 1)),
-                        "win_rate_vs_cp": np.average(g["win_rate_vs_cp"], weights=np.maximum(g["n_obs"], 1)),
-                        "mean_row_loss_diff_cp_minus_model": np.average(g["mean_row_loss_diff_cp_minus_model"], weights=np.maximum(g["n_obs"], 1)),
-                    }
-                )
-            )
+            .apply(pooled_row, include_groups=False)
             .reset_index()
         )
         equal = (
@@ -1555,7 +1610,12 @@ def success_bar_dataframe(
     pl_fiber = theory.loc[(theory["diagnostic"] == "geometry_cp_fiber_distance_predictiveness") & (theory.get("model_name", "").isin(PLACEBO_MODELS))]
     pm_fiber_mean = safe_float(pd.to_numeric(pm_fiber.get("distance_residual_spearman", pd.Series(dtype=float)), errors="coerce").mean()) if not pm_fiber.empty else np.nan
     placebo_fiber_best = safe_float(pd.to_numeric(pl_fiber.get("distance_residual_spearman", pd.Series(dtype=float)), errors="coerce").groupby(pl_fiber.get("model_name", pd.Series(dtype=str))).mean().max()) if not pl_fiber.empty else np.nan
-    cp_fiber_favors_pm = bool(np.isfinite(pm_fiber_mean) and np.isfinite(placebo_fiber_best) and pm_fiber_mean > placebo_fiber_best)
+    cp_fiber_favors_pm = bool(
+        np.isfinite(pm_fiber_mean)
+        and np.isfinite(placebo_fiber_best)
+        and pm_fiber_mean > 0.0
+        and pm_fiber_mean > placebo_fiber_best
+    )
     checks = [
         ("beats_cp_on_smape", bool(np.isfinite(smape_adv) and smape_adv > 0), smape_adv),
         ("beats_all_matched_placebos_on_smape", bool(placebo_wins == len(PLACEBO_MODELS)), f"{placebo_wins}/{len(PLACEBO_MODELS)}"),

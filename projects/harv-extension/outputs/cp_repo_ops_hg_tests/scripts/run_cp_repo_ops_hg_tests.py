@@ -49,7 +49,6 @@ PRIOR_INCREMENTAL_DIR = PROJECT_ROOT / "outputs" / "cp_pm_incremental_tests"
 
 N_LAGS_DEFAULT = 22
 WARMUP_DEFAULT = 600
-NUMERIC_RIDGE = 1e-12
 ZERO_SUM_TOL = 1e-10
 DEFAULT_LAMBDA_GRID = "0.001"
 DEFAULT_LAMBDA_R_RATIO_GRID = "10"
@@ -107,6 +106,8 @@ MODEL_ORDER = [
     "PM_QDK_2",
     "PHQO",
 ]
+
+PROP4_MODELS = MODEL_ORDER[:18]
 
 SHAPE_MODELS = {
     "CP_REPO_OPS_R",
@@ -1055,7 +1056,12 @@ def phqo_predict_values(
             continue
         date = pd.Timestamp(frame.index[i + 1])
         cp_pred = cp_map.get(date)
-        if cp_pred is None or not np.isfinite(cp_pred) or not np.isfinite(base_raw[i]) or abs(base_raw[i]) <= 1e-18:
+        if cp_pred is None or not np.isfinite(cp_pred):
+            continue
+        if gamma == 0.0 or not np.isfinite(base_raw[i]) or abs(base_raw[i]) <= 1e-18:
+            values.append((i, float(cp_pred)))
+            if max_forecasts is not None and len(values) >= max_forecasts:
+                break
             continue
         logits = np.clip(gamma * energy[i], -50.0, 50.0)
         tilted = beta * np.exp(logits)
@@ -1182,7 +1188,15 @@ def add_gate_columns(frame: pd.DataFrame, n: int, blocks: list[list[int]], seed:
     score = out[z_slope] + out[z_recency] - out[z_exit] - out[z_disp]
     out["GATE_REAL"] = 1.0 / (1.0 + np.exp(-score.clip(-50, 50)))
     rng = np.random.default_rng(seed)
-    out["GATE_RANDOM"] = rng.permutation(out["GATE_REAL"].to_numpy(dtype=float))
+    real_gate = out["GATE_REAL"].to_numpy(dtype=float)
+    random_gate = np.full(len(out), 0.5, dtype=float)
+    source_index = np.full(len(out), -1, dtype=int)
+    for idx in range(1, len(out)):
+        source = int(rng.integers(0, idx))
+        random_gate[idx] = real_gate[source]
+        source_index[idx] = source
+    out["GATE_RANDOM"] = random_gate
+    out["GATE_RANDOM_SOURCE_INDEX"] = source_index
     return out
 
 
@@ -1370,7 +1384,7 @@ def build_model_registry(n: int) -> dict:
                 "uses_ridge": True,
                 "is_placebo": True,
                 "paper_eligible": True,
-                "expected_interpretation": "Gated OPS-C placebo using a shuffled real gate.",
+                "expected_interpretation": "Gated OPS-C placebo using a deterministic seeded resample from strictly prior real-gate values.",
             },
             "RIDGE_AR22": {
                 "feature_families": ["AR_LAG"],
@@ -1379,7 +1393,7 @@ def build_model_registry(n: int) -> dict:
                 "shape_features_cp_orthogonal": False,
                 "uses_gate": False,
                 "uses_ridge": True,
-                "is_placebo": True,
+                "is_placebo": False,
                 "paper_eligible": True,
                 "expected_interpretation": "Flexible AR(22) lag benchmark, not CP-OPS evidence.",
             },
@@ -1587,22 +1601,31 @@ def placebo_diagnostics_rows(
         }
     )
 
-    real_gate = pd.to_numeric(frame["GATE_REAL"], errors="coerce").dropna().to_numpy(dtype=float)
-    random_gate = pd.to_numeric(frame["GATE_RANDOM"], errors="coerce").dropna().to_numpy(dtype=float)
-    sorted_equal = bool(len(real_gate) == len(random_gate) and np.allclose(np.sort(real_gate), np.sort(random_gate)))
-    max_sorted_diff = (
-        float(np.max(np.abs(np.sort(real_gate) - np.sort(random_gate)))) if len(real_gate) == len(random_gate) and len(real_gate) else np.nan
+    real_gate = pd.to_numeric(frame["GATE_REAL"], errors="coerce").to_numpy(dtype=float)
+    random_gate = pd.to_numeric(frame["GATE_RANDOM"], errors="coerce").to_numpy(dtype=float)
+    source_index = pd.to_numeric(frame["GATE_RANDOM_SOURCE_INDEX"], errors="coerce").to_numpy(dtype=int)
+    row_index = np.arange(len(frame), dtype=int)
+    causal = bool(
+        len(frame) > 0
+        and source_index[0] == -1
+        and np.all(source_index[1:] >= 0)
+        and np.all(source_index[1:] < row_index[1:])
+        and np.allclose(random_gate[1:], real_gate[source_index[1:]], equal_nan=False)
     )
     rows.append(
         {
-            "diagnostic": "random_gate_shuffled_real_distribution",
-            "passed": sorted_equal,
+            "diagnostic": "random_gate_causal_past_resample",
+            "passed": causal,
             "seed": seed + 303,
             "details_json": json.dumps(
                 {
-                    "sorted_value_equality": sorted_equal,
-                    "max_abs_sorted_difference": max_sorted_diff,
+                    "all_sources_strictly_prior": causal,
+                    "real_gate_mean": safe_float(np.nanmean(real_gate)),
+                    "random_gate_mean": safe_float(np.nanmean(random_gate)),
+                    "real_gate_std": safe_float(np.nanstd(real_gate)),
+                    "random_gate_std": safe_float(np.nanstd(random_gate)),
                     "n_gate_values": int(len(real_gate)),
+                    "construction": "each random gate is a deterministic seeded resample from strictly prior real-gate values",
                 },
                 sort_keys=True,
             ),
@@ -1747,6 +1770,50 @@ def inverse_transformed_prediction(pred: float, target_transform: str, log_eps: 
     return float(pred)
 
 
+def solve_penalized_least_squares(
+    x: np.ndarray,
+    y: np.ndarray,
+    penalty: np.ndarray,
+) -> np.ndarray:
+    """Solve OLS/Tikhonov least squares without forming normal equations."""
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    penalty = np.asarray(penalty, dtype=float)
+    penalized = np.flatnonzero(penalty > 0.0)
+    if penalized.size:
+        ridge_rows = np.zeros((penalized.size, x.shape[1]), dtype=float)
+        ridge_rows[np.arange(penalized.size), penalized] = np.sqrt(penalty[penalized])
+        x = np.vstack([x, ridge_rows])
+        y = np.concatenate([y, np.zeros(penalized.size, dtype=float)])
+    return np.linalg.lstsq(x, y, rcond=None)[0]
+
+
+def qr_insert_observation(
+    r_mat: np.ndarray,
+    qty: np.ndarray,
+    x: np.ndarray,
+    y: float,
+) -> None:
+    """Update the compact QR least-squares state with one observation."""
+    row = np.asarray(x, dtype=float).copy()
+    rhs = float(y)
+    for col in range(r_mat.shape[1]):
+        below = float(row[col])
+        if below == 0.0:
+            continue
+        diag = float(r_mat[col, col])
+        radius = math.hypot(diag, below)
+        cosine = diag / radius
+        sine = below / radius
+        old_r = r_mat[col, col:].copy()
+        old_row = row[col:].copy()
+        r_mat[col, col:] = cosine * old_r + sine * old_row
+        row[col:] = -sine * old_r + cosine * old_row
+        old_qty = float(qty[col])
+        qty[col] = cosine * old_qty + sine * rhs
+        rhs = -sine * old_qty + cosine * rhs
+
+
 def validation_score_for_penalties(
     frame: pd.DataFrame,
     features: list[str],
@@ -1780,14 +1847,9 @@ def validation_score_for_penalties(
     penalty = np.zeros(x_all.shape[1], dtype=float)
     for idx, col in enumerate(features, start=1):
         penalty[idx] = float(penalties.get(col, 0.0))
-    penalty_matrix = np.diag(penalty + NUMERIC_RIDGE)
-    penalty_matrix[0, 0] = 0.0
     x_train = x_all[train_idx]
     y_train = y_fit[train_idx]
-    try:
-        beta = np.linalg.solve(x_train.T @ x_train + penalty_matrix, x_train.T @ y_train)
-    except np.linalg.LinAlgError:
-        beta = np.linalg.pinv(x_train.T @ x_train + penalty_matrix, rcond=1e-10) @ (x_train.T @ y_train)
+    beta = solve_penalized_least_squares(x_train, y_train, penalty)
     preds = np.array([inverse_transformed_prediction(float(x_all[idx] @ beta), target_transform, log_eps) for idx in val_idx])
     actual = y_level[val_idx]
     return float(np.nanmean(smape(pd.Series(actual), pd.Series(preds))))
@@ -1892,22 +1954,17 @@ def fast_expanding_predict(
     penalty = np.zeros(p, dtype=float)
     for idx, col in enumerate(spec.features, start=1):
         penalty[idx] = float(spec.ridge_penalty.get(col, 0.0))
-    penalty_matrix = np.diag(penalty + NUMERIC_RIDGE)
-    penalty_matrix[0, 0] = 0.0
 
     min_train_obs = max(5, p + 2)
-    xtx = np.zeros((p, p), dtype=float)
-    xty = np.zeros(p, dtype=float)
+    r_mat = np.diag(np.sqrt(np.maximum(penalty, 0.0)))
+    qty = np.zeros(p, dtype=float)
     train_count = 0
     rows = []
     for i in range(0, t_obs - 1):
         if i > 0:
             train_idx = i - 1
             if valid_x[train_idx] and valid_y[train_idx]:
-                x = x_all[train_idx]
-                y = y_next_fit[train_idx]
-                xtx += np.outer(x, x)
-                xty += x * y
+                qr_insert_observation(r_mat, qty, x_all[train_idx], y_next_fit[train_idx])
                 train_count += 1
 
         if i < n + warmup:
@@ -1917,10 +1974,7 @@ def fast_expanding_predict(
         if not (valid_x[i] and valid_y[i]):
             continue
 
-        try:
-            beta = np.linalg.solve(xtx + penalty_matrix, xty)
-        except np.linalg.LinAlgError:
-            beta = np.linalg.pinv(xtx + penalty_matrix, rcond=1e-10) @ xty
+        beta = np.linalg.lstsq(r_mat, qty, rcond=None)[0]
         pred_fit = float(x_all[i] @ beta)
         pred = inverse_transformed_prediction(pred_fit, target_transform, log_eps)
         actual = float(y_next[i])
@@ -1978,8 +2032,6 @@ def slow_expanding_predict(
     penalty = np.zeros(p, dtype=float)
     for idx, col in enumerate(spec.features, start=1):
         penalty[idx] = float(spec.ridge_penalty.get(col, 0.0))
-    penalty_matrix = np.diag(penalty + NUMERIC_RIDGE)
-    penalty_matrix[0, 0] = 0.0
     min_train_obs = max(5, p + 2)
     rows = []
     for i in range(n + warmup, t_obs - 1):
@@ -1989,10 +2041,7 @@ def slow_expanding_predict(
             continue
         x_train = x_all[train_idx]
         y_train = y_next_fit[train_idx]
-        try:
-            beta = np.linalg.solve(x_train.T @ x_train + penalty_matrix, x_train.T @ y_train)
-        except np.linalg.LinAlgError:
-            beta = np.linalg.pinv(x_train.T @ x_train + penalty_matrix, rcond=1e-10) @ (x_train.T @ y_train)
+        beta = solve_penalized_least_squares(x_train, y_train, penalty)
         pred = inverse_transformed_prediction(float(x_all[i] @ beta), target_transform, log_eps)
         actual = float(y_next[i])
         if not (np.isfinite(pred) and np.isfinite(actual)):
@@ -2105,21 +2154,7 @@ def run_repo_cp_reproduction_audit(outdir: Path, args, assets: list[str]) -> pd.
 
 
 def run_fast_slow_equivalence_audit(outdir: Path, args, asset: str = "AAPL") -> pd.DataFrame:
-    selected = [
-        "CP_REPO_FRESH",
-        "RAW_CP_REPO_PLUS_PM",
-        "CP_REPO_RIDGE_OPS_R",
-        "CP_REPO_LRPM",
-        "CP_REPO_RIDGE_OPS_C",
-        "CP_REPO_GATED_RIDGE_OPS_C",
-        "CP_REPO_OPS_HG",
-        "RANDOM_GATE_PLACEBO_REPO",
-        "RIDGE_AR22",
-        "CP_REPO_OPS_K",
-        "PM_QDK",
-        "PM_QDK_2",
-        "PHQO",
-    ]
+    selected = list(PROP4_MODELS)
     frame, feature_groups, _, _, _ = build_feature_frame(asset, args)
     rows = []
     for model_name in selected:
@@ -2903,7 +2938,7 @@ def compute_results(outdir: Path, mode: str, assets: list[str], models: list[str
     else:
         ablation = pd.DataFrame()
 
-    placebo_names = ["RANDOM_RESIDUES_PLACEBO_REPO", "SHUFFLED_LAG_PM_PLACEBO_REPO", "RANDOM_GATE_PLACEBO_REPO", "RIDGE_AR22"]
+    placebo_names = ["RANDOM_RESIDUES_PLACEBO_REPO", "SHUFFLED_LAG_PM_PLACEBO_REPO", "RANDOM_GATE_PLACEBO_REPO"]
     placebo = ablation[ablation["model_name"].isin(placebo_names)].copy() if not ablation.empty else pd.DataFrame()
 
     return {
@@ -3010,7 +3045,7 @@ def write_pm_native_report(outdir: Path, results: dict[str, pd.DataFrame]) -> No
 
     ablation = results.get("ablation", pd.DataFrame()).copy()
     placebo_rows = []
-    placebo_models = ["RANDOM_RESIDUES_PLACEBO_REPO", "SHUFFLED_LAG_PM_PLACEBO_REPO", "RANDOM_GATE_PLACEBO_REPO", "RIDGE_AR22"]
+    placebo_models = ["RANDOM_RESIDUES_PLACEBO_REPO", "SHUFFLED_LAG_PM_PLACEBO_REPO", "RANDOM_GATE_PLACEBO_REPO"]
     if not ablation.empty:
         for model_name in PM_NATIVE_MODELS:
             pm_row = ablation[ablation["model_name"] == model_name]
@@ -3365,6 +3400,20 @@ def run_no_lookahead_audit(args, outdir: Path) -> pd.DataFrame:
             "check_name": "gate_uses_lagged_and_prior_scaled_inputs",
             "passed": bool(np.allclose(gate_base.loc[gate_base.index[:75], "GATE_REAL"], gate_changed.loc[gate_changed.index[:75], "GATE_REAL"], equal_nan=True)),
             "details": "Changing future RV values leaves earlier gates unchanged.",
+        }
+    )
+    rows.append(
+        {
+            "check_name": "random_gate_uses_strictly_prior_real_gates",
+            "passed": bool(
+                np.allclose(
+                    gate_base.loc[gate_base.index[:75], "GATE_RANDOM"],
+                    gate_changed.loc[gate_changed.index[:75], "GATE_RANDOM"],
+                    equal_nan=True,
+                )
+                and np.all(gate_base["GATE_RANDOM_SOURCE_INDEX"].to_numpy(dtype=int)[1:] < np.arange(1, len(gate_base)))
+            ),
+            "details": "Changing future RV values leaves earlier placebo gates unchanged and every sampled source is strictly prior.",
         }
     )
 

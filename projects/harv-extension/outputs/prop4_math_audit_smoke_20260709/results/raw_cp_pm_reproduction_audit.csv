@@ -1,0 +1,8 @@
+condition,expected_sign,current_RAW_CP_REPO_PLUS_PM_advantage,prior_raw_CP_PLUS_PM_advantage,sign_matches_expected,prior_available
+all_observations,negative,,-0.2153683609416437,False,True
+cluster_entry_loose,positive,,0.2463153317544348,False,True
+cluster_entry_strict,positive,,0.2443587112242224,False,True
+recent_spike_position,positive,,0.2242457480571277,False,True
+cluster_exit_loose,negative,,-0.7978044197577709,False,True
+cluster_exit_strict,negative,,-0.8017758804975089,False,True
+older_spike_position,negative,,-0.4554830752924361,False,True

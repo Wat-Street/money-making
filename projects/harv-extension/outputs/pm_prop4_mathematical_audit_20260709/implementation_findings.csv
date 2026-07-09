@@ -1,0 +1,12 @@
+severity,area,finding,status
+P0,Prop 4 expanding solver,Sequential normal equations were numerically non-equivalent on rank-deficient shape models; QR repair is required.,fixed_and_verified
+P0,Random gate placebo,Full-series permutation imported future real-gate values into earlier placebo rows.,fixed_and_verified
+P1,PHQO zero paths,The ratio form skipped zero-path rows instead of taking the exact-CP continuous safety fallback.,fixed_and_verified
+P1,Pooled RMSE,The POOLED row averaged asset RMSEs instead of taking the root of pooled squared error.,fixed_for_future_reports
+P0,PM diffusion fidelity,Per-coordinate standardization cancels every heat multiplier; maximum post-standardization tau-block difference was 3.48e-15.,requires_new_frozen_model
+P0,Matched placebo claim,"Placebos match 120 stored columns but not effective rank or Gram spectrum, so complexity is not actually held fixed.",requires_spectral_matching
+P0,PM quotient chart,Historical Q rows are residualized with different expanding regression vintages than the query row.,requires_common_origin_residualization
+P1,CP geometry,The implemented CP distance uses diagonal scaling although the theory specifies a Mahalanobis metric; C has rank 10 of 13.,requires_pseudoinverse_covariance_metric
+P1,CP-fiber success criterion,A negative PM distance/residual correlation was previously counted as favorable merely because it was less negative than placebos.,fixed_for_future_reports
+P1,Inference,The row bootstrap treats serially dependent intraday observations as independent and materially overstates precision.,requires_asset_clustered_block_bootstrap
+P1,Locked CP initialization,Repo contig_prime_modulo backfills only its initial phase rows; exact reproduction and strict causal initialization cannot both hold without a separately named benchmark.,documented_contract_caveat

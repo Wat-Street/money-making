@@ -1,0 +1,19 @@
+model_name,architecture,feature_families,feature_count,design_rank,rank_deficient,uses_ridge,uses_gate,is_placebo,finite_predictions,timestamp_alignment,target_alignment,direct_solver_equivalence,max_abs_fast_direct_diff,status
+HAR_RV,Expanding OLS on intercept + RV_d + RV_w + RV_m.,RV_REPO,3,3,False,False,False,False,True,True,True,True,1.1275702593849246e-17,PASS
+CP_REPO_FRESH,"Expanding OLS on repo RV* and CP_* from contig_prime_modulo(n=22, per_day_normalize=False).","RV_REPO,CP_REPO",13,13,False,False,False,False,True,True,True,True,2.3635607360184003e-17,PASS
+RAW_PM,Expanding OLS on the ten repo PM residue averages only.,RAW_PM,10,10,False,False,False,False,True,True,True,True,1.7347234759768068e-17,PASS
+RAW_CP_REPO_PLUS_PM,Expanding OLS on CP_REPO_FRESH controls plus raw PM residue averages.,"RV_REPO,CP_REPO,RAW_PM",23,23,False,False,False,False,True,True,True,True,1.214306433183765e-17,PASS
+CP_REPO_OPS_R,Expanding OLS on CP controls plus online-standardized centered prime-residue contrasts.,"RV_REPO,CP_REPO,OPS_R",23,22,True,False,False,False,True,True,True,True,1.0473392986209973e-15,PASS
+CP_REPO_RIDGE_OPS_R,CP controls unpenalized; one train-only selected ridge penalty on OPS-R coefficients.,"RV_REPO,CP_REPO,OPS_R",23,22,True,True,False,False,True,True,True,True,1.6837659738699884e-15,PASS
+CP_REPO_LRPM,Unregularized diagnostic using within-zone local prime-residue contrasts plus CP controls.,"RV_REPO,CP_REPO,LRPM",38,33,True,False,False,False,True,True,True,True,3.079784691162324e-15,PASS
+CP_REPO_RECENT_SLOPE,CP controls plus causal recent/older zero-sum slopes and spike-recency shape.,"RV_REPO,CP_REPO,RECENT_SLOPE",18,18,False,False,False,False,True,True,True,True,1.0714085868501757e-15,PASS
+CP_REPO_HAAR_SHAPE,CP controls plus a causal depth-three within-zone Haar path basis.,"RV_REPO,CP_REPO,HAAR",31,31,False,False,False,False,True,True,True,True,5.611830444784971e-15,PASS
+CP_REPO_OPS_C,"CP controls plus contiguous q=2,3,5 Helmert sub-block contrasts.","RV_REPO,CP_REPO,OPS_C",37,35,True,False,False,False,True,True,True,True,4.728639355078279e-15,PASS
+CP_REPO_RIDGE_OPS_C,CP controls unpenalized; one train-only selected ridge penalty on OPS-C coefficients.,"RV_REPO,CP_REPO,OPS_C",37,35,True,True,False,False,True,True,True,True,6.789924525407721e-15,PASS
+CP_REPO_GATED_RIDGE_OPS_C,"CP controls plus real-gate times OPS-C, with shape-only ridge.","RV_REPO,CP_REPO,GATED_OPS_C",37,35,True,True,True,False,True,True,True,True,3.944544343936762e-15,PASS
+CP_REPO_OPS_HG,CP controls plus gated OPS-C and more heavily penalized gated OPS-R.,"RV_REPO,CP_REPO,GATED_OPS_C,GATED_OPS_R",47,44,True,True,True,False,True,True,True,True,2.6053378204826668e-15,PASS
+RANDOM_RESIDUES_PLACEBO_REPO,OPS-R-capacity ridge placebo with seeded random groups preserving residue sizes.,"RV_REPO,CP_REPO,RANDOM_RESIDUES",23,22,True,True,False,True,True,True,True,True,1.155217414783305e-15,PASS
+SHUFFLED_LAG_PM_PLACEBO_REPO,OPS-R-capacity ridge placebo with one seeded lag-label permutation.,"RV_REPO,CP_REPO,SHUFFLED_PM",23,22,True,True,False,True,True,True,True,True,2.0823186924756602e-15,PASS
+RANDOM_GATE_PLACEBO_REPO,OPS-C ridge placebo whose gate is sampled only from strictly prior real gates.,"RV_REPO,CP_REPO,RANDOM_GATE_OPS_C",37,35,True,True,True,True,True,True,True,True,1.941155569618047e-15,PASS
+RIDGE_AR22,"Expanding ridge on lag1 through lag22; benchmark/control, not a PM placebo.",AR_LAG,22,22,False,True,False,False,True,True,True,True,3.469446951953614e-18,PASS
+CP_REPO_OPS_K,"CP controls plus gated, centered kernel-PCA lag-shape modes with shape-only ridge.","RV_REPO,CP_REPO,GATED_OPS_K",21,21,False,True,True,False,True,True,True,True,2.735442081180928e-15,PASS
