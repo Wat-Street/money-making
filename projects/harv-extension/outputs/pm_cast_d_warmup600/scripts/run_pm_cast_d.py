@@ -273,6 +273,41 @@ def candidate_score(actual: np.ndarray, cp: np.ndarray, pred: np.ndarray, folds:
     }
 
 
+def zero_inflated_residual_calibration(actual: np.ndarray, pred: np.ndarray) -> dict[str, float | int]:
+    actual = np.asarray(actual, dtype=float)
+    pred = np.asarray(pred, dtype=float)
+    valid = np.isfinite(actual) & np.isfinite(pred) & (actual >= 0.0) & (pred > 0.0)
+    actual, pred = actual[valid], pred[valid]
+    if actual.size == 0:
+        raise ValueError("No valid pre-OOS rows for distribution calibration")
+    zero_probability = float(np.mean(actual <= EPS))
+    positive = actual > EPS
+    positive_residual = np.log((actual[positive] + EPS) / (pred[positive] + EPS))
+    if positive_residual.size == 0:
+        multipliers = {probability: 0.0 for probability in [0.05, 0.50, 0.95]}
+        positive_mean = np.nan
+        positive_std = np.nan
+    else:
+        multipliers = {}
+        for probability in [0.05, 0.50, 0.95]:
+            if probability <= zero_probability:
+                multipliers[probability] = 0.0
+            else:
+                conditional_probability = (probability - zero_probability) / max(1.0 - zero_probability, EPS)
+                conditional_probability = float(np.clip(conditional_probability, 0.0, 1.0))
+                multipliers[probability] = float(np.exp(np.quantile(positive_residual, conditional_probability)))
+        positive_mean = float(np.mean(positive_residual))
+        positive_std = float(np.std(positive_residual, ddof=1)) if positive_residual.size > 1 else 0.0
+    return {
+        "n": int(actual.size),
+        "n_positive": int(positive.sum()),
+        "zero_probability": zero_probability,
+        "multiplier_q05": multipliers[0.05],
+        "multiplier_q50": multipliers[0.50],
+        "multiplier_q95": multipliers[0.95],
+        "positive_log_residual_mean": positive_mean,
+        "positive_log_residual_std": positive_std,
+    }
 def tune(args) -> None:
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -395,16 +430,9 @@ def tune(args) -> None:
             & (panel["Actual"] >= 0.0)
             & (pred > 0.0)
         )
-        residual = np.log((panel["Actual"][mask] + EPS) / (pred[mask] + EPS))
-        quantiles = np.quantile(residual, [0.05, 0.50, 0.95])
-        distribution_calibration[asset] = {
-            "n": int(len(residual)),
-            "log_residual_q05": float(quantiles[0]),
-            "log_residual_q50": float(quantiles[1]),
-            "log_residual_q95": float(quantiles[2]),
-            "log_residual_mean": float(np.mean(residual)),
-            "log_residual_std": float(np.std(residual, ddof=1)),
-        }
+        distribution_calibration[asset] = zero_inflated_residual_calibration(
+            panel["Actual"][mask], pred[mask]
+        )
     config = {
         "model_name": "PM_CAST_D",
         "created_utc": utc_now(),
@@ -498,9 +526,9 @@ def run_asset(args) -> None:
     median = pm_point.copy()
     upper = pm_point.copy()
     positive = np.isfinite(pm_point) & (pm_point > 0.0)
-    lower[positive] = pm_point[positive] * math.exp(float(distribution["log_residual_q05"]))
-    median[positive] = pm_point[positive] * math.exp(float(distribution["log_residual_q50"]))
-    upper[positive] = pm_point[positive] * math.exp(float(distribution["log_residual_q95"]))
+    lower[positive] = pm_point[positive] * float(distribution["multiplier_q05"])
+    median[positive] = pm_point[positive] * float(distribution["multiplier_q50"])
+    upper[positive] = pm_point[positive] * float(distribution["multiplier_q95"])
     output["Predicted_PM_CAST_D_Q05"] = lower
     output["Predicted_PM_CAST_D_Q50"] = median
     output["Predicted_PM_CAST_D_Q95"] = upper

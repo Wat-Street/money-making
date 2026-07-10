@@ -39,6 +39,11 @@ where `g` is an optional high-CP tail-protection factor computed from the
 strictly prior expanding CP rank. When `b=alpha=0`, the prediction is exactly
 `CP_REPO_FRESH`.
 
+The distribution layer is zero-inflated. It estimates the pre-OOS probability
+mass at exact zero separately, then estimates conditional-positive log-residual
+quantiles. This avoids treating `log(eps)` values as a continuous left tail.
+The final artifact contains the frozen 5th, 50th, and 95th percentile forecasts.
+
 ## Frozen Selection
 
 - `n=22`, `warmup=600`, `seed=42`.
@@ -59,4 +64,3 @@ isolates generic CP-relative calibration.
 
 The implementation and workflow live under
 `outputs/pm_cast_d_warmup600/` and `.github/workflows/pm_cast_d_warmup600.yml`.
-

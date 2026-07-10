@@ -67,6 +67,16 @@ class PMCastDMathTests(unittest.TestCase):
         np.testing.assert_array_equal(original[:3], changed[:3])
         self.assertAlmostEqual(original[2], 0.5)
 
+    def test_zero_inflated_distribution_separates_zero_mass(self) -> None:
+        actual = np.array([0.0, 0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0])
+        pred = np.ones_like(actual)
+        calibrated = cast.zero_inflated_residual_calibration(actual, pred)
+        self.assertAlmostEqual(float(calibrated["zero_probability"]), 0.2)
+        self.assertEqual(float(calibrated["multiplier_q05"]), 0.0)
+        self.assertGreater(float(calibrated["multiplier_q50"]), 0.0)
+        self.assertLessEqual(float(calibrated["multiplier_q05"]), float(calibrated["multiplier_q50"]))
+        self.assertLessEqual(float(calibrated["multiplier_q50"]), float(calibrated["multiplier_q95"]))
+
     def test_pooled_metrics_and_block_bootstrap_are_exact_and_finite(self) -> None:
         rows = []
         for asset_index, asset in enumerate(["A", "B"]):
