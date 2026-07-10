@@ -219,6 +219,57 @@ def embedding_complexity_table(seed: int = 42) -> tuple[pd.DataFrame, float]:
     return pd.DataFrame(rows), cancellation
 
 
+def specificity_evidence(root: Path) -> pd.DataFrame:
+    placebo = pd.read_csv(root / "placebo_comparison.csv")
+    ablation = pd.read_csv(root / "pm_ablation_comparison.csv")
+    theory = pd.read_csv(root / "theory_diagnostics.csv")
+
+    placebo_smape = placebo[
+        (placebo["asset"] == "EQUAL_WEIGHT_ASSET") & (placebo["loss_metric"] == "SMAPE")
+    ]
+    partial_smape = ablation[
+        (ablation["asset"] == "EQUAL_WEIGHT_ASSET")
+        & (ablation["loss_metric"] == "SMAPE")
+        & (ablation["model_name"] != "PM_QDK_2")
+    ]
+    fiber = theory[
+        (theory["model_name"] == "PM_QDK_2")
+        & (theory["diagnostic"] == "pm_geometry_cp_fiber_distance_predictiveness")
+    ]
+    smoothness = theory[
+        (theory["model_name"] == "PM_QDK_2")
+        & (theory["diagnostic"] == "pm_geometry_residual_smoothness")
+    ]
+    return pd.DataFrame(
+        [
+            {
+                "test": "matched_structured_placebos_smape",
+                "favorable": int(placebo_smape["pm_qdk2_beats_placebo"].astype(bool).sum()),
+                "total": int(len(placebo_smape)),
+                "criterion": "full PM has lower equal-weight asset SMAPE",
+            },
+            {
+                "test": "partial_modulus_ablations_smape",
+                "favorable": int(partial_smape["full_pm_beats_model"].astype(bool).sum()),
+                "total": int(len(partial_smape)),
+                "criterion": "full PM has lower equal-weight asset SMAPE",
+            },
+            {
+                "test": "cp_fiber_positive_spearman",
+                "favorable": int((pd.to_numeric(fiber["distance_residual_spearman"], errors="coerce") > 0).sum()),
+                "total": int(len(fiber)),
+                "criterion": "PM distance has positive residual-difference slope",
+            },
+            {
+                "test": "cp_residual_smoothness",
+                "favorable": int((pd.to_numeric(smoothness["smoothness_advantage"], errors="coerce") > 0).sum()),
+                "total": int(len(smoothness)),
+                "criterion": "PM neighbors have lower CP-residual difference",
+            },
+        ]
+    )
+
+
 def old_solver_artifacts(full_prop4: Path) -> pd.DataFrame:
     rows = []
     for path in sorted((full_prop4 / "predictions" / "full").glob("*.csv")):
@@ -236,13 +287,76 @@ def old_solver_artifacts(full_prop4: Path) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def verified_full_run_table(root: Path) -> pd.DataFrame:
+    result_dir = root / "results"
+    fast = pd.read_csv(result_dir / "fast_slow_equivalence_audit.csv")
+    lookahead = pd.read_csv(result_dir / "no_lookahead_audit.csv")
+    repo_cp = pd.read_csv(result_dir / "repo_cp_reproduction_audit.csv")
+    metadata = pd.read_csv(result_dir / "run_metadata.csv")
+    failures = pd.read_csv(result_dir / "run_failures.csv")
+    aggregate = pd.read_csv(result_dir / "aggregate_audit_summary.csv")
+    return pd.DataFrame(
+        [
+            {
+                "check": "fast_direct_model_asset_coverage",
+                "observed": int(len(fast)),
+                "expected": 180,
+                "passed": bool(len(fast) == 180 and fast["passes"].astype(bool).all()),
+                "max_abs_difference": float(pd.to_numeric(fast["max_abs_prediction_diff"], errors="coerce").max()),
+            },
+            {
+                "check": "no_lookahead",
+                "observed": int(len(lookahead)),
+                "expected": 60,
+                "passed": bool(len(lookahead) == 60 and lookahead["passed"].astype(bool).all()),
+                "max_abs_difference": np.nan,
+            },
+            {
+                "check": "repo_cp_reproduction",
+                "observed": int(len(repo_cp)),
+                "expected": 10,
+                "passed": bool(len(repo_cp) == 10 and repo_cp["passes"].astype(bool).all()),
+                "max_abs_difference": float(pd.to_numeric(repo_cp["max_abs_diff"], errors="coerce").max()),
+            },
+            {
+                "check": "completed_model_asset_metadata",
+                "observed": int((metadata["status"].astype(str) == "complete").sum()),
+                "expected": 180,
+                "passed": bool(len(metadata) == 180 and (metadata["status"].astype(str) == "complete").all()),
+                "max_abs_difference": np.nan,
+            },
+            {
+                "check": "aggregate_checks",
+                "observed": int(len(aggregate)),
+                "expected": int(len(aggregate)),
+                "passed": bool(not aggregate.empty and aggregate["passed"].astype(bool).all()),
+                "max_abs_difference": np.nan,
+            },
+            {
+                "check": "run_failures",
+                "observed": int(len(failures)),
+                "expected": 0,
+                "passed": bool(failures.empty),
+                "max_abs_difference": np.nan,
+            },
+            {
+                "check": "success_marker",
+                "observed": int((root / "SUCCESS.txt").exists()),
+                "expected": 1,
+                "passed": bool((root / "SUCCESS.txt").exists()),
+                "max_abs_difference": np.nan,
+            },
+        ]
+    )
+
+
 def findings_table(cancellation: float) -> pd.DataFrame:
     return pd.DataFrame(
         [
             ("P0", "Prop 4 expanding solver", "Sequential normal equations were numerically non-equivalent on rank-deficient shape models; QR repair is required.", "fixed_and_verified"),
             ("P0", "Random gate placebo", "Full-series permutation imported future real-gate values into earlier placebo rows.", "fixed_and_verified"),
             ("P1", "PHQO zero paths", "The ratio form skipped zero-path rows instead of taking the exact-CP continuous safety fallback.", "fixed_and_verified"),
-            ("P1", "Pooled RMSE", "The POOLED row averaged asset RMSEs instead of taking the root of pooled squared error.", "fixed_for_future_reports"),
+            ("P1", "Pooled RMSE", "The POOLED row averaged asset RMSEs instead of taking the root of pooled squared error.", "fixed_and_verified"),
             ("P0", "PM diffusion fidelity", f"Per-coordinate standardization cancels every heat multiplier; maximum post-standardization tau-block difference was {cancellation:.3g}.", "requires_new_frozen_model"),
             ("P0", "Matched placebo claim", "Placebos match 120 stored columns but not effective rank or Gram spectrum, so complexity is not actually held fixed.", "requires_spectral_matching"),
             ("P0", "PM quotient chart", "Historical Q rows are residualized with different expanding regression vintages than the query row.", "requires_common_origin_residualization"),
@@ -320,16 +434,24 @@ with a monotone distributional regression whose location is `log(m_T/m_CP)` and 
 a(alpha) = (1-alpha) m_CP + alpha m_T,  0 <= alpha <= alpha_max.
 ```
 
-Choose one frozen `alpha` rule by minimizing worst normalized validation regret across SMAPE, MAE, and MSE:
+Choose one frozen `alpha` rule by maximizing the worst normalized validation improvement across SMAPE, MAE, and MSE:
 
 ```text
-min_alpha max_L [R_L(a(alpha))-R_L(m_CP)] / scale_L,
+g_L(alpha) = [R_L(m_CP)-R_L(a(alpha))] / scale_L,
+alpha* = argmax_alpha min_L g_L(alpha),
 L in {SMAPE, MAE, MSE}.
 ```
 
-RMSE follows MSE ordering on an identical row set. Entropy/KL regularization on `w` keeps the construction close to the reference average, and `alpha=0` gives exact CP nesting.
+Use `alpha*=0` unless the purged validation lower confidence bound for `min_L g_L(alpha*)` is positive. RMSE follows MSE ordering on an identical row set. Entropy/KL regularization on `w` keeps the construction close to the reference average, and `alpha=0` gives exact CP nesting.
 
-## 4. Why this is a useful application exhibit
+## 4. Frozen training and validation
+
+1. Freeze `C`, the character basis `U`, mode rank, tau grid, reference weights `beta`, transport rank, regularizers, and the minimax action before the final period.
+2. At each origin, estimate every normalization, state map, transport coefficient, distributional parameter, and `alpha` from strictly prior data using purged chronological folds.
+3. Give every spectral-matched placebo the same singular spectrum, estimator, hyperparameter grid, fold boundaries, and tuning budget.
+4. Evaluate one untouched chronological block. Report day/week moving-block intervals clustered by asset; do not use row bootstrap evidence for the claim.
+
+## 5. Why this is a useful application exhibit
 
 The forecast remains an average-based system: PM changes the mass assigned to the 22 lag observations through a prime-harmonic transport field. It does not append PM regressors to CP. The distributional layer prevents the SMAPE-only downward shift that caused the current upper-tail MAE/MSE failure.
 
@@ -343,6 +465,9 @@ def report_text(
     tails: pd.DataFrame,
     complexity: pd.DataFrame,
     cancellation: float,
+    specificity: pd.DataFrame,
+    full_run: pd.DataFrame,
+    action_summary: pd.DataFrame | None = None,
 ) -> str:
     cp = metrics.set_index("model_name").loc["CP_REPO_FRESH"]
     pm = metrics.set_index("model_name").loc["PM_QDK_2"]
@@ -350,31 +475,68 @@ def report_text(
     top_quarter = tails.set_index("segment").loc["actual_top_25pct"]
     true = complexity.set_index("model_name").loc["PM_QDK_2"]
     placebo = complexity.loc[complexity["model_name"].isin(validation.PLACEBO_MODELS)]
+    evidence = specificity.set_index("test")
+    placebo_wins = evidence.loc["matched_structured_placebos_smape"]
+    ablation_wins = evidence.loc["partial_modulus_ablations_smape"]
+    fiber_wins = evidence.loc["cp_fiber_positive_spearman"]
+    smoothness_wins = evidence.loc["cp_residual_smoothness"]
+    full_checks = full_run.set_index("check")
+    action_section = ""
+    if action_summary is not None and not action_summary.empty:
+        sampled = action_summary.loc[action_summary["asset"] == "POOLED"].set_index("model_name")
+        full_action = sampled.loc["FULL_SMAPE_ACTION"]
+        no_q = sampled.loc["NO_Q_SMAPE_ACTION"]
+        mean_action = sampled.loc["FULL_MEAN_ACTION"]
+        action_section = f"""
+## Fixed-Origin Action/Geometry Separation
+
+On a deterministic sample of `{int(full_action['n_obs'])}` origins (`100` per asset), removing `Q` improves the full SMAPE-action loss from `{full_action['SMAPE']:.6f}` to `{no_q['SMAPE']:.6f}` and also improves MAE, MSE, and RMSE. The quotient block contributes only `{full_action['mean_quotient_distance_share']:.2%}` of total standardized distance, and the full kernel still averages about `{full_action['mean_effective_neighbors']:.1f}` effective historical neighbors. On these fixed origins the PM quotient adds no incremental value.
+
+Using the same full geometry with the conditional mean changes RMSE from CP's `{sampled.loc['CP_REPO_FRESH', 'RMSE']:.9g}` to `{mean_action['RMSE']:.9g}`, but worsens SMAPE and MAE. This directly identifies the current conflict: the forecast action, not a strongly discriminating PM neighborhood, determines which loss improves.
+"""
     return f"""# Prop 4 Mathematical Audit And PM Diagnosis
 
 ## Outcome
 
 - All `{len(fidelity)}` Prop 4 models pass finite-output, timestamp/target alignment, feature-registry, and fast-versus-direct solver checks after the QR and causal-gate repairs.
 - Maximum fast/direct prediction difference in the smoke audit: `{fidelity['max_abs_fast_direct_diff'].max():.6g}`.
-- `CP_REPO_FRESH` reproduction remains unchanged within `{fidelity.loc[fidelity['model_name'] == 'CP_REPO_FRESH', 'max_abs_fast_direct_diff'].iloc[0]:.6g}` in the solver audit.
-- Existing full-run results for unregularized OPS-R/LRPM/OPS-C and the old random-gate placebo are superseded and require a fresh full run.
+- `CP_REPO_FRESH` fast/direct solver equivalence is `{fidelity.loc[fidelity['model_name'] == 'CP_REPO_FRESH', 'max_abs_fast_direct_diff'].iloc[0]:.6g}`; the separate repo-reproduction audit also passes.
+- Fresh 10-asset Actions run `29058736547` passes `{int(full_checks.loc['fast_direct_model_asset_coverage', 'observed'])}/180` fast/direct comparisons, `{int(full_checks.loc['no_lookahead', 'observed'])}/60` no-lookahead checks, and `{int(full_checks.loc['repo_cp_reproduction', 'observed'])}/10` repo-CP checks. All aggregate checks pass with zero run failures.
+- Existing pre-repair full-run results for unregularized OPS-R/LRPM/OPS-C and the old random-gate placebo are superseded by `outputs/cp_repo_ops_hg_math_audited_warmup600_29058736547`.
 
 ## Why PM_QDK_2 Has The Observed Loss Pattern
 
 On `{int(pm['n_obs'])}` aligned rows, `PM_QDK_2` changes pooled SMAPE from `{cp['SMAPE']:.6f}` to `{pm['SMAPE']:.6f}`, but changes MAE from `{cp['MAE']:.9g}` to `{pm['MAE']:.9g}` and true pooled RMSE from `{cp['RMSE']:.9g}` to `{pm['RMSE']:.9g}`.
 
 The model is SMAPE-native, and its Bayes action is lower than the conditional mean. Its mean forecast bias is `{pm['bias_pred_minus_actual']:.9g}` versus CP's `{cp['bias_pred_minus_actual']:.9g}`. The upper half of realized volatility explains `{top_half['share_of_total_pm_excess_mse']:.2%}` of PM's excess squared error; the upper quartile explains `{top_quarter['share_of_total_pm_excess_mse']:.2%}`. This is a location/action mismatch, not evidence that PM predicts tails well.
+{action_section}
 
 ## Why Prime Specificity Is Not Established
 
-1. Coordinate-wise quotient scaling cancels the heat factors to `{cancellation:.3g}` numerical error. The intended prime-diffusion smoothing is therefore absent from the actual distance.
-2. True PM has standardized effective rank `{true['standardized_effective_rank']:.3f}` in the controlled synthetic audit, while the six placebos range from `{placebo['standardized_effective_rank'].min():.3f}` to `{placebo['standardized_effective_rank'].max():.3f}`. Equal stored column count is not equal complexity.
-3. Expanding quotient residuals use vintage-specific projection maps, so historical and query points are not represented in one common CP-fiber chart.
-4. The CP distance is diagonal-scaled although `C` has rank `10/13` and the theory specifies a covariance-pseudoinverse metric.
-5. The selected PM_QDK_2 bandwidth is at the broadest grid value for nearly every asset. Combined with the identical SMAPE action used by all geometries, most of the gain is generic smoothing/action regularization.
-6. The previous CP-fiber success flag compared two negative correlations. The corrected criterion requires a positive PM slope before comparing it with placebos.
+1. Full PM beats only `{int(placebo_wins['favorable'])}/{int(placebo_wins['total'])}` structured SMAPE placebos and `{int(ablation_wins['favorable'])}/{int(ablation_wins['total'])}` partial-modulus ablations. The full CRT construction is therefore not the source of the ranking.
+2. Coordinate-wise quotient scaling cancels the heat factors to `{cancellation:.3g}` numerical error. The intended prime-diffusion smoothing is therefore absent from the actual distance.
+3. True PM has standardized effective rank `{true['standardized_effective_rank']:.3f}` in the controlled synthetic audit, while the six placebos range from `{placebo['standardized_effective_rank'].min():.3f}` to `{placebo['standardized_effective_rank'].max():.3f}`. Equal stored column count is not equal complexity.
+4. Expanding quotient residuals use vintage-specific projection maps, so historical and query points are not represented in one common CP-fiber chart.
+5. The CP distance is diagonal-scaled although `C` has rank `10/13` and the theory specifies a covariance-pseudoinverse metric.
+6. The selected PM_QDK_2 bandwidth is at the broadest grid value for nearly every asset. Combined with the identical SMAPE action used by all geometries, most of the gain is generic smoothing/action regularization.
+7. PM's CP-fiber slope is positive on only `{int(fiber_wins['favorable'])}/{int(fiber_wins['total'])}` assets, and PM improves CP-residual smoothness on only `{int(smoothness_wins['favorable'])}/{int(smoothness_wins['total'])}`. The previous aggregate fiber flag compared mostly negative correlations and was not valid evidence.
 
 ## Decisive PM Embedding Test
+
+The formal target for loss `L` is
+
+```text
+Delta_L(PM) = R_L(C) - R_L(C,Q_PM),
+S_L(PM) = Delta_L(PM) - max_g Delta_L(g),
+```
+
+where `g` ranges over spectral-matched non-PM geometries and every risk is estimated out of fold. The thesis requires `S_L(PM)>0`, not merely `Delta_L(PM)>0`. For squared loss, the population information gain is exactly
+
+```text
+E[(E[Y|C,Q_PM] - E[Y|C])^2].
+```
+
+The conditional-independence null is `Y independent of Q_PM given C`; reject it with a conditional randomization test whose null distribution is generated by the matched rotations.
 
 1. Freeze the PM operator, estimator, tau grid, rank, loss action, and selection rule before looking at the final period.
 2. Represent every geometry by a `22 x d` operator and spectrally match its singular values, effective rank, trace, Frobenius norm, heat eigenvalue multiplicities, and kernel bandwidth budget to true PM.
@@ -398,6 +560,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--smoke", default="outputs/prop4_math_audit_smoke_20260709")
     parser.add_argument("--pm-results", default="outputs/pm_native_geometry_warmup600_discriminating_validation")
     parser.add_argument("--old-prop4-full", default="outputs/cp_repo_ops_hg_actions/28269511971/combined_manual")
+    parser.add_argument("--verified-prop4-full", default="outputs/cp_repo_ops_hg_math_audited_warmup600_29058736547")
     parser.add_argument("--outdir", default="outputs/pm_prop4_mathematical_audit_20260709")
     return parser
 
@@ -412,17 +575,23 @@ def main() -> None:
     tails = pm_tail_decomposition(panel)
     assets = asset_metric_table(panel)
     complexity, cancellation = embedding_complexity_table()
+    specificity = specificity_evidence(Path(args.pm_results))
     old_artifacts = old_solver_artifacts(Path(args.old_prop4_full))
+    full_run = verified_full_run_table(Path(args.verified_prop4_full))
     findings = findings_table(cancellation)
     write_csv(fidelity, outdir / "model_fidelity_audit.csv")
     write_csv(metrics, outdir / "pooled_metric_recalculation.csv")
     write_csv(tails, outdir / "pm_tail_loss_decomposition.csv")
     write_csv(assets, outdir / "pm_asset_metric_recalculation.csv")
     write_csv(complexity, outdir / "pm_embedding_complexity_audit.csv")
+    write_csv(specificity, outdir / "pm_specificity_summary.csv")
     write_csv(old_artifacts, outdir / "superseded_solver_artifacts.csv")
+    write_csv(full_run, outdir / "prop4_full_run_verification.csv")
     write_csv(findings, outdir / "implementation_findings.csv")
+    action_path = outdir / "pm_action_geometry_summary.csv"
+    action_summary = pd.read_csv(action_path) if action_path.exists() else None
     (outdir / "AUDIT_AND_RESEARCH_RECOMMENDATION.md").write_text(
-        report_text(fidelity, metrics, tails, complexity, cancellation), encoding="utf-8"
+        report_text(fidelity, metrics, tails, complexity, cancellation, specificity, full_run, action_summary), encoding="utf-8"
     )
     (outdir / "PROPOSED_PM_CAST_D.md").write_text(proposed_model_text(), encoding="utf-8")
     print(f"Audit package written to {outdir}")

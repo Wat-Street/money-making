@@ -4,8 +4,9 @@
 
 - All `18` Prop 4 models pass finite-output, timestamp/target alignment, feature-registry, and fast-versus-direct solver checks after the QR and causal-gate repairs.
 - Maximum fast/direct prediction difference in the smoke audit: `6.78992e-15`.
-- `CP_REPO_FRESH` reproduction remains unchanged within `2.36356e-17` in the solver audit.
-- Existing full-run results for unregularized OPS-R/LRPM/OPS-C and the old random-gate placebo are superseded and require a fresh full run.
+- `CP_REPO_FRESH` fast/direct solver equivalence is `2.36356e-17`; the separate repo-reproduction audit also passes.
+- Fresh 10-asset Actions run `29058736547` passes `180/180` fast/direct comparisons, `60/60` no-lookahead checks, and `10/10` repo-CP checks. All aggregate checks pass with zero run failures.
+- Existing pre-repair full-run results for unregularized OPS-R/LRPM/OPS-C and the old random-gate placebo are superseded by `outputs/cp_repo_ops_hg_math_audited_warmup600_29058736547`.
 
 ## Why PM_QDK_2 Has The Observed Loss Pattern
 
@@ -13,16 +14,39 @@ On `367468` aligned rows, `PM_QDK_2` changes pooled SMAPE from `100.879965` to `
 
 The model is SMAPE-native, and its Bayes action is lower than the conditional mean. Its mean forecast bias is `-9.51773875e-05` versus CP's `-3.5346397e-06`. The upper half of realized volatility explains `96.16%` of PM's excess squared error; the upper quartile explains `95.43%`. This is a location/action mismatch, not evidence that PM predicts tails well.
 
+## Fixed-Origin Action/Geometry Separation
+
+On a deterministic sample of `1000` origins (`100` per asset), removing `Q` improves the full SMAPE-action loss from `100.170592` to `100.163491` and also improves MAE, MSE, and RMSE. The quotient block contributes only `13.14%` of total standardized distance, and the full kernel still averages about `958.9` effective historical neighbors. On these fixed origins the PM quotient adds no incremental value.
+
+Using the same full geometry with the conditional mean changes RMSE from CP's `0.00191690134` to `0.00189568541`, but worsens SMAPE and MAE. This directly identifies the current conflict: the forecast action, not a strongly discriminating PM neighborhood, determines which loss improves.
+
+
 ## Why Prime Specificity Is Not Established
 
-1. Coordinate-wise quotient scaling cancels the heat factors to `3.48e-15` numerical error. The intended prime-diffusion smoothing is therefore absent from the actual distance.
-2. True PM has standardized effective rank `10.845` in the controlled synthetic audit, while the six placebos range from `8.911` to `19.156`. Equal stored column count is not equal complexity.
-3. Expanding quotient residuals use vintage-specific projection maps, so historical and query points are not represented in one common CP-fiber chart.
-4. The CP distance is diagonal-scaled although `C` has rank `10/13` and the theory specifies a covariance-pseudoinverse metric.
-5. The selected PM_QDK_2 bandwidth is at the broadest grid value for nearly every asset. Combined with the identical SMAPE action used by all geometries, most of the gain is generic smoothing/action regularization.
-6. The previous CP-fiber success flag compared two negative correlations. The corrected criterion requires a positive PM slope before comparing it with placebos.
+1. Full PM beats only `2/6` structured SMAPE placebos and `0/6` partial-modulus ablations. The full CRT construction is therefore not the source of the ranking.
+2. Coordinate-wise quotient scaling cancels the heat factors to `3.48e-15` numerical error. The intended prime-diffusion smoothing is therefore absent from the actual distance.
+3. True PM has standardized effective rank `10.845` in the controlled synthetic audit, while the six placebos range from `8.911` to `19.156`. Equal stored column count is not equal complexity.
+4. Expanding quotient residuals use vintage-specific projection maps, so historical and query points are not represented in one common CP-fiber chart.
+5. The CP distance is diagonal-scaled although `C` has rank `10/13` and the theory specifies a covariance-pseudoinverse metric.
+6. The selected PM_QDK_2 bandwidth is at the broadest grid value for nearly every asset. Combined with the identical SMAPE action used by all geometries, most of the gain is generic smoothing/action regularization.
+7. PM's CP-fiber slope is positive on only `2/10` assets, and PM improves CP-residual smoothness on only `2/10`. The previous aggregate fiber flag compared mostly negative correlations and was not valid evidence.
 
 ## Decisive PM Embedding Test
+
+The formal target for loss `L` is
+
+```text
+Delta_L(PM) = R_L(C) - R_L(C,Q_PM),
+S_L(PM) = Delta_L(PM) - max_g Delta_L(g),
+```
+
+where `g` ranges over spectral-matched non-PM geometries and every risk is estimated out of fold. The thesis requires `S_L(PM)>0`, not merely `Delta_L(PM)>0`. For squared loss, the population information gain is exactly
+
+```text
+E[(E[Y|C,Q_PM] - E[Y|C])^2].
+```
+
+The conditional-independence null is `Y independent of Q_PM given C`; reject it with a conditional randomization test whose null distribution is generated by the matched rotations.
 
 1. Freeze the PM operator, estimator, tau grid, rank, loss action, and selection rule before looking at the final period.
 2. Represent every geometry by a `22 x d` operator and spectrally match its singular values, effective rank, trace, Frobenius norm, heat eigenvalue multiplicities, and kernel bandwidth budget to true PM.

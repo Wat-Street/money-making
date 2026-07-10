@@ -62,16 +62,24 @@ with a monotone distributional regression whose location is `log(m_T/m_CP)` and 
 a(alpha) = (1-alpha) m_CP + alpha m_T,  0 <= alpha <= alpha_max.
 ```
 
-Choose one frozen `alpha` rule by minimizing worst normalized validation regret across SMAPE, MAE, and MSE:
+Choose one frozen `alpha` rule by maximizing the worst normalized validation improvement across SMAPE, MAE, and MSE:
 
 ```text
-min_alpha max_L [R_L(a(alpha))-R_L(m_CP)] / scale_L,
+g_L(alpha) = [R_L(m_CP)-R_L(a(alpha))] / scale_L,
+alpha* = argmax_alpha min_L g_L(alpha),
 L in {SMAPE, MAE, MSE}.
 ```
 
-RMSE follows MSE ordering on an identical row set. Entropy/KL regularization on `w` keeps the construction close to the reference average, and `alpha=0` gives exact CP nesting.
+Use `alpha*=0` unless the purged validation lower confidence bound for `min_L g_L(alpha*)` is positive. RMSE follows MSE ordering on an identical row set. Entropy/KL regularization on `w` keeps the construction close to the reference average, and `alpha=0` gives exact CP nesting.
 
-## 4. Why this is a useful application exhibit
+## 4. Frozen training and validation
+
+1. Freeze `C`, the character basis `U`, mode rank, tau grid, reference weights `beta`, transport rank, regularizers, and the minimax action before the final period.
+2. At each origin, estimate every normalization, state map, transport coefficient, distributional parameter, and `alpha` from strictly prior data using purged chronological folds.
+3. Give every spectral-matched placebo the same singular spectrum, estimator, hyperparameter grid, fold boundaries, and tuning budget.
+4. Evaluate one untouched chronological block. Report day/week moving-block intervals clustered by asset; do not use row bootstrap evidence for the claim.
+
+## 5. Why this is a useful application exhibit
 
 The forecast remains an average-based system: PM changes the mass assigned to the 22 lag observations through a prime-harmonic transport field. It does not append PM regressors to CP. The distributional layer prevents the SMAPE-only downward shift that caused the current upper-tail MAE/MSE failure.
 

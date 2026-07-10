@@ -1,0 +1,8 @@
+check,observed,expected,passed,max_abs_difference
+fast_direct_model_asset_coverage,180,180,True,7.884535038749085e-15
+no_lookahead,60,60,True,
+repo_cp_reproduction,10,10,True,5.182486384480711e-16
+completed_model_asset_metadata,180,180,True,
+aggregate_checks,8,8,True,
+run_failures,0,0,True,
+success_marker,1,1,True,
