@@ -1,0 +1,7 @@
+check,passed,detail
+all_asset_audits,True,230/230
+pooled_all_metrics_beat_cp,False,"SMAPE,MAE"
+at_least_7_assets_each_metric,False,"{""SMAPE"": 7, ""MAE"": 10, ""MSE"": 2, ""RMSE"": 2}"
+bootstrap_ci_positive_all_metrics,False,"{""SMAPE"": 0.22528907737684423, ""MAE"": 1.0787756736240463e-05, ""MSE"": -4.6721429978614996e-09, ""RMSE"": -1.3739191443635602e-06}"
+beats_calibration_only_all_metrics,False,"SMAPE,MAE"
+pm_transport_selected,True,alpha=0.75

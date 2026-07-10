@@ -18,3 +18,7 @@ The full run is dispatched through `.github/workflows/pm_cast_d_warmup600.yml`.
 No result from this folder is promoted to repo 2 or repo 3 without explicit
 approval.
 
+Latest verified run: `verified_actions_29069772802/README.md`. It improves
+SMAPE and MAE with positive moving-block intervals but does not beat CP on
+MSE/RMSE, so it is retained as a completed needs-review result rather than an
+all-fronts success.

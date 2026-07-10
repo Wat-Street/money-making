@@ -1,0 +1,11 @@
+asset,history_first_origin,tuning_first_origin,tuning_last_origin,first_oos_origin,n_tuning_rows,strictly_pre_oos
+AAPL,72,222,621,622,400,True
+AMZN,72,222,621,622,400,True
+EEM,72,222,621,622,400,True
+FXI,72,222,621,622,400,True
+GLD,72,222,621,622,400,True
+GOOGL,72,222,621,622,400,True
+HYG,72,222,621,622,400,True
+QQQ,72,222,621,622,400,True
+SPY,72,222,621,622,400,True
+TLT,72,222,621,622,400,True
