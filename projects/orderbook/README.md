@@ -3,6 +3,15 @@
 ## Overview
 Order Book instances allow the ML team to forward-test their algorithms. An API and database are hosted on the PC that allows members to create instances of Order Books and tie specific algorithms to trade on them.
 
+## Database configuration
+
+Set `ORDERBOOK_DB_PASSWORD` before starting the API. The repository does not
+contain a database password.
+
+```powershell
+$env:ORDERBOOK_DB_PASSWORD = "your-local-password"
+```
+
 ## API Features
 1. **`create_orderbook`**
     To create an order book.
