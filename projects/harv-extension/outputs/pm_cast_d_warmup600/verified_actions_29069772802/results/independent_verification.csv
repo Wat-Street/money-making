@@ -1,0 +1,12 @@
+check,observed,expected,passed
+oos_rows,367468,367468,True
+asset_count,10,10,True
+duplicate_asset_timestamps,0,0,True
+finite_model_predictions,1,1,True
+finite_monotone_distribution_quantiles,1,1,True
+asset_audit_rows_passed,230,230,True
+metadata_asset_rows,10,10,True
+max_abs_direct_metric_difference,1.4210854715202004e-14,2e-12,True
+tuning_last_origin,621,621,True
+first_final_oos_origin,622,622,True
+

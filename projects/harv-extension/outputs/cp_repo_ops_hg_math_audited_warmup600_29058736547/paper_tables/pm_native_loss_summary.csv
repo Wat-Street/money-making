@@ -1,0 +1,1 @@
+model_name,condition,condition_label_type,loss_variant,loss_metric,n_obs_total,n_assets,pooled_CP_loss,pooled_model_loss,pooled_advantage_CP_minus_model,equal_weight_asset_advantage,assets_positive

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import shutil
 import sys
 from datetime import datetime
@@ -167,8 +168,12 @@ def summarize_alternative_loss(frame: pd.DataFrame) -> pd.DataFrame:
     for keys, group in frame.groupby(group_cols, dropna=False):
         rec = dict(zip(group_cols, keys))
         weights = pd.to_numeric(group.get("n_obs", 0), errors="coerce").fillna(0)
-        cp_loss = weighted_mean(group["CP_loss"], weights) if "CP_loss" in group else np.nan
-        model_loss = weighted_mean(group["model_loss"], weights) if "model_loss" in group else np.nan
+        if rec["loss_metric"] == "RMSE":
+            cp_loss = math.sqrt(weighted_mean(np.square(pd.to_numeric(group["CP_loss"], errors="coerce")), weights)) if "CP_loss" in group else np.nan
+            model_loss = math.sqrt(weighted_mean(np.square(pd.to_numeric(group["model_loss"], errors="coerce")), weights)) if "model_loss" in group else np.nan
+        else:
+            cp_loss = weighted_mean(group["CP_loss"], weights) if "CP_loss" in group else np.nan
+            model_loss = weighted_mean(group["model_loss"], weights) if "model_loss" in group else np.nan
         adv = pd.to_numeric(group.get("advantage_CP_minus_model", np.nan), errors="coerce")
         rec.update(
             {

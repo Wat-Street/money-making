@@ -1,0 +1,4 @@
+diagnostic,passed,seed,details_json,asset,run_type
+random_residue_group_sizes,True,143,"{""construction"": ""random residue groups use the true PM group-size vector for each prime"", ""random_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}, ""true_group_sizes"": {""p2"": [11, 11], ""p3"": [7, 8, 7], ""p5"": [4, 5, 5, 4, 4]}}",AAPL,smoke
+shuffled_pm_not_identical,True,244,"{""identical_after_projection"": false, ""shuffled_weight_columns"": 10, ""true_weight_columns"": 10}",AAPL,smoke
+random_gate_causal_past_resample,True,345,"{""all_sources_strictly_prior"": true, ""construction"": ""each random gate is a deterministic seeded resample from strictly prior real-gate values"", ""n_gate_values"": 37362, ""random_gate_mean"": 0.43719312659270054, ""random_gate_std"": 0.33953710724868713, ""real_gate_mean"": 0.43658672564564266, ""real_gate_std"": 0.3389057813979971}",AAPL,smoke

@@ -161,3 +161,14 @@ cython_debug/
 
 *.env
 *.env.local
+
+# Local HAR-V run downloads and scratch artifacts
+projects/harv-extension/_*_download_*/
+projects/harv-extension/_*_combined_*/
+projects/harv-extension/_*_tuning_*/
+projects/harv-extension/_cp_repo_ops_hg_result_csvs_*/
+projects/harv-extension/outputs/*_actions/
+projects/harv-extension/outputs/*_local_smoke*/
+projects/harv-extension/outputs/*_local_probe*/
+projects/harv-extension/outputs/_prop4_qr_benchmark/
+tmp/

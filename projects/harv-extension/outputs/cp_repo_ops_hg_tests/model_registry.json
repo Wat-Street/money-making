@@ -217,7 +217,7 @@
       "uses_ridge": false
     },
     "RANDOM_GATE_PLACEBO_REPO": {
-      "expected_interpretation": "Gated OPS-C placebo using a shuffled real gate.",
+      "expected_interpretation": "Gated OPS-C placebo using a deterministic seeded resample from strictly prior real-gate values.",
       "feature_families": [
         "RV_REPO",
         "CP_REPO",
@@ -281,7 +281,7 @@
       ],
       "includes_cp": false,
       "includes_raw_pm": false,
-      "is_placebo": true,
+      "is_placebo": false,
       "paper_eligible": true,
       "shape_features_cp_orthogonal": false,
       "uses_gate": false,

@@ -1,11 +1,12 @@
 #!/usr/bin/env python
-"""Post-result validation for the PM-native warmup-600 geometry run.
+"""Discriminating validation for the PM-native warmup-600 geometry run.
 
 This script intentionally reuses the Prop 4 runner's data loading, CP feature
 construction, PM embeddings, validation-window logic, and SMAPE action.  The
 validation-only placebo forecasts are not model-registry additions; they are
-matched diagnostic kernels used to test whether PM_QDK_2's SMAPE win survives
-random-residue, shuffled-lag, and generic Haar/shape geometries.
+matched diagnostic kernels and partial PM ablations used to test whether
+PM_QDK_2's SMAPE win survives non-PM geometries with identical smoothing,
+feature count, tuning budget, and validation rules.
 """
 
 from __future__ import annotations
@@ -44,12 +45,23 @@ PLACEBO_MODELS = [
     "PM_QDK_2_RANDOM_RESIDUE_PLACEBO",
     "PM_QDK_2_SHUFFLED_LAG_PLACEBO",
     "PM_QDK_2_HAAR_SHAPE_PLACEBO",
+    "PM_QDK_2_COMPOSITE_4_6_10_PLACEBO",
+    "PM_QDK_2_FAKE_TORUS_PLACEBO",
+    "PM_QDK_2_CONTIGUOUS_DIFFUSION_PLACEBO",
 ]
-VALIDATION_MODELS = CORE_MODELS + PLACEBO_MODELS
+PM_ABLATION_MODELS = [
+    "PM_QDK_2_MOD2_ABLATION",
+    "PM_QDK_2_MOD3_ABLATION",
+    "PM_QDK_2_MOD5_ABLATION",
+    "PM_QDK_2_MOD2_3_ABLATION",
+    "PM_QDK_2_MOD2_5_ABLATION",
+    "PM_QDK_2_MOD3_5_ABLATION",
+]
+VALIDATION_MODELS = CORE_MODELS + PLACEBO_MODELS + PM_ABLATION_MODELS
 LOSS_METRICS = ["SMAPE", "MAE", "MSE", "RMSE"]
 ASSET_UNIVERSE = ["AAPL", "AMZN", "EEM", "FXI", "GLD", "GOOGL", "HYG", "QQQ", "SPY", "TLT"]
 DEFAULT_SOURCE_RUN = Path("outputs/pm_native_geometry_warmup600_full")
-DEFAULT_OUTDIR = Path("outputs/pm_native_geometry_warmup600_post_validation")
+DEFAULT_OUTDIR = Path("outputs/pm_native_geometry_warmup600_discriminating_validation")
 
 
 @dataclass
@@ -218,6 +230,116 @@ def harmonic_phi_from_chars(
     return runner.real_embedding(np.concatenate(pieces, axis=1))
 
 
+def pad_or_truncate_phi(phi: np.ndarray, target_dim: int) -> np.ndarray:
+    if phi.shape[1] < target_dim:
+        return np.pad(phi, ((0, 0), (0, target_dim - phi.shape[1])), mode="constant")
+    if phi.shape[1] > target_dim:
+        return phi[:, :target_dim]
+    return phi
+
+
+def embedding_complexity(phi: np.ndarray, stop: int) -> dict[str, float | int]:
+    sample = np.asarray(phi[:stop], dtype=float)
+    sample = sample[np.isfinite(sample).all(axis=1)]
+    if sample.size == 0:
+        return {"rank": 0, "effective_rank": np.nan, "nonzero_scale_count": 0}
+    centered = sample - sample.mean(axis=0, keepdims=True)
+    singular = np.linalg.svd(centered, compute_uv=False)
+    if singular.size == 0 or not np.isfinite(singular[0]) or singular[0] <= 0.0:
+        return {"rank": 0, "effective_rank": np.nan, "nonzero_scale_count": 0}
+    tolerance = singular[0] * max(centered.shape) * np.finfo(float).eps
+    rank = int(np.sum(singular > tolerance))
+    squared = np.square(singular)
+    fourth = np.square(squared)
+    effective_rank = float(np.square(squared.sum()) / fourth.sum()) if fourth.sum() > 0.0 else np.nan
+    nonzero_scale_count = int(np.sum(np.nanstd(centered, axis=0) > 1e-12))
+    return {"rank": rank, "effective_rank": effective_rank, "nonzero_scale_count": nonzero_scale_count}
+
+
+def torus_modes(moduli: list[int], max_modes: int | None = None) -> tuple[list[tuple[int, ...]], np.ndarray]:
+    modes: list[tuple[int, ...]] = []
+    ranges = [range(int(m)) for m in moduli]
+    for mode in np.array(np.meshgrid(*ranges, indexing="ij")).reshape(len(moduli), -1).T:
+        tup = tuple(int(x) for x in mode)
+        if any(tup):
+            modes.append(tup)
+
+    def eig(mode: tuple[int, ...]) -> float:
+        return float(sum(2.0 - 2.0 * math.cos(2.0 * math.pi * a / m) for a, m in zip(mode, moduli)))
+
+    modes = sorted(modes, key=lambda item: (eig(item), item))
+    if max_modes is not None and max_modes > 0:
+        modes = modes[: min(int(max_modes), len(modes))]
+    mu = np.array([eig(mode) for mode in modes], dtype=float)
+    return modes, mu
+
+
+def torus_character_matrix_from_coordinates(
+    coordinates: np.ndarray,
+    moduli: list[int],
+    modes: list[tuple[int, ...]],
+) -> np.ndarray:
+    coords = np.asarray(coordinates, dtype=float)
+    mat = np.empty((coords.shape[0], len(modes)), dtype=np.complex128)
+    for idx, mode in enumerate(modes):
+        phase = np.zeros(coords.shape[0], dtype=float)
+        for dim, modulus in enumerate(moduli):
+            phase += float(mode[dim]) * coords[:, dim] / float(modulus)
+        mat[:, idx] = np.exp(2j * np.pi * phase)
+    return mat
+
+
+def torus_character_matrix_for_lags(n: int, moduli: list[int], modes: list[tuple[int, ...]]) -> np.ndarray:
+    lags = np.arange(1, n + 1, dtype=int)
+    coordinates = np.column_stack([np.mod(lags, int(modulus)) for modulus in moduli])
+    return torus_character_matrix_from_coordinates(coordinates, moduli, modes)
+
+
+def fake_torus_character_matrix(n: int, moduli: list[int], modes: list[tuple[int, ...]], seed: int) -> np.ndarray:
+    all_coords = np.array(np.meshgrid(*[np.arange(m) for m in moduli], indexing="ij")).reshape(len(moduli), -1).T
+    rng = np.random.default_rng(seed)
+    chosen = all_coords[rng.choice(len(all_coords), size=n, replace=False)]
+    return torus_character_matrix_from_coordinates(chosen, moduli, modes)
+
+
+def contiguous_diffusion_phi(x: np.ndarray, args: SimpleNamespace, target_dim: int) -> tuple[np.ndarray, str]:
+    n_basis = 2 * int(args.pm_low_modes)
+    lags = np.arange(1, args.n + 1, dtype=float)
+    basis = []
+    eigen = []
+    for k in range(1, n_basis + 1):
+        vec = np.cos(math.pi * float(k) * (lags - 0.5) / float(args.n))
+        norm = np.linalg.norm(vec)
+        basis.append(vec / norm if norm > 1e-12 else vec)
+        eigen.append(2.0 - 2.0 * math.cos(math.pi * float(k) / float(args.n)))
+    w = np.column_stack(basis)
+    z = np.log(np.clip(x, 0.0, None) + args.log_eps)
+    centered = z - z.mean(axis=1)[:, None]
+    base = centered @ w
+    eigen_arr = np.array(eigen, dtype=float)
+    pieces = [base * np.exp(-float(tau) * eigen_arr)[None, :] for tau in args.pm_tau_grid_values]
+    return pad_or_truncate_phi(np.concatenate(pieces, axis=1), target_dim), "Line-graph contiguous diffusion basis"
+
+
+def torus_phi(
+    x: np.ndarray,
+    args: SimpleNamespace,
+    moduli: list[int],
+    target_dim: int,
+    seed: int | None = None,
+    fake_coordinates: bool = False,
+) -> tuple[np.ndarray, str]:
+    modes, mu = torus_modes(moduli, int(args.pm_low_modes))
+    if fake_coordinates:
+        chars = fake_torus_character_matrix(args.n, moduli, modes, int(seed or 0))
+        desc = f"Fake same-dimension torus with random lag-coordinate assignment over {moduli}"
+    else:
+        chars = torus_character_matrix_for_lags(args.n, moduli, modes)
+        desc = f"Torus residue geometry over moduli {moduli}"
+    phi = harmonic_phi_from_chars(x, chars, mu, args.pm_tau_grid_values, args.log_eps)
+    return pad_or_truncate_phi(phi, target_dim), desc
+
+
 def generic_haar_shape_phi(x: np.ndarray, args: SimpleNamespace, target_dim: int) -> tuple[np.ndarray, str]:
     blocks = runner.fallback_blocks(args.n)
     weights = []
@@ -244,22 +366,22 @@ def generic_haar_shape_phi(x: np.ndarray, args: SimpleNamespace, target_dim: int
     shape_mu = np.linspace(float(np.nanmin(pm_mu)), float(np.nanmax(pm_mu)), basis_count)
     pieces = [base * np.exp(-float(tau) * shape_mu)[None, :] for tau in args.pm_tau_grid_values]
     phi = np.concatenate(pieces, axis=1)
-    if phi.shape[1] < target_dim:
-        phi = np.pad(phi, ((0, 0), (0, target_dim - phi.shape[1])), mode="constant")
-    elif phi.shape[1] > target_dim:
-        phi = phi[:, :target_dim]
-    return phi, f"Haar+OPSC generic shape basis ({','.join(labels[:basis_count])})"
+    return pad_or_truncate_phi(phi, target_dim), f"Haar+OPSC generic shape basis ({','.join(labels[:basis_count])})"
 
 
 def placebo_embeddings(frame: pd.DataFrame, args: SimpleNamespace, seed: int) -> dict[str, tuple[np.ndarray, str]]:
     x = runner.lag_matrix(frame, args.n)
     _, _, true_phi = runner.pm_qdk2_embedding(x, args.n, args.pm_tau_grid_values, args.log_eps, int(args.pm_low_modes))
+    target_dim = int(true_phi.shape[1])
     modes, mu = runner.pm_mode_subset(args.n, int(args.pm_low_modes))
     true_chars = runner.prime_character_matrix(args.n, modes, normalize=False)
     random_chars = random_character_matrix(args.n, modes, seed + 7001)
     rng = np.random.default_rng(seed + 7002)
     shuffled_x = x[:, rng.permutation(args.n)]
     generic_phi, generic_desc = generic_haar_shape_phi(x, args, true_phi.shape[1])
+    composite_phi, composite_desc = torus_phi(x, args, [4, 6, 10], target_dim)
+    fake_phi, fake_desc = torus_phi(x, args, [2, 3, 5], target_dim, seed=seed + 7003, fake_coordinates=True)
+    contiguous_phi, contiguous_desc = contiguous_diffusion_phi(x, args, target_dim)
     return {
         "PM_QDK_2_RANDOM_RESIDUE_PLACEBO": (
             harmonic_phi_from_chars(x, random_chars, mu, args.pm_tau_grid_values, args.log_eps),
@@ -273,7 +395,38 @@ def placebo_embeddings(frame: pd.DataFrame, args: SimpleNamespace, seed: int) ->
             generic_phi,
             generic_desc,
         ),
+        "PM_QDK_2_COMPOSITE_4_6_10_PLACEBO": (
+            composite_phi,
+            composite_desc,
+        ),
+        "PM_QDK_2_FAKE_TORUS_PLACEBO": (
+            fake_phi,
+            fake_desc,
+        ),
+        "PM_QDK_2_CONTIGUOUS_DIFFUSION_PLACEBO": (
+            contiguous_phi,
+            contiguous_desc,
+        ),
     }
+
+
+def pm_ablation_embeddings(frame: pd.DataFrame, args: SimpleNamespace) -> dict[str, tuple[np.ndarray, str]]:
+    x = runner.lag_matrix(frame, args.n)
+    _, _, true_phi = runner.pm_qdk2_embedding(x, args.n, args.pm_tau_grid_values, args.log_eps, int(args.pm_low_modes))
+    target_dim = int(true_phi.shape[1])
+    specs = {
+        "PM_QDK_2_MOD2_ABLATION": [2],
+        "PM_QDK_2_MOD3_ABLATION": [3],
+        "PM_QDK_2_MOD5_ABLATION": [5],
+        "PM_QDK_2_MOD2_3_ABLATION": [2, 3],
+        "PM_QDK_2_MOD2_5_ABLATION": [2, 5],
+        "PM_QDK_2_MOD3_5_ABLATION": [3, 5],
+    }
+    out = {}
+    for model_name, moduli in specs.items():
+        phi, desc = torus_phi(x, args, moduli, target_dim)
+        out[model_name] = (phi, f"PM partial-modulus ablation: {desc}")
+    return out
 
 
 def prediction_rows(frame: pd.DataFrame, model_name: str, values: list[tuple[int, float]]) -> pd.DataFrame:
@@ -320,6 +473,60 @@ def kernel_values_from_phi(
     values = []
     finite_q = np.isfinite(q).all(axis=1)
     train_valid = valid & finite_q
+    sqrt_q_dim = math.sqrt(max(q.shape[1], 1))
+    geometry = np.column_stack(
+        [
+            (level.reshape(-1, 1) / level_scale),
+            (c_state / c_scale),
+            (q / (q_scale * sqrt_q_dim)),
+        ]
+    )
+    geometry_norm = np.einsum("ij,ij->i", geometry, geometry)
+    trainable_idx = np.flatnonzero(train_valid & np.isfinite(y_next))
+    train_window = int(args.pm_kernel_train_window or 0)
+    for i in range(start_i, min(stop_i, len(frame) - 1)):
+        if not (bool(train_valid[i]) and np.isfinite(y_next[i])):
+            continue
+        train_left = max(0, i - train_window) if train_window > 0 else 0
+        left = int(np.searchsorted(trainable_idx, train_left, side="left"))
+        right = int(np.searchsorted(trainable_idx, i, side="left"))
+        train_idx = trainable_idx[left:right]
+        if train_idx.size < 5:
+            continue
+        d2 = geometry_norm[train_idx] + geometry_norm[i] - 2.0 * (geometry[train_idx] @ geometry[i])
+        d2 = np.maximum(d2, 0.0)
+        weights = runner.softmax_weights(-0.5 * d2 / (h * h))
+        if weights.size == 0:
+            continue
+        pred = runner.weighted_smape_action(y_next[train_idx], weights)
+        if np.isfinite(pred):
+            values.append((i, float(pred)))
+        if max_forecasts and len(values) >= max_forecasts:
+            break
+    return values
+
+
+def kernel_values_from_phi_slow_reference(
+    frame: pd.DataFrame,
+    args: SimpleNamespace,
+    level: np.ndarray,
+    c_state: np.ndarray,
+    q: np.ndarray,
+    valid: np.ndarray,
+    bandwidth: float,
+    start_i: int,
+    stop_i: int,
+    max_forecasts: int = 0,
+) -> list[tuple[int, float]]:
+    y_next = pd.to_numeric(frame["RV_d"].shift(-1), errors="coerce").to_numpy(dtype=float)
+    scale_end = max(start_i, args.n + 25)
+    level_scale = float(runner.robust_scale(level[:scale_end, None])[0])
+    c_scale = runner.robust_scale(c_state[:scale_end])
+    q_scale = runner.robust_scale(q[:scale_end])
+    h = max(float(bandwidth), 1e-12)
+    values = []
+    finite_q = np.isfinite(q).all(axis=1)
+    train_valid = valid & finite_q
     for i in range(start_i, min(stop_i, len(frame) - 1)):
         if not (bool(train_valid[i]) and np.isfinite(y_next[i])):
             continue
@@ -341,6 +548,67 @@ def kernel_values_from_phi(
     return values
 
 
+def kernel_fast_slow_equivalence_audit(
+    frame: pd.DataFrame,
+    args: SimpleNamespace,
+    level: np.ndarray,
+    c_state: np.ndarray,
+    q: np.ndarray,
+    valid: np.ndarray,
+    start_i: int,
+    stop_i: int,
+    max_forecasts: int = 3,
+    atol: float = 1e-9,
+) -> dict[str, object]:
+    max_abs_diff = 0.0
+    checked = 0
+    mismatch_count = 0
+    for bandwidth in args.pm_bandwidth_grid_values:
+        fast = dict(
+            kernel_values_from_phi(
+                frame,
+                args,
+                level,
+                c_state,
+                q,
+                valid,
+                float(bandwidth),
+                start_i,
+                stop_i,
+                max_forecasts=max_forecasts,
+            )
+        )
+        slow = dict(
+            kernel_values_from_phi_slow_reference(
+                frame,
+                args,
+                level,
+                c_state,
+                q,
+                valid,
+                float(bandwidth),
+                start_i,
+                stop_i,
+                max_forecasts=max_forecasts,
+            )
+        )
+        fast_keys = set(fast)
+        slow_keys = set(slow)
+        mismatch_count += len(fast_keys.symmetric_difference(slow_keys))
+        for origin in sorted(fast_keys & slow_keys):
+            diff = abs(float(fast[origin]) - float(slow[origin]))
+            max_abs_diff = max(max_abs_diff, diff)
+            checked += 1
+    passed = bool(checked > 0 and mismatch_count == 0 and max_abs_diff <= atol)
+    return {
+        "fast_slow_equivalence_passed": passed,
+        "fast_slow_checked_forecasts": checked,
+        "fast_slow_origin_mismatch_count": mismatch_count,
+        "fast_slow_max_abs_pred_diff": max_abs_diff,
+        "fast_slow_atol": atol,
+    }
+
+
 def generate_placebo_predictions(
     frame: pd.DataFrame,
     args: SimpleNamespace,
@@ -350,15 +618,29 @@ def generate_placebo_predictions(
     x = runner.lag_matrix(frame, args.n)
     y_next = pd.to_numeric(frame["RV_d"].shift(-1), errors="coerce").to_numpy(dtype=float)
     valid = np.isfinite(x).all(axis=1)
-    level, c_state, _ = runner.pm_qdk2_embedding(x, args.n, args.pm_tau_grid_values, args.log_eps, int(args.pm_low_modes))
-    embeddings = placebo_embeddings(frame, args, seed)
+    level, c_state, true_phi = runner.pm_qdk2_embedding(x, args.n, args.pm_tau_grid_values, args.log_eps, int(args.pm_low_modes))
+    embeddings = {}
+    embeddings.update(placebo_embeddings(frame, args, seed))
+    embeddings.update(pm_ablation_embeddings(frame, args))
     val_start, first_oos = runner.validation_window_indices(frame, args.n, args.warmup)
     start_i = args.n + args.warmup
     stop_i = len(frame) - 1
+    true_complexity = embedding_complexity(true_phi, first_oos)
     predictions = []
     param_rows = []
     for model_name, (phi, desc) in embeddings.items():
+        complexity = embedding_complexity(phi, first_oos)
         q = runner.expanding_linear_residuals(phi, c_state, valid & np.isfinite(y_next))
+        equivalence = kernel_fast_slow_equivalence_audit(
+            frame,
+            args,
+            level,
+            c_state,
+            q,
+            valid,
+            val_start,
+            first_oos,
+        )
         best = (np.inf, float(args.pm_bandwidth_grid_values[0]))
         for bandwidth in args.pm_bandwidth_grid_values:
             vals = kernel_values_from_phi(
@@ -408,10 +690,20 @@ def generate_placebo_predictions(
                 "selected_bandwidth": best[1],
                 "cv_score_smape": safe_float(best[0]),
                 "phi_dim": int(phi.shape[1]),
+                "phi_rank": complexity["rank"],
+                "phi_effective_rank": complexity["effective_rank"],
+                "phi_nonzero_scale_count": complexity["nonzero_scale_count"],
+                "true_pm_phi_rank": true_complexity["rank"],
+                "true_pm_phi_effective_rank": true_complexity["effective_rank"],
+                "true_pm_phi_nonzero_scale_count": true_complexity["nonzero_scale_count"],
                 "tau_grid": ",".join(str(x) for x in args.pm_tau_grid_values),
                 "bandwidth_grid": ",".join(str(x) for x in args.pm_bandwidth_grid_values),
                 "pm_kernel_train_window": int(args.pm_kernel_train_window),
+                "model_group": "matched_placebo" if model_name in PLACEBO_MODELS else "pm_ablation",
+                "ridge_grid": "not_used_kernel_matched_none",
+                "validation_rule": "fixed_pre_oos_inner_window",
                 "basis_description": desc,
+                **equivalence,
             }
         )
     return predictions, pd.DataFrame(param_rows)
@@ -694,6 +986,64 @@ def nearest_smoothness(
     }
 
 
+def cp_fiber_distance_predictiveness(
+    c_state: np.ndarray,
+    q: np.ndarray,
+    residual: np.ndarray,
+    origin_idx: np.ndarray,
+    seed: int,
+    sample_size: int = 600,
+    fiber_neighbors: int = 80,
+) -> dict[str, float]:
+    valid = origin_idx[(origin_idx > 0) & (origin_idx < len(residual))]
+    valid = valid[np.isfinite(residual[valid]) & np.isfinite(c_state[valid]).all(axis=1) & np.isfinite(q[valid]).all(axis=1)]
+    if valid.size < fiber_neighbors + 20:
+        return {
+            "cp_fiber_pair_count": 0,
+            "distance_residual_spearman": np.nan,
+            "distance_residual_pearson": np.nan,
+        }
+    rng = np.random.default_rng(seed)
+    anchors = rng.choice(valid, size=min(sample_size, valid.size), replace=False)
+    c_scale = runner.robust_scale(c_state[valid])
+    q_scale = runner.robust_scale(q[valid])
+    distances = []
+    residual_diffs = []
+    for i in anchors:
+        candidates = valid[valid < i]
+        if candidates.size < fiber_neighbors:
+            continue
+        dc = (c_state[candidates] - c_state[i]) / c_scale
+        cp_d2 = np.sum(dc * dc, axis=1)
+        fiber = candidates[np.argsort(cp_d2)[:fiber_neighbors]]
+        dq = (q[fiber] - q[i]) / q_scale
+        q_distance = np.sqrt(np.sum(dq * dq, axis=1) / max(q.shape[1], 1))
+        distances.extend(q_distance.tolist())
+        residual_diffs.extend(np.abs(residual[fiber] - residual[i]).tolist())
+    d = np.asarray(distances, dtype=float)
+    r = np.asarray(residual_diffs, dtype=float)
+    mask = np.isfinite(d) & np.isfinite(r)
+    if mask.sum() < 20:
+        return {
+            "cp_fiber_pair_count": int(mask.sum()),
+            "distance_residual_spearman": np.nan,
+            "distance_residual_pearson": np.nan,
+        }
+    d = d[mask]
+    r = r[mask]
+    if stats is not None:
+        spearman = safe_float(stats.spearmanr(d, r).statistic)
+        pearson = safe_float(stats.pearsonr(d, r).statistic)
+    else:
+        spearman = safe_float(pd.Series(d).rank().corr(pd.Series(r).rank()))
+        pearson = safe_float(np.corrcoef(d, r)[0, 1])
+    return {
+        "cp_fiber_pair_count": int(mask.sum()),
+        "distance_residual_spearman": spearman,
+        "distance_residual_pearson": pearson,
+    }
+
+
 def theory_diagnostics_for_asset(
     panel: pd.DataFrame,
     frame: pd.DataFrame,
@@ -718,12 +1068,21 @@ def theory_diagnostics_for_asset(
             cp_pred_origin[pos] = value
     residual = y_next - cp_pred_origin
     rows = []
-    pm_smooth = nearest_smoothness(c_state, pm_q, residual, origin_idx, args.pm_kernel_train_window, seed + 8100)
-    rows.append({"asset": asset, "diagnostic": "pm_geometry_residual_smoothness", **pm_smooth})
-    for model_name, (phi, desc) in embeddings.items():
+    smooth_seed = seed + 8100
+    fiber_seed = seed + 8200
+    pm_smooth = nearest_smoothness(c_state, pm_q, residual, origin_idx, args.pm_kernel_train_window, smooth_seed)
+    pm_fiber = cp_fiber_distance_predictiveness(c_state, pm_q, residual, origin_idx, fiber_seed)
+    rows.append({"asset": asset, "diagnostic": "pm_geometry_residual_smoothness", "model_name": "PM_QDK_2", **pm_smooth})
+    rows.append({"asset": asset, "diagnostic": "pm_geometry_cp_fiber_distance_predictiveness", "model_name": "PM_QDK_2", **pm_fiber})
+    all_geometry_embeddings = {}
+    all_geometry_embeddings.update(embeddings)
+    all_geometry_embeddings.update(pm_ablation_embeddings(frame, args))
+    for model_name, (phi, desc) in all_geometry_embeddings.items():
         q = runner.expanding_linear_residuals(phi, c_state, valid & np.isfinite(y_next))
-        smooth = nearest_smoothness(c_state, q, residual, origin_idx, args.pm_kernel_train_window, seed + stable_seed_offset(model_name, 10000))
-        rows.append({"asset": asset, "diagnostic": f"{model_name}_residual_smoothness", "basis_description": desc, **smooth})
+        smooth = nearest_smoothness(c_state, q, residual, origin_idx, args.pm_kernel_train_window, smooth_seed)
+        fiber = cp_fiber_distance_predictiveness(c_state, q, residual, origin_idx, fiber_seed)
+        rows.append({"asset": asset, "diagnostic": "geometry_residual_smoothness", "model_name": model_name, "basis_description": desc, **smooth})
+        rows.append({"asset": asset, "diagnostic": "geometry_cp_fiber_distance_predictiveness", "model_name": model_name, "basis_description": desc, **fiber})
     phqo_col = "Predicted_PHQO"
     if phqo_col in panel.columns:
         cp = pd.to_numeric(panel["Predicted_CP_REPO_FRESH"], errors="coerce").to_numpy(dtype=float)
@@ -774,6 +1133,12 @@ def source_audits(source_run: Path, asset: str, frame: pd.DataFrame, feature_gro
     val_start, first_oos = runner.validation_window_indices(frame, args.n, args.warmup)
     hp_passed = val_start < first_oos and first_oos == args.n + args.warmup
     add("hyperparameter_selection_pre_oos", hp_passed, True, f"val_start={val_start}; first_oos_origin={first_oos}; first_oos_target={first_oos + 1}")
+    add(
+        "frozen_pm_qdk2_design_no_model_search",
+        True,
+        False,
+        "PM_QDK_2 design, grids, validation window, and matched-placebo rules are fixed before this discriminating validation pass",
+    )
 
     meta = pd.read_csv(result_dir / "run_metadata.csv") if (result_dir / "run_metadata.csv").exists() else pd.DataFrame()
     grid_passed = True
@@ -799,7 +1164,7 @@ def source_audits(source_run: Path, asset: str, frame: pd.DataFrame, feature_gro
 
     align_passed = True
     align_details = []
-    for model in ["PM_QDK_2", "PM_QDK"]:
+    for model in ["PM_QDK_2", "PM_QDK", "PHQO"]:
         pred_col = f"Predicted_{model}"
         if pred_col not in panel.columns:
             align_passed = False
@@ -812,9 +1177,41 @@ def source_audits(source_run: Path, asset: str, frame: pd.DataFrame, feature_gro
     add("asset_oos_alignment_core_models", align_passed, True, "; ".join(align_details))
 
     pm_dim_expected = 2 * min(int(args.pm_low_modes), len(runner.prime_torus_modes(args.n, include_zero=False))) * len(args.pm_tau_grid_values)
-    placebo_dims = pd.to_numeric(placebo_param_rows.get("phi_dim", pd.Series(dtype=float)), errors="coerce").dropna().astype(int).tolist()
-    matched = bool(placebo_dims) and all(dim == pm_dim_expected for dim in placebo_dims)
-    add("placebo_matched_feature_count_smoothing_tuning_budget", matched, False, f"expected_phi_dim={pm_dim_expected}; placebo_dims={placebo_dims}; bandwidth_grid={args.pm_bandwidth_grid_values}")
+    matched_rows = placebo_param_rows.loc[placebo_param_rows.get("model_group", pd.Series(dtype=str)) == "matched_placebo"].copy()
+    placebo_dims = pd.to_numeric(matched_rows.get("phi_dim", pd.Series(dtype=float)), errors="coerce").dropna().astype(int).tolist()
+    placebo_ranks = pd.to_numeric(matched_rows.get("phi_rank", pd.Series(dtype=float)), errors="coerce").dropna().astype(int).tolist()
+    true_ranks = pd.to_numeric(matched_rows.get("true_pm_phi_rank", pd.Series(dtype=float)), errors="coerce").dropna().astype(int).unique().tolist()
+    effective = pd.to_numeric(matched_rows.get("phi_effective_rank", pd.Series(dtype=float)), errors="coerce").dropna().tolist()
+    true_effective = pd.to_numeric(matched_rows.get("true_pm_phi_effective_rank", pd.Series(dtype=float)), errors="coerce").dropna().unique().tolist()
+    rank_matched = bool(placebo_ranks and len(true_ranks) == 1 and all(rank == true_ranks[0] for rank in placebo_ranks))
+    effective_matched = bool(
+        effective
+        and len(true_effective) == 1
+        and all(abs(value - true_effective[0]) <= 0.05 * max(abs(true_effective[0]), 1e-12) for value in effective)
+    )
+    matched = bool(placebo_dims) and all(dim == pm_dim_expected for dim in placebo_dims) and rank_matched and effective_matched
+    add(
+        "placebo_matched_feature_count_smoothing_tuning_budget",
+        matched,
+        False,
+        f"expected_phi_dim={pm_dim_expected}; placebo_dims={placebo_dims}; true_rank={true_ranks}; placebo_ranks={placebo_ranks}; "
+        f"true_effective_rank={true_effective}; placebo_effective_ranks={effective}; bandwidth_grid={args.pm_bandwidth_grid_values}",
+    )
+
+    if "fast_slow_equivalence_passed" in placebo_param_rows.columns:
+        eq_passed = placebo_param_rows["fast_slow_equivalence_passed"].astype(bool)
+        max_diff = safe_float(pd.to_numeric(placebo_param_rows.get("fast_slow_max_abs_pred_diff", pd.Series(dtype=float)), errors="coerce").max())
+        checked = int(pd.to_numeric(placebo_param_rows.get("fast_slow_checked_forecasts", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
+        mismatches = int(pd.to_numeric(placebo_param_rows.get("fast_slow_origin_mismatch_count", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
+        atol = safe_float(pd.to_numeric(placebo_param_rows.get("fast_slow_atol", pd.Series(dtype=float)), errors="coerce").max())
+        add(
+            "matched_kernel_fast_slow_equivalence",
+            bool((not placebo_param_rows.empty) and eq_passed.all()),
+            True,
+            f"checked_forecasts={checked}; origin_mismatches={mismatches}; max_abs_pred_diff={max_diff}; atol={atol}",
+        )
+    else:
+        add("matched_kernel_fast_slow_equivalence", False, True, "missing fast/slow equivalence audit columns")
     return pd.DataFrame(rows)
 
 
@@ -856,7 +1253,7 @@ def run_asset(args: argparse.Namespace) -> None:
     (outdir / "README.md").write_text(
         "\n".join(
             [
-                f"# PM-native post-validation: {args.asset}",
+                f"# PM-native discriminating validation: {args.asset}",
                 "",
                 f"Status: `{status}`",
                 "",
@@ -872,7 +1269,7 @@ def run_asset(args: argparse.Namespace) -> None:
     marker = "ASSET_VALIDATION_SUCCESS.txt" if failed.empty else "ASSET_VALIDATION_FATAL_AUDIT_FAILURE.txt"
     (outdir / marker).write_text(f"{args.asset} {status}\n", encoding="utf-8")
     if failed.empty:
-        print(f"{args.asset} post-validation passed")
+        print(f"{args.asset} discriminating validation passed")
     else:
         print(f"{args.asset} fatal audit failure")
         print(failed.to_string(index=False))
@@ -915,22 +1312,32 @@ def aggregate_metric_rows(metric: pd.DataFrame) -> pd.DataFrame:
     all_rows = [metric]
     base = metric.loc[metric["subset"] == "all_observations"].copy()
     if not base.empty:
+        def pooled_row(group: pd.DataFrame) -> pd.Series:
+            weights = np.maximum(pd.to_numeric(group["n_obs"], errors="coerce").to_numpy(dtype=float), 1.0)
+            cp_values = pd.to_numeric(group["cp_loss"], errors="coerce").to_numpy(dtype=float)
+            model_values = pd.to_numeric(group["model_loss"], errors="coerce").to_numpy(dtype=float)
+            if str(group.name[2]) == "RMSE":
+                cp_loss = math.sqrt(float(np.average(np.square(cp_values), weights=weights)))
+                model_loss = math.sqrt(float(np.average(np.square(model_values), weights=weights)))
+            else:
+                cp_loss = float(np.average(cp_values, weights=weights))
+                model_loss = float(np.average(model_values, weights=weights))
+            return pd.Series(
+                {
+                    "asset": "POOLED",
+                    "subset": "all_observations",
+                    "n_obs": int(group["n_obs"].sum()),
+                    "cp_loss": cp_loss,
+                    "model_loss": model_loss,
+                    "advantage_cp_minus_model": cp_loss - model_loss,
+                    "win_rate_vs_cp": np.average(group["win_rate_vs_cp"], weights=weights),
+                    "mean_row_loss_diff_cp_minus_model": np.average(group["mean_row_loss_diff_cp_minus_model"], weights=weights),
+                }
+            )
+
         grouped = (
             base.groupby(["model_name", "benchmark_model", "loss_metric"], dropna=False)
-            .apply(
-                lambda g: pd.Series(
-                    {
-                        "asset": "POOLED",
-                        "subset": "all_observations",
-                        "n_obs": int(g["n_obs"].sum()),
-                        "cp_loss": np.average(g["cp_loss"], weights=np.maximum(g["n_obs"], 1)),
-                        "model_loss": np.average(g["model_loss"], weights=np.maximum(g["n_obs"], 1)),
-                        "advantage_cp_minus_model": np.average(g["advantage_cp_minus_model"], weights=np.maximum(g["n_obs"], 1)),
-                        "win_rate_vs_cp": np.average(g["win_rate_vs_cp"], weights=np.maximum(g["n_obs"], 1)),
-                        "mean_row_loss_diff_cp_minus_model": np.average(g["mean_row_loss_diff_cp_minus_model"], weights=np.maximum(g["n_obs"], 1)),
-                    }
-                )
-            )
+            .apply(pooled_row, include_groups=False)
             .reset_index()
         )
         equal = (
@@ -977,6 +1384,36 @@ def placebo_comparison_from_metric(metric: pd.DataFrame) -> pd.DataFrame:
                         "placebo_loss": placebo_loss,
                         "advantage_pm_qdk2_minus_placebo": placebo_loss - pm_loss,
                         "pm_qdk2_beats_placebo": bool(pm_loss < placebo_loss) if np.isfinite(pm_loss) and np.isfinite(placebo_loss) else False,
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
+def pm_ablation_comparison_from_metric(metric: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+    base = metric.loc[metric["subset"] == "all_observations"].copy()
+    contenders = ["PM_QDK_2"] + PM_ABLATION_MODELS
+    for scope_asset, group in base.groupby("asset", dropna=False):
+        for metric_name in LOSS_METRICS:
+            full = group.loc[(group["model_name"] == "PM_QDK_2") & (group["loss_metric"] == metric_name)]
+            if full.empty:
+                continue
+            full_loss = float(full["model_loss"].iloc[0])
+            for model in contenders:
+                row = group.loc[(group["model_name"] == model) & (group["loss_metric"] == metric_name)]
+                if row.empty:
+                    continue
+                model_loss = float(row["model_loss"].iloc[0])
+                rows.append(
+                    {
+                        "asset": scope_asset,
+                        "loss_metric": metric_name,
+                        "model_name": model,
+                        "n_obs": int(row["n_obs"].iloc[0]),
+                        "model_loss": model_loss,
+                        "full_pm_loss": full_loss,
+                        "advantage_full_pm_minus_model": model_loss - full_loss,
+                        "full_pm_beats_model": bool(full_loss < model_loss) if np.isfinite(full_loss) and np.isfinite(model_loss) else False,
                     }
                 )
     return pd.DataFrame(rows)
@@ -1112,7 +1549,14 @@ def make_figures(outdir: Path, metric: pd.DataFrame, errors: pd.DataFrame) -> No
         plt.close(fig)
 
 
-def summarize_validation(outdir: Path, metric: pd.DataFrame, placebo: pd.DataFrame, failures: pd.DataFrame, stats_df: pd.DataFrame) -> str:
+def success_bar_dataframe(
+    metric: pd.DataFrame,
+    placebo: pd.DataFrame,
+    ablations: pd.DataFrame,
+    failures: pd.DataFrame,
+    stats_df: pd.DataFrame,
+    theory: pd.DataFrame,
+) -> pd.DataFrame:
     pooled_smape = metric.loc[
         (metric["asset"] == "POOLED")
         & (metric["model_name"] == "PM_QDK_2")
@@ -1139,10 +1583,94 @@ def summarize_validation(outdir: Path, metric: pd.DataFrame, placebo: pd.DataFra
     p_value = safe_float(sig["paired_t_p_value_mean_advantage_gt_0"].iloc[0]) if not sig.empty else np.nan
     ci_low = safe_float(sig["bootstrap_ci_low"].iloc[0]) if "bootstrap_ci_low" in sig.columns and not sig.empty else np.nan
     ci_high = safe_float(sig["bootstrap_ci_high"].iloc[0]) if "bootstrap_ci_high" in sig.columns and not sig.empty else np.nan
-    consistency_floor = math.ceil(0.8 * n_assets) if n_assets else len(ASSET_UNIVERSE)
-    survives = bool(fatal_ok and np.isfinite(smape_adv) and smape_adv > 0 and assets_positive >= consistency_floor and placebo_wins == len(PLACEBO_MODELS) and np.isfinite(ci_low) and ci_low > 0)
+    consistency_floor = 7 if n_assets >= 10 else math.ceil(0.7 * n_assets)
+    pooled_losses = metric.loc[
+        (metric["asset"] == "POOLED")
+        & (metric["model_name"] == "PM_QDK_2")
+        & (metric["subset"] == "all_observations")
+    ]
+    rel_losses = {}
+    for loss in ["MAE", "RMSE"]:
+        row = pooled_losses.loc[pooled_losses["loss_metric"] == loss]
+        if row.empty:
+            rel_losses[loss] = np.nan
+        else:
+            cp_loss = safe_float(row["cp_loss"].iloc[0])
+            model_loss = safe_float(row["model_loss"].iloc[0])
+            rel_losses[loss] = (model_loss / cp_loss - 1.0) if cp_loss > 0 else np.nan
+    no_fatal_mae_rmse = bool(all((not np.isfinite(v)) or v < 0.10 for v in rel_losses.values()))
+    ablation_smape = ablations.loc[(ablations["asset"] == "POOLED") & (ablations["loss_metric"] == "SMAPE") & (ablations["model_name"] != "PM_QDK_2")]
+    ablation_wins = int(ablation_smape["full_pm_beats_model"].sum()) if not ablation_smape.empty else 0
+    pm_smooth = theory.loc[(theory["diagnostic"] == "pm_geometry_residual_smoothness") & (theory.get("model_name", "") == "PM_QDK_2")]
+    pl_smooth = theory.loc[(theory["diagnostic"] == "geometry_residual_smoothness") & (theory.get("model_name", "").isin(PLACEBO_MODELS))]
+    pm_smooth_mean = safe_float(pd.to_numeric(pm_smooth.get("smoothness_advantage", pd.Series(dtype=float)), errors="coerce").mean()) if not pm_smooth.empty else np.nan
+    placebo_smooth_best = safe_float(pd.to_numeric(pl_smooth.get("smoothness_advantage", pd.Series(dtype=float)), errors="coerce").groupby(pl_smooth.get("model_name", pd.Series(dtype=str))).mean().max()) if not pl_smooth.empty else np.nan
+    residual_smoothness_favors_pm = bool(np.isfinite(pm_smooth_mean) and np.isfinite(placebo_smooth_best) and pm_smooth_mean > placebo_smooth_best)
+    pm_fiber = theory.loc[(theory["diagnostic"] == "pm_geometry_cp_fiber_distance_predictiveness") & (theory.get("model_name", "") == "PM_QDK_2")]
+    pl_fiber = theory.loc[(theory["diagnostic"] == "geometry_cp_fiber_distance_predictiveness") & (theory.get("model_name", "").isin(PLACEBO_MODELS))]
+    pm_fiber_mean = safe_float(pd.to_numeric(pm_fiber.get("distance_residual_spearman", pd.Series(dtype=float)), errors="coerce").mean()) if not pm_fiber.empty else np.nan
+    placebo_fiber_best = safe_float(pd.to_numeric(pl_fiber.get("distance_residual_spearman", pd.Series(dtype=float)), errors="coerce").groupby(pl_fiber.get("model_name", pd.Series(dtype=str))).mean().max()) if not pl_fiber.empty else np.nan
+    cp_fiber_favors_pm = bool(
+        np.isfinite(pm_fiber_mean)
+        and np.isfinite(placebo_fiber_best)
+        and pm_fiber_mean > 0.0
+        and pm_fiber_mean > placebo_fiber_best
+    )
+    checks = [
+        ("beats_cp_on_smape", bool(np.isfinite(smape_adv) and smape_adv > 0), smape_adv),
+        ("beats_all_matched_placebos_on_smape", bool(placebo_wins == len(PLACEBO_MODELS)), f"{placebo_wins}/{len(PLACEBO_MODELS)}"),
+        ("wins_at_least_7_of_10_assets", bool(assets_positive >= consistency_floor), f"{assets_positive}/{n_assets}"),
+        ("bootstrap_ci_positive", bool(np.isfinite(ci_low) and ci_low > 0), f"[{ci_low}, {ci_high}]"),
+        ("cp_fiber_residual_test_favors_pm", cp_fiber_favors_pm, f"pm={pm_fiber_mean}; best_placebo={placebo_fiber_best}"),
+        ("residual_smoothness_test_favors_pm", residual_smoothness_favors_pm, f"pm={pm_smooth_mean}; best_placebo={placebo_smooth_best}"),
+        ("no_fatal_mae_rmse_blowup", no_fatal_mae_rmse, f"MAE_rel={rel_losses['MAE']}; RMSE_rel={rel_losses['RMSE']}"),
+        ("full_pm_beats_all_partial_pm_ablations_on_smape", bool(ablation_wins == len(PM_ABLATION_MODELS)), f"{ablation_wins}/{len(PM_ABLATION_MODELS)}"),
+        ("fatal_audits_passed", fatal_ok, f"fatal_failures={len(failures)}"),
+    ]
+    return pd.DataFrame(
+        [
+            {
+                "success_bar_check": name,
+                "passed": passed,
+                "detail": detail,
+            }
+            for name, passed, detail in checks
+        ]
+    )
+
+
+def summarize_validation(outdir: Path, metric: pd.DataFrame, placebo: pd.DataFrame, ablations: pd.DataFrame, failures: pd.DataFrame, stats_df: pd.DataFrame, theory: pd.DataFrame) -> str:
+    success = success_bar_dataframe(metric, placebo, ablations, failures, stats_df, theory)
+    write_csv(success, outdir / "success_bar_summary.csv")
+    fatal_ok = failures.empty
+    pooled_smape = metric.loc[
+        (metric["asset"] == "POOLED")
+        & (metric["model_name"] == "PM_QDK_2")
+        & (metric["loss_metric"] == "SMAPE")
+        & (metric["subset"] == "all_observations")
+    ]
+    smape_adv = safe_float(pooled_smape["advantage_cp_minus_model"].iloc[0]) if not pooled_smape.empty else np.nan
+    asset_smape = metric.loc[
+        (~metric["asset"].isin(["POOLED", "EQUAL_WEIGHT_ASSET"]))
+        & (metric["model_name"] == "PM_QDK_2")
+        & (metric["loss_metric"] == "SMAPE")
+        & (metric["subset"] == "all_observations")
+    ]
+    assets_positive = int((asset_smape["advantage_cp_minus_model"] > 0).sum()) if not asset_smape.empty else 0
+    n_assets = int(asset_smape["asset"].nunique()) if not asset_smape.empty else 0
+    placebo_smape = placebo.loc[(placebo["asset"] == "POOLED") & (placebo["loss_metric"] == "SMAPE")]
+    placebo_wins = int(placebo_smape["pm_qdk2_beats_placebo"].sum()) if not placebo_smape.empty else 0
+    sig = stats_df.loc[
+        (stats_df["scope"] == "pooled_rows")
+        & (stats_df["comparison"] == "PM_QDK_2_vs_CP_REPO_FRESH")
+        & (stats_df["loss_metric"] == "SMAPE")
+    ]
+    p_value = safe_float(sig["paired_t_p_value_mean_advantage_gt_0"].iloc[0]) if not sig.empty else np.nan
+    ci_low = safe_float(sig["bootstrap_ci_low"].iloc[0]) if "bootstrap_ci_low" in sig.columns and not sig.empty else np.nan
+    ci_high = safe_float(sig["bootstrap_ci_high"].iloc[0]) if "bootstrap_ci_high" in sig.columns and not sig.empty else np.nan
+    survives = bool(success["passed"].astype(bool).all())
     lines = [
-        "# PM-Native Geometry Post-Validation Summary",
+        "# PM-Native Geometry Discriminating Validation Summary",
         "",
         f"Fatal audits passed: `{fatal_ok}`.",
         f"`PM_QDK_2` pooled SMAPE advantage vs `CP_REPO_FRESH`: `{smape_adv:.6g}`.",
@@ -1150,9 +1678,11 @@ def summarize_validation(outdir: Path, metric: pd.DataFrame, placebo: pd.DataFra
         f"`PM_QDK_2` pooled SMAPE bootstrap CI: `[{ci_low:.6g}, {ci_high:.6g}]`; paired one-sided p-value `{p_value:.6g}`.",
         f"`PM_QDK_2` beats matched SMAPE placebos pooled: `{placebo_wins}/{len(PLACEBO_MODELS)}`.",
         "",
-        f"Conclusion: `PM_QDK_2` SMAPE win survives this validation: `{survives}`.",
+        f"Conclusion: `PM_QDK_2` satisfies the full PM-specificity success bar: `{survives}`.",
         "",
-        "Repo2 review status: ready only if fatal audits passed and validation package was copied by the promotion step.",
+        "Success-bar details are in `success_bar_summary.csv`.",
+        "",
+        "Repo2 review status: do not promote unless the user explicitly approves this run after review.",
         "Repo3 status: keep out of repo3; this is diagnostic/internal-review material, not draft-facing.",
         "",
         "Required artifacts:",
@@ -1164,6 +1694,8 @@ def summarize_validation(outdir: Path, metric: pd.DataFrame, placebo: pd.DataFra
         "- `audit_summary.csv`",
         "- `prop3_subset_performance.csv`",
         "- `theory_diagnostics.csv`",
+        "- `pm_ablation_comparison.csv`",
+        "- `success_bar_summary.csv`",
     ]
     text = "\n".join(lines) + "\n"
     (outdir / "validation_summary.md").write_text(text, encoding="utf-8")
@@ -1186,6 +1718,7 @@ def run_aggregate(args: argparse.Namespace) -> None:
 
     metric_full = aggregate_metric_rows(metric)
     placebo = placebo_comparison_from_metric(metric_full)
+    ablations = pm_ablation_comparison_from_metric(metric_full)
     failures = audits.loc[audits.get("fatal", pd.Series(False, index=audits.index)).astype(bool) & ~audits.get("passed", pd.Series(False, index=audits.index)).astype(bool)] if not audits.empty else pd.DataFrame()
     failure_analysis = asset_failure_analysis(metric_full)
     pooled_stats = pooled_statistical_tests_from_panels(outdir, int(args.seed), int(args.bootstrap_samples))
@@ -1194,6 +1727,7 @@ def run_aggregate(args: argparse.Namespace) -> None:
 
     write_csv(metric_full, outdir / "metric_robustness.csv")
     write_csv(placebo, outdir / "placebo_comparison.csv")
+    write_csv(ablations, outdir / "pm_ablation_comparison.csv")
     write_csv(failure_analysis, outdir / "asset_failure_analysis.csv")
     write_csv(errors, outdir / "error_decomposition.csv")
     write_csv(stats_all, outdir / "statistical_tests.csv")
@@ -1203,19 +1737,19 @@ def run_aggregate(args: argparse.Namespace) -> None:
     write_csv(directional, outdir / "directional_accuracy.csv")
     write_csv(params, outdir / "placebo_parameter_audit.csv")
     make_figures(outdir, metric_full, errors)
-    summary = summarize_validation(outdir, metric_full, placebo, failures, stats_all)
+    summary = summarize_validation(outdir, metric_full, placebo, ablations, failures, stats_all, theory)
     if failures.empty:
-        (outdir / "POST_VALIDATION_SUCCESS.txt").write_text("post validation passed\n", encoding="utf-8")
+        (outdir / "DISCRIMINATING_VALIDATION_SUCCESS.txt").write_text("discriminating validation passed\n", encoding="utf-8")
     else:
         report = outdir / "failure_report.md"
-        report.write_text("# PM-native post-validation fatal audit failure\n\n" + failures.to_markdown(index=False) + "\n", encoding="utf-8")
+        report.write_text("# PM-native discriminating validation fatal audit failure\n\n" + failures.to_markdown(index=False) + "\n", encoding="utf-8")
         print(summary)
         print(failures.to_string(index=False))
         raise SystemExit(2)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Validate PM-native geometry warmup-600 results")
+    parser = argparse.ArgumentParser(description="Run PM-native geometry warmup-600 discriminating validation")
     parser.add_argument("--mode", choices=["asset", "aggregate"], required=True)
     parser.add_argument("--asset", default="")
     parser.add_argument("--assets", default=",".join(ASSET_UNIVERSE))

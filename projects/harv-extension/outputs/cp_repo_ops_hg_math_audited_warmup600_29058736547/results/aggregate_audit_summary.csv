@@ -1,0 +1,9 @@
+check,passed,detail
+assets_present,True,"AAPL,AMZN,EEM,FXI,GLD,GOOGL,HYG,QQQ,SPY,TLT"
+metadata_complete_rows,True,180 metadata rows
+run_failures_empty,True,0 failure rows
+repo_cp_reproduction_pass,True,required
+fast_slow_pass,True,required
+strong_fast_slow_pass,True,required if present
+no_lookahead_pass,True,
+global_level_sum_pass,True,

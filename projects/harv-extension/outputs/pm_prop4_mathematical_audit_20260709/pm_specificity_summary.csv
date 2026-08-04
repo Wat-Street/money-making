@@ -1,0 +1,5 @@
+test,favorable,total,criterion
+matched_structured_placebos_smape,2,6,full PM has lower equal-weight asset SMAPE
+partial_modulus_ablations_smape,0,6,full PM has lower equal-weight asset SMAPE
+cp_fiber_positive_spearman,2,10,PM distance has positive residual-difference slope
+cp_residual_smoothness,2,10,PM neighbors have lower CP-residual difference

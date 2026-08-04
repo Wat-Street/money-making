@@ -1,0 +1,260 @@
+name: PM-CAST-D Warmup-600 Practitioner Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_parallel:
+        description: "Maximum concurrent asset jobs"
+        required: true
+        default: "10"
+      bootstrap_reps:
+        description: "Asset/day moving-block bootstrap repetitions"
+        required: true
+        default: "2000"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  tune:
+    name: Freeze pooled pre-OOS PM-CAST-D configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      TUNING_OUT: outputs/pm_cast_d_warmup600/actions/${{ github.run_id }}/tuning
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: cp-pm-incremental-actions
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: projects/harv-extension
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==1.26.4 pandas==2.2.2 scipy==1.13.1 statsmodels==0.14.4 scikit-learn==1.5.0 matplotlib==3.9.0 yfinance==0.2.40 joblib==1.4.2
+
+      - name: Tune on strictly pre-OOS origins
+        working-directory: projects/harv-extension
+        run: |
+          python outputs/pm_cast_d_warmup600/scripts/run_pm_cast_d.py \
+            --mode tune \
+            --assets AAPL,AMZN,EEM,FXI,GLD,GOOGL,HYG,QQQ,SPY,TLT \
+            --n 22 \
+            --warmup 600 \
+            --seed 42 \
+            --outdir "${TUNING_OUT}"
+
+      - name: Validate frozen configuration
+        working-directory: projects/harv-extension
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import pandas as pd
+
+          root = Path(os.environ["TUNING_OUT"])
+          config = json.loads((root / "frozen_config.json").read_text())
+          manifest = pd.read_csv(root / "tuning_data_manifest.csv")
+          candidates = pd.read_csv(root / "tuning_candidates.csv")
+          expected = {"PM_CAST_D", "SPECTRAL_RANDOM_CAST_D", "CONTIGUOUS_CAST_D", "CAST_D_CALIBRATION_ONLY"}
+          assert config["warmup"] == 600
+          assert config["first_oos_origin"] == 622
+          assert config["tuning_last_origin"] < config["first_oos_origin"]
+          assert set(config["models"]) == expected
+          assert manifest["strictly_pre_oos"].astype(bool).all()
+          assert set(candidates["model_name"]) == expected
+          assert (root / "TUNING_COMPLETE.txt").exists()
+          PY
+
+      - name: Upload frozen tuning artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pm-cast-d-tuning-${{ github.run_id }}
+          path: projects/harv-extension/outputs/pm_cast_d_warmup600/actions/${{ github.run_id }}/tuning/
+          if-no-files-found: error
+          retention-days: 30
+
+  asset-run:
+    name: PM-CAST-D ${{ matrix.asset }}
+    needs: tune
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.max_parallel) }}
+      matrix:
+        asset: [AAPL, AMZN, EEM, FXI, GLD, GOOGL, HYG, QQQ, SPY, TLT]
+    env:
+      ASSET: ${{ matrix.asset }}
+      ASSET_OUT: outputs/pm_cast_d_warmup600/actions/${{ github.run_id }}/${{ matrix.asset }}
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: cp-pm-incremental-actions
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: projects/harv-extension
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==1.26.4 pandas==2.2.2 scipy==1.13.1 statsmodels==0.14.4 scikit-learn==1.5.0 matplotlib==3.9.0 yfinance==0.2.40 joblib==1.4.2
+
+      - name: Download frozen configuration
+        uses: actions/download-artifact@v4
+        with:
+          name: pm-cast-d-tuning-${{ github.run_id }}
+          path: projects/harv-extension/_pm_cast_d_tuning
+
+      - name: Run frozen asset forecast
+        working-directory: projects/harv-extension
+        run: |
+          python outputs/pm_cast_d_warmup600/scripts/run_pm_cast_d.py \
+            --mode run-asset \
+            --asset "${ASSET}" \
+            --n 22 \
+            --warmup 600 \
+            --seed 42 \
+            --config _pm_cast_d_tuning/frozen_config.json \
+            --outdir "${ASSET_OUT}"
+
+      - name: Validate asset artifact
+        working-directory: projects/harv-extension
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import numpy as np
+          import pandas as pd
+
+          root = Path(os.environ["ASSET_OUT"])
+          asset = os.environ["ASSET"]
+          panel = pd.read_csv(root / "predictions" / f"{asset}.csv")
+          audit = pd.read_csv(root / "results" / "audit.csv")
+          metadata = pd.read_csv(root / "results" / "metadata.csv")
+          models = ["CP_REPO_FRESH", "PM_CAST_D", "SPECTRAL_RANDOM_CAST_D", "CONTIGUOUS_CAST_D", "CAST_D_CALIBRATION_ONLY"]
+          for model in models:
+              values = pd.to_numeric(panel[f"Predicted_{model}"], errors="coerce")
+              assert len(values) > 0 and np.isfinite(values).all()
+          quantiles = panel[["Predicted_PM_CAST_D_Q05", "Predicted_PM_CAST_D_Q50", "Predicted_PM_CAST_D_Q95"]].apply(pd.to_numeric, errors="coerce")
+          assert np.isfinite(quantiles.to_numpy()).all()
+          assert (quantiles.iloc[:, 0] <= quantiles.iloc[:, 1]).all()
+          assert (quantiles.iloc[:, 1] <= quantiles.iloc[:, 2]).all()
+          assert not panel["Date"].duplicated().any()
+          assert audit["passed"].astype(bool).all()
+          assert int(metadata.iloc[0]["warmup"]) == 600
+          assert bool(metadata.iloc[0]["all_audits_pass"])
+          assert (root / "ASSET_COMPLETE.txt").exists()
+          PY
+
+      - name: Upload asset artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pm-cast-d-${{ matrix.asset }}-${{ github.run_id }}
+          path: projects/harv-extension/outputs/pm_cast_d_warmup600/actions/${{ github.run_id }}/${{ matrix.asset }}/
+          if-no-files-found: error
+          retention-days: 30
+
+  aggregate:
+    name: Aggregate PM-CAST-D results
+    needs: asset-run
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      COMBINED_OUT: outputs/pm_cast_d_warmup600/actions/${{ github.run_id }}/combined
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: cp-pm-incremental-actions
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: projects/harv-extension
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==1.26.4 pandas==2.2.2 scipy==1.13.1 statsmodels==0.14.4 scikit-learn==1.5.0 matplotlib==3.9.0 yfinance==0.2.40 joblib==1.4.2
+
+      - name: Download tuning artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: pm-cast-d-tuning-${{ github.run_id }}
+          path: projects/harv-extension/_pm_cast_d_tuning
+
+      - name: Download asset artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pm-cast-d-*-${{ github.run_id }}
+          path: projects/harv-extension/_pm_cast_d_assets
+          merge-multiple: false
+
+      - name: Aggregate and bootstrap
+        working-directory: projects/harv-extension
+        run: |
+          python outputs/pm_cast_d_warmup600/scripts/run_pm_cast_d.py \
+            --mode aggregate \
+            --assets AAPL,AMZN,EEM,FXI,GLD,GOOGL,HYG,QQQ,SPY,TLT \
+            --n 22 \
+            --warmup 600 \
+            --seed 42 \
+            --bootstrap-reps "${{ inputs.bootstrap_reps }}" \
+            --block-days 5 \
+            --config _pm_cast_d_tuning/frozen_config.json \
+            --artifacts-dir _pm_cast_d_assets \
+            --outdir "${COMBINED_OUT}"
+
+      - name: Validate combined output
+        working-directory: projects/harv-extension
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import pandas as pd
+
+          root = Path(os.environ["COMBINED_OUT"])
+          required = [
+              root / "RESULTS.md",
+              root / "frozen_config.json",
+              root / "results" / "metrics.csv",
+              root / "results" / "asset_consistency.csv",
+              root / "results" / "matched_control_comparison.csv",
+              root / "results" / "distribution_calibration.csv",
+              root / "results" / "moving_block_bootstrap.csv",
+              root / "results" / "audit.csv",
+              root / "results" / "success_bar.csv",
+              root / "figures" / "pooled_metric_advantages.png",
+              root / "figures" / "asset_metric_advantages.png",
+          ]
+          for path in required:
+              assert path.exists(), path
+          audit = pd.read_csv(root / "results" / "audit.csv")
+          metrics = pd.read_csv(root / "results" / "metrics.csv")
+          assert audit["passed"].astype(bool).all()
+          assert set(metrics["asset"]) >= {"AAPL", "AMZN", "EEM", "FXI", "GLD", "GOOGL", "HYG", "QQQ", "SPY", "TLT", "POOLED"}
+          assert (root / "SUCCESS.txt").exists() or (root / "RUN_COMPLETE_NEEDS_REVIEW.txt").exists()
+          PY
+
+      - name: Upload combined artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pm-cast-d-warmup600-combined-${{ github.run_id }}
+          path: projects/harv-extension/outputs/pm_cast_d_warmup600/actions/${{ github.run_id }}/combined/
+          if-no-files-found: error
+          retention-days: 30
